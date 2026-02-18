@@ -1,123 +1,128 @@
-import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import React, { useState } from 'react';
 
-const Register = () => {
-  const navigate = useNavigate();
+interface RegisterData {
+  fullName: string;
+  email: string;
+  company: string;
+  fund: string;
+}
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+interface FormErrors {
+  fullName?: string;
+  email?: string;
+  company?: string;
+  fund?: string;
+}
 
-  const handleSubmit = (e: React.FormEvent) => {
+const RegisterPage: React.FC = () => {
+  const [formData, setFormData] = useState<RegisterData>({
+    fullName: '',
+    email: '',
+    company: '',
+    fund: '',
+  });
+
+  const [errors, setErrors] = useState<FormErrors>({});
+
+  const validate = (): boolean => {
+    const newErrors: FormErrors = {};
+    if (!formData.fullName.trim()) newErrors.fullName = 'Full name is required';
+    if (!formData.email.includes('@')) newErrors.email = 'Please enter a valid email';
+    if (formData.company.length < 2) newErrors.company = 'Company name is too short';
+    if (formData.fund === '') newErrors.fund = 'Please select a fund of interest';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
-    if (password !== confirmPassword) {
-      alert("Passwords do not match");
-      return;
+    if (validate()) {
+      console.log('Application Submitted:', formData);
+      // Proceed with API call
     }
-
-    console.log("Register Attempt:", { email, password });
-
-    alert("Account created (mock)");
-    navigate("/");
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <h2 style={styles.title}>Create Account</h2>
+    <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-4">
+      <div className="w-full max-w-[480px]">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 md:p-10">
+          <header className="mb-8 text-center">
+            <h1 className="text-2xl font-bold text-slate-900">Join the Beta</h1>
+            <p className="text-slate-500 mt-2 text-sm">Submit your application to get early access.</p>
+          </header>
 
-        <form onSubmit={handleSubmit}>
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            required
-            onChange={(e) => setEmail(e.target.value)}
-            style={styles.input}
-          />
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Full Name */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Full Name</label>
+              <input
+                name="fullName"
+                type="text"
+                className={`w-full px-4 py-2.5 bg-white border ${errors.fullName ? 'border-red-500' : 'border-slate-300'} rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-600/20`}
+                placeholder="Jane Doe"
+                onChange={handleChange}
+              />
+              {errors.fullName && <p className="text-red-500 text-xs mt-1">{errors.fullName}</p>}
+            </div>
 
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            required
-            onChange={(e) => setPassword(e.target.value)}
-            style={styles.input}
-          />
+            {/* Email */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Work Email</label>
+              <input
+                name="email"
+                type="email"
+                className={`w-full px-4 py-2.5 bg-white border ${errors.email ? 'border-red-500' : 'border-slate-300'} rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-600/20`}
+                placeholder="jane@company.com"
+                onChange={handleChange}
+              />
+              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+            </div>
 
-          <input
-            type="password"
-            placeholder="Confirm Password"
-            value={confirmPassword}
-            required
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            style={styles.input}
-          />
+            {/* Company */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Company Name</label>
+              <input
+                name="company"
+                type="text"
+                className={`w-full px-4 py-2.5 bg-white border ${errors.company ? 'border-red-500' : 'border-slate-300'} rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-600/20`}
+                placeholder="Acme Corp"
+                onChange={handleChange}
+              />
+              {errors.company && <p className="text-red-500 text-xs mt-1">{errors.company}</p>}
+            </div>
 
-          <button type="submit" style={styles.button}>
-            Register
-          </button>
-        </form>
+            {/* Fund of Interest */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Fund of Interest</label>
+              <select
+                name="fund"
+                className={`w-full px-4 py-2.5 bg-white border ${errors.fund ? 'border-red-500' : 'border-slate-300'} rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-600/20`}
+                value={formData.fund}
+                onChange={handleChange}
+              >
+                <option value="">Select a role</option>
+                <option value="iv1">IV1 - Secondary Exits</option>
+                <option value="iv2">IV2 - Cross Border Opportunities</option>
+              </select>
+              {errors.fund && <p className="text-red-500 text-xs mt-1">{errors.fund}</p>}
+            </div>
 
-        <p style={styles.linkText}>
-          Already have an account?{" "}
-          <span style={styles.link} onClick={() => navigate("/")}>
-            Login
-          </span>
-        </p>
+            <button
+              type="submit"
+              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-3 px-4 rounded-xl transition-colors duration-200 mt-2"
+            >
+              Apply
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
 };
 
-const styles: { [key: string]: React.CSSProperties } = {
-  container: {
-    height: "100vh",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    background: "linear-gradient(135deg, #0f172a, #1e293b)",
-  },
-  card: {
-    width: "380px",
-    padding: "40px",
-    borderRadius: "12px",
-    backgroundColor: "#ffffff",
-    boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
-  },
-  title: {
-    marginBottom: "25px",
-    textAlign: "center",
-  },
-  input: {
-    width: "100%",
-    padding: "12px",
-    marginBottom: "15px",
-    borderRadius: "8px",
-    border: "1px solid #ddd",
-    fontSize: "14px",
-  },
-  button: {
-    width: "100%",
-    padding: "12px",
-    borderRadius: "8px",
-    border: "none",
-    backgroundColor: "#16a34a",
-    color: "white",
-    fontWeight: 600,
-    cursor: "pointer",
-  },
-  linkText: {
-    marginTop: "20px",
-    textAlign: "center",
-    fontSize: "14px",
-  },
-  link: {
-    color: "#16a34a",
-    cursor: "pointer",
-    fontWeight: 600,
-  },
-};
-
-export default Register;
+export default RegisterPage;
