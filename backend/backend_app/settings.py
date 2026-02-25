@@ -43,6 +43,10 @@ INSTALLED_APPS = [
     'users',
 ]
 
+REST_FRAMEWORK = {
+    "EXCEPTION_HANDLER": "users.exceptions.custom_exception_handler",
+}
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -71,6 +75,9 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'backend_app.wsgi.application'
+
+# User model
+AUTH_USER_MODEL = "users.User"
 
 
 # Database
