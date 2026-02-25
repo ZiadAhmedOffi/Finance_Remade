@@ -56,6 +56,17 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     objects = CustomUserManager()
 
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ("PENDING", "Pending"),
+            ("ACTIVE", "Active"),
+            ("REJECTED", "Rejected"),
+        ],
+        default="PENDING",
+        db_index=True,
+    )
+
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
 

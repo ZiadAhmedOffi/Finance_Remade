@@ -5,6 +5,8 @@ interface RegisterData {
   email: string;
   company: string;
   fund: string;
+  password: string;
+  confirmPassword: string;
 }
 
 interface FormErrors {
@@ -12,6 +14,8 @@ interface FormErrors {
   email?: string;
   company?: string;
   fund?: string;
+  password?: string;
+  confirmPassword?: string;
 }
 
 const RegisterPage: React.FC = () => {
@@ -20,6 +24,8 @@ const RegisterPage: React.FC = () => {
     email: '',
     company: '',
     fund: '',
+    password: '',
+    confirmPassword: '',
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
@@ -30,6 +36,9 @@ const RegisterPage: React.FC = () => {
     if (!formData.email.includes('@')) newErrors.email = 'Please enter a valid email';
     if (formData.company.length < 2) newErrors.company = 'Company name is too short';
     if (formData.fund === '') newErrors.fund = 'Please select a fund of interest';
+    if (formData.password === '') newErrors.password = 'Password is required';
+    if (formData.password.length < 6) newErrors.password = 'Password must be at least 6 characters';
+    if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -81,6 +90,46 @@ const RegisterPage: React.FC = () => {
                 onChange={handleChange}
               />
               {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+            </div>
+
+            {/* Password */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Password
+              </label>
+              <input
+                name="password"
+                type="password"
+                className={`w-full px-4 py-2.5 bg-white border ${
+                  errors.password ? 'border-red-500' : 'border-slate-300'
+                } rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-600/20`}
+                placeholder="Enter your password"
+                onChange={handleChange}
+              />
+              {errors.password && (
+                <p className="text-red-500 text-xs mt-1">{errors.password}</p>
+              )}
+            </div>
+
+            {/* Confirm Password */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Confirm Password
+              </label>
+              <input
+                name="confirmPassword"
+                type="password"
+                className={`w-full px-4 py-2.5 bg-white border ${
+                  errors.confirmPassword ? 'border-red-500' : 'border-slate-300'
+                } rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-600/20`}
+                placeholder="Re-enter your password"
+                onChange={handleChange}
+              />
+              {errors.confirmPassword && (
+                <p className="text-red-500 text-xs mt-1">
+                  {errors.confirmPassword}
+                </p>
+              )}
             </div>
 
             {/* Company */}

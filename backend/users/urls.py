@@ -1,7 +1,12 @@
 from django.urls import path
-from . import views
+from users.views import (
+    CustomTokenObtainPairView,
+    ApplyForAccessView,
+    ApproveUserView,
+)
 
-# URLConf
 urlpatterns = [
-    path('hello/', views.hello_api)
+    path("token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("apply/", ApplyForAccessView.as_view(), name="apply-access"),
+    path("approve/<uuid:user_id>/", ApproveUserView.as_view(), name="approve-user"),
 ]
