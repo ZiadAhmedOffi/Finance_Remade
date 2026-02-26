@@ -1,58 +1,71 @@
-import React, { useState } from 'react';
-
-interface RegisterData {
-  fullName: string;
-  email: string;
-  company: string;
-  fund: string;
-  password: string;
-  confirmPassword: string;
-}
-
-interface FormErrors {
-  fullName?: string;
-  email?: string;
-  company?: string;
-  fund?: string;
-  password?: string;
-  confirmPassword?: string;
-}
+import React, { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { api } from "../api/api";
 
 const RegisterPage: React.FC = () => {
-  const [formData, setFormData] = useState<RegisterData>({
-    fullName: '',
-    email: '',
-    company: '',
-    fund: '',
-    password: '',
-    confirmPassword: '',
+  const navigate = useNavigate();
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+    confirmPassword: "",
+    first_name: "",
+    last_name: "",
+    company: "",
+    job_title: "",
+    phone_number: "",
   });
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  const [errors, setErrors] = useState<FormErrors>({});
-
-  const validate = (): boolean => {
-    const newErrors: FormErrors = {};
-    if (!formData.fullName.trim()) newErrors.fullName = 'Full name is required';
-    if (!formData.email.includes('@')) newErrors.email = 'Please enter a valid email';
-    if (formData.company.length < 2) newErrors.company = 'Company name is too short';
-    if (formData.fund === '') newErrors.fund = 'Please select a fund of interest';
-    if (formData.password === '') newErrors.password = 'Password is required';
-    if (formData.password.length < 6) newErrors.password = 'Password must be at least 6 characters';
-    if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validate()) {
-      console.log('Application Submitted:', formData);
-      // Proceed with API call
+    setError("");
+    setSuccess("");
+
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    try {
+      const response = await api.post("/users/apply/", {
+        email: formData.email,
+        password: formData.password,
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        company: formData.company,
+        job_title: formData.job_title,
+        phone_number: formData.phone_number,
+      });
+
+      setSuccess(response.data.message);
+      // clear form
+      setFormData({
+        email: "",
+        password: "",
+        confirmPassword: "",
+        first_name: "",
+        last_name: "",
+        company: "",
+        job_title: "",
+        phone_number: "",
+      });
+
+      setTimeout(() => {
+        navigate("/login");
+      }, 3000);
+    } catch (err: any) {
+      if (err.response && err.response.data) {
+        const errorMessages = Object.values(err.response.data).flat();
+        setError(errorMessages.join(" "));
+      } else {
+        setError("Registration failed. Please try again.");
+      }
+      console.error(err);
     }
   };
 
@@ -61,38 +74,79 @@ const RegisterPage: React.FC = () => {
       <div className="w-full max-w-[480px]">
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 md:p-10">
           <header className="mb-8 text-center">
-            <h1 className="text-2xl font-bold text-slate-900">Join the Beta</h1>
-            <p className="text-slate-500 mt-2 text-sm">Submit your application to get early access.</p>
+            <h1 className="text-2xl font-bold text-slate-900">
+              Apply for Access
+            </h1>
+            <p className="text-slate-500 mt-2 text-sm">
+              Submit your application to get access to the platform.
+            </p>
           </header>
 
+          {error && (
+            <div
+              className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4"
+              role="alert"
+            >
+              <span className="block sm:inline">{error}</span>
+            </div>
+          )}
+
+          {success && (
+            <div
+              className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4"
+              role="alert"
+            >
+              <span className="block sm:inline">{success}</span>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Full Name */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Full Name</label>
-              <input
-                name="fullName"
-                type="text"
-                className={`w-full px-4 py-2.5 bg-white border ${errors.fullName ? 'border-red-500' : 'border-slate-300'} rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-600/20`}
-                placeholder="Jane Doe"
-                onChange={handleChange}
-              />
-              {errors.fullName && <p className="text-red-500 text-xs mt-1">{errors.fullName}</p>}
+            <div className="flex space-x-4">
+              <div className="w-1/2">
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  First Name
+                </label>
+                <input
+                  name="first_name"
+                  type="text"
+                  className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-600/20"
+                  placeholder="John"
+                  onChange={handleChange}
+                  value={formData.first_name}
+                  required
+                />
+              </div>
+              <div className="w-1/2">
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Last Name
+                </label>
+                <input
+                  name="last_name"
+                  type="text"
+                  className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-600/20"
+                  placeholder="Doe"
+                  onChange={handleChange}
+                  value={formData.last_name}
+                  required
+                />
+              </div>
             </div>
 
-            {/* Email */}
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Work Email</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Work Email
+              </label>
               <input
                 name="email"
                 type="email"
-                className={`w-full px-4 py-2.5 bg-white border ${errors.email ? 'border-red-500' : 'border-slate-300'} rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-600/20`}
-                placeholder="jane@company.com"
+                className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-600/20"
+                placeholder="john.doe@company.com"
                 onChange={handleChange}
+                value={formData.email}
+                required
               />
-              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
             </div>
 
-            {/* Password */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
                 Password
@@ -100,18 +154,14 @@ const RegisterPage: React.FC = () => {
               <input
                 name="password"
                 type="password"
-                className={`w-full px-4 py-2.5 bg-white border ${
-                  errors.password ? 'border-red-500' : 'border-slate-300'
-                } rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-600/20`}
+                className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-600/20"
                 placeholder="Enter your password"
                 onChange={handleChange}
+                value={formData.password}
+                required
               />
-              {errors.password && (
-                <p className="text-red-500 text-xs mt-1">{errors.password}</p>
-              )}
             </div>
 
-            {/* Confirm Password */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
                 Confirm Password
@@ -119,55 +169,73 @@ const RegisterPage: React.FC = () => {
               <input
                 name="confirmPassword"
                 type="password"
-                className={`w-full px-4 py-2.5 bg-white border ${
-                  errors.confirmPassword ? 'border-red-500' : 'border-slate-300'
-                } rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-600/20`}
+                className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-600/20"
                 placeholder="Re-enter your password"
                 onChange={handleChange}
+                value={formData.confirmPassword}
+                required
               />
-              {errors.confirmPassword && (
-                <p className="text-red-500 text-xs mt-1">
-                  {errors.confirmPassword}
-                </p>
-              )}
             </div>
 
-            {/* Company */}
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Company Name</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Company Name
+              </label>
               <input
                 name="company"
                 type="text"
-                className={`w-full px-4 py-2.5 bg-white border ${errors.company ? 'border-red-500' : 'border-slate-300'} rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-600/20`}
-                placeholder="Acme Corp"
+                className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-600/20"
+                placeholder="Acme Inc."
                 onChange={handleChange}
+                value={formData.company}
               />
-              {errors.company && <p className="text-red-500 text-xs mt-1">{errors.company}</p>}
             </div>
 
-            {/* Fund of Interest */}
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Fund of Interest</label>
-              <select
-                name="fund"
-                className={`w-full px-4 py-2.5 bg-white border ${errors.fund ? 'border-red-500' : 'border-slate-300'} rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-600/20`}
-                value={formData.fund}
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Job Title
+              </label>
+              <input
+                name="job_title"
+                type="text"
+                className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-600/20"
+                placeholder="Software Engineer"
                 onChange={handleChange}
-              >
-                <option value="">Select a role</option>
-                <option value="iv1">IV1 - Secondary Exits</option>
-                <option value="iv2">IV2 - Cross Border Opportunities</option>
-              </select>
-              {errors.fund && <p className="text-red-500 text-xs mt-1">{errors.fund}</p>}
+                value={formData.job_title}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Phone Number
+              </label>
+              <input
+                name="phone_number"
+                type="text"
+                className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-600/20"
+                placeholder="+1234567890"
+                onChange={handleChange}
+                value={formData.phone_number}
+              />
             </div>
 
             <button
               type="submit"
               className="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-3 px-4 rounded-xl transition-colors duration-200 mt-2"
             >
-              Apply
+              Apply for Access
             </button>
           </form>
+
+          <p className="text-center text-sm text-slate-500 mt-8">
+            Already have an account?{" "}
+            <Link
+              to="/login"
+              className="font-semibold text-indigo-600 hover:text-indigo-500"
+            >
+              Sign in
+            </Link>
+          </p>
         </div>
       </div>
     </div>
