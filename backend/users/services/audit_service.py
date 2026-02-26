@@ -12,3 +12,22 @@ class AuditService:
             metadata=metadata or {},
             ip_address=ip,
         )
+
+    @staticmethod
+    def log_event(actor, action, target_model=None, target_id=None, description=None, ip_address=None):
+        """
+        Specialized log method for general events (like access denied).
+        Maps generic parameters to AuditLog model.
+        """
+        metadata = {
+            "target_model": target_model,
+            "target_id": str(target_id) if target_id else None,
+            "description": description,
+        }
+        
+        AuditLog.objects.create(
+            actor=actor,
+            action=action,
+            metadata=metadata,
+            ip_address=ip_address,
+        )

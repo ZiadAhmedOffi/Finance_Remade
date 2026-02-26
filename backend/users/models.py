@@ -191,6 +191,10 @@ class AuditLog(models.Model):
         ("ROLE_ASSIGNED", "Role Assigned"),
         ("ROLE_REMOVED", "Role Removed"),
         ("FUND_CREATED", "Fund Created"),
+        ("ACCESS_DENIED", "Access Denied"),
+        ("UNAUTHENTICATED_ACCESS_DENIED", "Unauthenticated Access Denied"),
+        ("LOGIN_SUCCESS", "Login Success"),
+        ("LOGIN_FAILED", "Login Failed"),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
