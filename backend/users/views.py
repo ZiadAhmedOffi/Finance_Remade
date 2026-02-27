@@ -13,10 +13,12 @@ from users.serializers import (
     ApplyAccessSerializer,
     UserSerializer,
     RoleSerializer,
+    AuditLogSerializer,
 )
 from users.permissions import IsAccessManager
 from users.services.permission_service import PermissionService
 from users.services.audit_service import AuditService
+from users.models import AuditLog
 
 # -----------------------------
 # JWT Custom Token Serializer
@@ -274,6 +276,65 @@ class AssignRoleView(APIView):
             target_user.save(update_fields=["is_active", "status"])
 
         return Response({"message": "Role assigned successfully."})
+
+class RemoveRoleView(APIView):
+    permission_classes = [IsAccessManager]
+
+    def post(self, request, user_id):
+        role_id = request.data.get("role_id")
+        fund_id = request.data.get("fund_id")
+
+        try:
+            target_user = User.objects.get(id=user_id)
+            role = Role.objects.get(id=role_id)
+        except (User.DoesNotExist, Role.DoesNotExist):
+            return Response({"error": "User or Role not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        is_super_admin = PermissionService.is_super_admin(request.user)
+        
+        if role.name in ["SUPER_ADMIN", "ACCESS_MANAGER"] and not is_super_admin:
+            return Response(
+                {"error": "Only Super Admins can remove Admin/Manager roles."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            assignment = UserRoleAssignment.objects.get(
+                user=target_user,
+                role=role,
+                fund=fund_id if fund_id else None
+            )
+            assignment.delete()
+            
+            AuditService.log(
+                actor=request.user,
+                action="ROLE_REMOVED",
+                target_user=target_user,
+                metadata={"description": f"Role {role.name} was removed from {target_user.email}."},
+                ip=request.META.get("REMOTE_ADDR")
+            )
+            
+            return Response({"message": "Role removed successfully."})
+        except UserRoleAssignment.DoesNotExist:
+            return Response({"error": "Role assignment not found."}, status=status.HTTP_404_NOT_FOUND)
+
+# -----------------------------
+# Audit Log Listing
+# -----------------------------
+class AuditLogPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+class AuditLogView(APIView):
+    permission_classes = [IsAccessManager]
+
+    def get(self, request):
+        logs = AuditLog.objects.all().select_related("actor", "target_user", "fund").order_by("-timestamp")
+        paginator = AuditLogPagination()
+        result_page = paginator.paginate_queryset(logs, request)
+        serializer = AuditLogSerializer(result_page, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
 # -----------------------------
 # Metadata Lists

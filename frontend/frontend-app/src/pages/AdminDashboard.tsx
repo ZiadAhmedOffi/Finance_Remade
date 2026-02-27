@@ -14,9 +14,11 @@ interface Fund {
 
 interface UserRole {
   role: {
+    id: string;
     name: string;
   };
   fund: string | null;
+  fund_id?: string | null;
 }
 
 interface User {
@@ -31,10 +33,22 @@ interface User {
   roles: UserRole[];
 }
 
+interface AuditLog {
+  id: string;
+  actor_email: string;
+  target_user_email: string;
+  action: string;
+  fund_name: string;
+  metadata: any;
+  ip_address: string;
+  timestamp: string;
+}
+
 const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<"pending" | "active">("pending");
+  const [activeTab, setActiveTab] = useState<"pending" | "active" | "logs">("pending");
   const [pendingUsers, setPendingUsers] = useState<User[]>([]);
   const [activeUsers, setActiveUsers] = useState<User[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [funds, setFunds] = useState<Fund[]>([]);
   
@@ -44,6 +58,8 @@ const AdminDashboard: React.FC = () => {
   
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [logPage, setLogPage] = useState(1);
+  const [totalLogPages, setTotalLogPages] = useState(1);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -69,6 +85,16 @@ const AdminDashboard: React.FC = () => {
     }
   }, []);
 
+  const fetchAuditLogs = useCallback(async (page: number) => {
+    try {
+      const response = await api.get(`/users/logs/?page=${page}`);
+      setAuditLogs(response.data.results);
+      setTotalLogPages(Math.ceil(response.data.count / 20)); // Assuming page size is 20
+    } catch (err) {
+      console.error("Failed to fetch audit logs", err);
+    }
+  }, []);
+
   const fetchRolesAndFunds = useCallback(async () => {
     try {
       const [rolesRes, fundsRes] = await Promise.all([
@@ -88,12 +114,13 @@ const AdminDashboard: React.FC = () => {
       await Promise.all([
         fetchPendingUsers(),
         fetchActiveUsers(1),
+        fetchAuditLogs(1),
         fetchRolesAndFunds(),
       ]);
       setLoading(false);
     };
     init();
-  }, [fetchPendingUsers, fetchActiveUsers, fetchRolesAndFunds]);
+  }, [fetchPendingUsers, fetchActiveUsers, fetchAuditLogs, fetchRolesAndFunds]);
 
   const handleApprove = async (userId: string) => {
     try {
@@ -101,6 +128,7 @@ const AdminDashboard: React.FC = () => {
       setMessage("User approved successfully.");
       fetchPendingUsers();
       fetchActiveUsers(currentPage);
+      fetchAuditLogs(logPage);
     } catch (err) {
       setError("Failed to approve user.");
     }
@@ -111,6 +139,7 @@ const AdminDashboard: React.FC = () => {
       await api.post(`/users/reject/${userId}/`);
       setMessage("User rejected successfully.");
       fetchPendingUsers();
+      fetchAuditLogs(logPage);
     } catch (err) {
       setError("Failed to reject user.");
     }
@@ -122,6 +151,7 @@ const AdminDashboard: React.FC = () => {
       await api.post(`/users/deactivate/${userId}/`);
       setMessage("User deactivated successfully.");
       fetchActiveUsers(currentPage);
+      fetchAuditLogs(logPage);
     } catch (err) {
       setError("Failed to deactivate user.");
     }
@@ -144,8 +174,24 @@ const AdminDashboard: React.FC = () => {
       setMessage("Role assigned successfully.");
       setIsModalOpen(false);
       fetchActiveUsers(currentPage);
+      fetchAuditLogs(logPage);
     } catch (err: any) {
       setError(err.response?.data?.error || "Failed to assign role.");
+    }
+  };
+
+  const handleRemoveRole = async (userId: string, roleId: string, fundId: string | null) => {
+    if (!window.confirm("Are you sure you want to remove this role?")) return;
+    try {
+      await api.post(`/users/remove-role/${userId}/`, {
+        role_id: roleId,
+        fund_id: fundId
+      });
+      setMessage("Role removed successfully.");
+      fetchActiveUsers(currentPage);
+      fetchAuditLogs(logPage);
+    } catch (err: any) {
+      setError(err.response?.data?.error || "Failed to remove role.");
     }
   };
 
@@ -171,6 +217,12 @@ const AdminDashboard: React.FC = () => {
           onClick={() => setActiveTab("active")}
         >
           Active Users
+        </button>
+        <button 
+          className={activeTab === "logs" ? "tab-btn active" : "tab-btn"}
+          onClick={() => setActiveTab("logs")}
+        >
+          Audit Logs
         </button>
       </div>
 
@@ -204,7 +256,7 @@ const AdminDashboard: React.FC = () => {
               </table>
             ) : <p className="empty-state">No pending applications found.</p>}
           </section>
-        ) : (
+        ) : activeTab === "active" ? (
           <section>
             <h2>Active Users</h2>
             {activeUsers.length > 0 ? (
@@ -228,6 +280,13 @@ const AdminDashboard: React.FC = () => {
                             {user.roles.length > 0 ? user.roles.map((r, i) => (
                               <span key={i} className="role-tag">
                                 {r.role.name} {r.fund && `(${r.fund})`}
+                                <button 
+                                  className="remove-role-btn" 
+                                  onClick={() => handleRemoveRole(user.id, r.role.id || "", r.fund_id || null)}
+                                  title="Remove Role"
+                                >
+                                  &times;
+                                </button>
                               </span>
                             )) : <span className="no-roles">No roles</span>}
                           </div>
@@ -271,6 +330,57 @@ const AdminDashboard: React.FC = () => {
                 </div>
               </>
             ) : <p className="empty-state">No active users found.</p>}
+          </section>
+        ) : (
+          <section>
+            <h2>Audit Logs</h2>
+            {auditLogs.length > 0 ? (
+              <>
+                <table className="users-table">
+                  <thead>
+                    <tr>
+                      <th>Timestamp</th>
+                      <th>Actor</th>
+                      <th>Action</th>
+                      <th>Target</th>
+                      <th>IP Address</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditLogs.map((log) => (
+                      <tr key={log.id}>
+                        <td>{new Date(log.timestamp).toLocaleString()}</td>
+                        <td>{log.actor_email || "System"}</td>
+                        <td>{log.action}</td>
+                        <td>{log.target_user_email || log.fund_name || "-"}</td>
+                        <td>{log.ip_address || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="pagination">
+                  <button 
+                    disabled={logPage === 1} 
+                    onClick={() => {
+                      setLogPage(prev => prev - 1);
+                      fetchAuditLogs(logPage - 1);
+                    }}
+                  >
+                    Previous
+                  </button>
+                  <span>Page {logPage} of {totalLogPages}</span>
+                  <button 
+                    disabled={logPage === totalLogPages} 
+                    onClick={() => {
+                      setLogPage(prev => prev + 1);
+                      fetchAuditLogs(logPage + 1);
+                    }}
+                  >
+                    Next
+                  </button>
+                </div>
+              </>
+            ) : <p className="empty-state">No logs found.</p>}
           </section>
         )}
       </div>

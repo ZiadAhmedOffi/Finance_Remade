@@ -1,6 +1,6 @@
 from django.contrib.auth import authenticate
 from rest_framework import serializers
-from users.models import User, Role, UserRoleAssignment
+from users.models import User, Role, UserRoleAssignment, AuditLog
 
 
 # -----------------------------
@@ -114,3 +114,25 @@ class UserSerializer(serializers.ModelSerializer):
         # Use the related_name 'role_assignments' from the User model
         assignments = obj.role_assignments.all()
         return UserRoleAssignmentSerializer(assignments, many=True).data
+
+
+# -----------------------------
+# Audit Log Serializer
+# -----------------------------
+class AuditLogSerializer(serializers.ModelSerializer):
+    actor_email = serializers.EmailField(source="actor.email", read_only=True)
+    target_user_email = serializers.EmailField(source="target_user.email", read_only=True)
+    fund_name = serializers.CharField(source="fund.name", read_only=True)
+
+    class Meta:
+        model = AuditLog
+        fields = [
+            "id",
+            "actor_email",
+            "target_user_email",
+            "action",
+            "fund_name",
+            "metadata",
+            "ip_address",
+            "timestamp",
+        ]

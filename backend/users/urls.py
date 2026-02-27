@@ -10,6 +10,8 @@ from users.views import (
     RejectUserView,
     DeactivateUserView,
     AssignRoleView,
+    RemoveRoleView,
+    AuditLogView,
     ListFundsView,
     ListRolesView,
     UserDetailView,
@@ -28,6 +30,8 @@ urlpatterns = [
     path("reject/<uuid:user_id>/", RejectUserView.as_view(), name="reject-user"),
     path("deactivate/<uuid:user_id>/", DeactivateUserView.as_view(), name="deactivate-user"),
     path("assign-role/<uuid:user_id>/", AssignRoleView.as_view(), name="assign-role"),
+    path("remove-role/<uuid:user_id>/", RemoveRoleView.as_view(), name="remove-role"),
+    path("logs/", AuditLogView.as_view(), name="audit-logs"),
     path("funds/", ListFundsView.as_view(), name="list-funds"),
     path("roles/", ListRolesView.as_view(), name="list-roles"),
 
