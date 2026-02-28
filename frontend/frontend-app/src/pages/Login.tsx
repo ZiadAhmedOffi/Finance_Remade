@@ -8,6 +8,11 @@ const LoginPage: React.FC = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
+  React.useEffect(() => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");

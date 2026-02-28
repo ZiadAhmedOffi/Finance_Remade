@@ -4,6 +4,12 @@ import { api } from "../api/api";
 
 const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+  }, []);
+
   const [formData, setFormData] = useState({
     email: "",
     password: "",

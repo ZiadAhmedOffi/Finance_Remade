@@ -7,10 +7,17 @@ import Profile from "./pages/Profile";
 import AdminDashboard from "./pages/AdminDashboard";
 import PrivateRoute from "./components/PrivateRoute";
 
+/**
+ * Main App component. Handles routing and global user activity tracking
+ * to ensure tokens are valid during navigation and interactions.
+ */
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  /**
+   * Helper function to check if the current JWT token is expired by decoding its payload.
+   */
   const isTokenExpired = useCallback(() => {
     const token = localStorage.getItem("access_token");
     if (!token) return true;
@@ -27,6 +34,10 @@ function App() {
     }
   }, []);
 
+  /**
+   * Monitors user activity to ensure they are still authenticated.
+   * Redirects to login if the session has expired.
+   */
   const handleUserActivity = useCallback(() => {
     // Only check for public routes if we want to avoid redirect loops, 
     // but the request is to redirect immediately once it runs out.

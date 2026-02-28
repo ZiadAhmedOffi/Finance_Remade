@@ -44,6 +44,11 @@ interface AuditLog {
   timestamp: string;
 }
 
+/**
+ * AdminDashboard component for users with elevated privileges.
+ * Allows managing user applications, active users, role assignments, 
+ * and viewing system audit logs with detailed metadata.
+ */
 const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"pending" | "active" | "logs">("pending");
   const [pendingUsers, setPendingUsers] = useState<User[]>([]);
@@ -63,6 +68,7 @@ const AdminDashboard: React.FC = () => {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedLogForDetails, setSelectedLogForDetails] = useState<AuditLog | null>(null);
   const [selectedRoleId, setSelectedRoleId] = useState("");
   const [selectedFundId, setSelectedFundId] = useState("");
 
@@ -344,6 +350,7 @@ const AdminDashboard: React.FC = () => {
                       <th>Action</th>
                       <th>Target</th>
                       <th>IP Address</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -354,6 +361,14 @@ const AdminDashboard: React.FC = () => {
                         <td>{log.action}</td>
                         <td>{log.target_user_email || log.fund_name || "-"}</td>
                         <td>{log.ip_address || "-"}</td>
+                        <td>
+                          <button 
+                            className="btn btn-primary"
+                            onClick={() => setSelectedLogForDetails(log)}
+                          >
+                            View Details
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -421,6 +436,28 @@ const AdminDashboard: React.FC = () => {
             <div className="modal-actions">
               <button onClick={handleAssignRole} className="btn btn-approve">Confirm Assignment</button>
               <button onClick={() => setIsModalOpen(false)} className="btn btn-reject">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedLogForDetails && (
+        <div className="modal-overlay">
+          <div className="modal log-details-modal">
+            <h3>Log Details</h3>
+            <div className="log-details-content">
+              <p><strong>Action:</strong> {selectedLogForDetails.action}</p>
+              <p><strong>Timestamp:</strong> {new Date(selectedLogForDetails.timestamp).toLocaleString()}</p>
+              <p><strong>Actor:</strong> {selectedLogForDetails.actor_email || "System"}</p>
+              <p><strong>Target:</strong> {selectedLogForDetails.target_user_email || selectedLogForDetails.fund_name || "-"}</p>
+              <p><strong>IP Address:</strong> {selectedLogForDetails.ip_address || "-"}</p>
+              <div className="metadata-section">
+                <strong>Metadata:</strong>
+                <pre>{JSON.stringify(selectedLogForDetails.metadata, null, 2)}</pre>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button onClick={() => setSelectedLogForDetails(null)} className="btn btn-primary">Close</button>
             </div>
           </div>
         </div>
