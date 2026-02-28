@@ -90,10 +90,11 @@ class RoleSerializer(serializers.ModelSerializer):
 # -----------------------------
 class UserRoleAssignmentSerializer(serializers.ModelSerializer):
     role = RoleSerializer()
+    fund_name = serializers.CharField(source="fund.name", read_only=True)
 
     class Meta:
         model = UserRoleAssignment
-        fields = ["id", "role", "fund"]
+        fields = ["id", "role", "fund", "fund_name"]
 
 
 # -----------------------------

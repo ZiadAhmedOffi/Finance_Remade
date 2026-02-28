@@ -1,28 +1,71 @@
 .dashboard-container {
-    max-width: 800px;
-    margin: 2rem auto;
     padding: 2rem;
-    text-align: center;
-  }
-  
-  .dashboard-links {
-    margin-top: 2rem;
+    max-width: 1000px;
+    margin: 0 auto;
+    font-family: 'Inter', sans-serif;
+}
+
+.dashboard-section {
+    margin: 2rem 0;
+    padding: 2rem;
+    background: #f8f9fa;
+    border-radius: 12px;
+}
+
+.funds-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+.fund-card {
+    display: block;
+    background: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: 1px solid #eee;
+}
+
+.fund-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border-color: #007bff;
+}
+
+.fund-card h4 {
+    margin: 0 0 0.5rem 0;
+    color: #1a1a1a;
+}
+
+.fund-card span {
+    font-size: 0.9rem;
+    color: #007bff;
+    font-weight: 600;
+}
+
+.dashboard-links {
     display: flex;
     gap: 1rem;
     justify-content: center;
-  }
-  
-  .dashboard-link {
+    margin-top: 3rem;
+}
+
+.dashboard-link {
     display: inline-block;
-    padding: 1rem 2rem;
-    background-color: #3498db;
+    padding: 0.75rem 1.5rem;
+    background-color: #007bff;
     color: white;
     text-decoration: none;
-    border-radius: 4px;
-    transition: background-color 0.3s;
-  }
-  
-  .dashboard-link:hover {
-    background-color: #2980b9;
-  }
-  
+    border-radius: 6px;
+    transition: background-color 0.2s;
+    font-weight: 500;
+}
+
+.dashboard-link:hover {
+    background-color: #0056b3;
+}

@@ -10,6 +10,10 @@ interface Role {
 interface Fund {
   id: string;
   name: string;
+  description: string;
+  created_by_email: string;
+  steering_committee: string[];
+  is_active: boolean;
 }
 
 interface UserRole {
@@ -18,7 +22,7 @@ interface UserRole {
     name: string;
   };
   fund: string | null;
-  fund_id?: string | null;
+  fund_name?: string | null;
 }
 
 interface User {
@@ -50,7 +54,7 @@ interface AuditLog {
  * and viewing system audit logs with detailed metadata.
  */
 const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<"pending" | "active" | "logs">("pending");
+  const [activeTab, setActiveTab] = useState<"pending" | "active" | "logs" | "funds">("pending");
   const [pendingUsers, setPendingUsers] = useState<User[]>([]);
   const [activeUsers, setActiveUsers] = useState<User[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -67,10 +71,14 @@ const AdminDashboard: React.FC = () => {
   const [totalLogPages, setTotalLogPages] = useState(1);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isFundModalOpen, setIsFundModalOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedLogForDetails, setSelectedLogForDetails] = useState<AuditLog | null>(null);
   const [selectedRoleId, setSelectedRoleId] = useState("");
   const [selectedFundId, setSelectedFundId] = useState("");
+
+  const [newFundName, setNewFundName] = useState("");
+  const [newFundDescription, setNewFundDescription] = useState("");
 
   const fetchPendingUsers = useCallback(async () => {
     try {
@@ -101,16 +109,21 @@ const AdminDashboard: React.FC = () => {
     }
   }, []);
 
-  const fetchRolesAndFunds = useCallback(async () => {
+  const fetchFunds = useCallback(async () => {
     try {
-      const [rolesRes, fundsRes] = await Promise.all([
-        api.get("/users/roles/"),
-        api.get("/users/funds/"),
-      ]);
-      setRoles(rolesRes.data);
-      setFunds(fundsRes.data);
+      const response = await api.get("/funds/");
+      setFunds(response.data);
     } catch (err) {
-      console.error("Failed to fetch roles or funds", err);
+      console.error("Failed to fetch funds", err);
+    }
+  }, []);
+
+  const fetchRolesOnly = useCallback(async () => {
+    try {
+      const response = await api.get("/users/roles/");
+      setRoles(response.data);
+    } catch (err) {
+      console.error("Failed to fetch roles", err);
     }
   }, []);
 
@@ -121,12 +134,13 @@ const AdminDashboard: React.FC = () => {
         fetchPendingUsers(),
         fetchActiveUsers(1),
         fetchAuditLogs(1),
-        fetchRolesAndFunds(),
+        fetchFunds(),
+        fetchRolesOnly(),
       ]);
       setLoading(false);
     };
     init();
-  }, [fetchPendingUsers, fetchActiveUsers, fetchAuditLogs, fetchRolesAndFunds]);
+  }, [fetchPendingUsers, fetchActiveUsers, fetchAuditLogs, fetchFunds, fetchRolesOnly]);
 
   const handleApprove = async (userId: string) => {
     try {
@@ -160,6 +174,34 @@ const AdminDashboard: React.FC = () => {
       fetchAuditLogs(logPage);
     } catch (err) {
       setError("Failed to deactivate user.");
+    }
+  };
+
+  const handleCreateFund = async () => {
+    if (!newFundName) return;
+    try {
+      await api.post("/funds/", {
+        name: newFundName,
+        description: newFundDescription
+      });
+      setMessage("Fund created successfully.");
+      setNewFundName("");
+      setNewFundDescription("");
+      setIsFundModalOpen(false);
+      fetchFunds();
+    } catch (err: any) {
+      setError(err.response?.data?.error || "Failed to create fund.");
+    }
+  };
+
+  const handleDeactivateFund = async (fundId: string) => {
+    if (!window.confirm("Are you sure you want to deactivate this fund?")) return;
+    try {
+      await api.delete(`/funds/${fundId}/`);
+      setMessage("Fund deactivated successfully.");
+      fetchFunds();
+    } catch (err) {
+      setError("Failed to deactivate fund.");
     }
   };
 
@@ -225,6 +267,12 @@ const AdminDashboard: React.FC = () => {
           Active Users
         </button>
         <button 
+          className={activeTab === "funds" ? "tab-btn active" : "tab-btn"}
+          onClick={() => setActiveTab("funds")}
+        >
+          Funds Management
+        </button>
+        <button 
           className={activeTab === "logs" ? "tab-btn active" : "tab-btn"}
           onClick={() => setActiveTab("logs")}
         >
@@ -285,15 +333,16 @@ const AdminDashboard: React.FC = () => {
                           <div className="role-tags">
                             {user.roles.length > 0 ? user.roles.map((r, i) => (
                               <span key={i} className="role-tag">
-                                {r.role.name} {r.fund && `(${r.fund})`}
+                                {r.role.name} {r.fund_name && `(${r.fund_name})`}
                                 <button 
                                   className="remove-role-btn" 
-                                  onClick={() => handleRemoveRole(user.id, r.role.id || "", r.fund_id || null)}
+                                  onClick={() => handleRemoveRole(user.id, r.role.id || "", r.fund || null)}
                                   title="Remove Role"
                                 >
                                   &times;
                                 </button>
                               </span>
+
                             )) : <span className="no-roles">No roles</span>}
                           </div>
                         </td>
@@ -336,6 +385,43 @@ const AdminDashboard: React.FC = () => {
                 </div>
               </>
             ) : <p className="empty-state">No active users found.</p>}
+          </section>
+        ) : activeTab === "funds" ? (
+          <section>
+            <div className="section-header">
+              <h2>Funds Management</h2>
+              <button onClick={() => setIsFundModalOpen(true)} className="btn btn-approve">Create New Fund</button>
+            </div>
+            {funds.length > 0 ? (
+              <table className="users-table">
+                <thead>
+                  <tr>
+                    <th>Fund Name</th>
+                    <th>Created By</th>
+                    <th>SC Members</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {funds.map((fund) => (
+                    <tr key={fund.id}>
+                      <td>{fund.name}</td>
+                      <td>{fund.created_by_email}</td>
+                      <td>
+                        <div className="sc-members-list">
+                          {fund.steering_committee.length > 0 
+                            ? fund.steering_committee.join(", ") 
+                            : "No SC Members"}
+                        </div>
+                      </td>
+                      <td className="actions">
+                        <button onClick={() => handleDeactivateFund(fund.id)} className="btn btn-deactivate">Deactivate</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : <p className="empty-state">No funds found.</p>}
           </section>
         ) : (
           <section>
@@ -436,6 +522,36 @@ const AdminDashboard: React.FC = () => {
             <div className="modal-actions">
               <button onClick={handleAssignRole} className="btn btn-approve">Confirm Assignment</button>
               <button onClick={() => setIsModalOpen(false)} className="btn btn-reject">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isFundModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h3>Create New Fund</h3>
+            <div className="form-group">
+              <label>Fund Name</label>
+              <input 
+                type="text" 
+                value={newFundName} 
+                onChange={(e) => setNewFundName(e.target.value)}
+                placeholder="Enter fund name"
+              />
+            </div>
+            <div className="form-group">
+              <label>Description</label>
+              <textarea 
+                value={newFundDescription} 
+                onChange={(e) => setNewFundDescription(e.target.value)}
+                placeholder="Enter fund description"
+                rows={4}
+              />
+            </div>
+            <div className="modal-actions">
+              <button onClick={handleCreateFund} className="btn btn-approve">Create Fund</button>
+              <button onClick={() => setIsFundModalOpen(false)} className="btn btn-reject">Cancel</button>
             </div>
           </div>
         </div>

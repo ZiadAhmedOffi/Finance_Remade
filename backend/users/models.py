@@ -116,22 +116,6 @@ class Role(models.Model):
 
 
 # =====================================================
-# Fund (minimal reference)
-# =====================================================
-# to be used for the future funds app
-class Fund(models.Model):
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-
-    name = models.CharField(max_length=255, unique=True, db_index=True)
-
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.name
-
-
-# =====================================================
 # User Role Assignment
 # =====================================================
 
@@ -154,7 +138,7 @@ class UserRoleAssignment(models.Model):
     )
 
     fund = models.ForeignKey(
-        Fund,
+        "funds.Fund",
         on_delete=models.CASCADE,
         null=True,
         blank=True,
@@ -199,6 +183,9 @@ class AuditLog(models.Model):
         ("ROLE_ASSIGNED", "Role Assigned"),
         ("ROLE_REMOVED", "Role Removed"),
         ("FUND_CREATED", "Fund Created"),
+        ("FUND_DEACTIVATED", "Fund Deactivated"),
+        ("FUND_INFO_UPDATED", "Fund Information Updated"),
+        ("FUND_INFO_UPDATE_FAILED", "Fund Information Update Failed"),
         ("ACCESS_DENIED", "Access Denied"),
         ("UNAUTHENTICATED_ACCESS_DENIED", "Unauthenticated Access Denied"),
         ("LOGIN_SUCCESS", "Login Success"),
@@ -225,7 +212,7 @@ class AuditLog(models.Model):
     action = models.CharField(max_length=50, choices=ACTION_CHOICES, db_index=True)
 
     fund = models.ForeignKey(
-        Fund,
+        "funds.Fund",
         on_delete=models.SET_NULL,
         null=True,
         blank=True

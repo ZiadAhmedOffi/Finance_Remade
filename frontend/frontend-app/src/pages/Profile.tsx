@@ -7,9 +7,8 @@ interface RoleAssignment {
     name: string;
     description: string;
   };
-  fund: {
-    name: string;
-  } | null;
+  fund: string | null;
+  fund_name: string | null;
 }
 
 interface UserProfile {
@@ -92,10 +91,10 @@ const Profile: React.FC = () => {
           <h3>Assigned Roles</h3>
           {user.roles.length > 0 ? (
             <ul>
-              {user.roles.map((assignment) => (
-                <li key={`${assignment.role.name}-${assignment.fund?.name}`}>
+              {user.roles.map((assignment, index) => (
+                <li key={index}>
                   <strong>{assignment.role.name}</strong>
-                  {assignment.fund && ` for ${assignment.fund.name}`}
+                  {assignment.fund_name && ` for ${assignment.fund_name}`}
                 </li>
               ))}
             </ul>

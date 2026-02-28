@@ -7,7 +7,8 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.exceptions import ValidationError
 
-from users.models import User, Role, Fund, UserRoleAssignment
+from users.models import User, Role, UserRoleAssignment
+from funds.models import Fund
 from users.serializers import (
     LoginSerializer,
     ApplyAccessSerializer,
@@ -39,6 +40,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             {
                 "role": role.role.name,
                 "fund": role.fund.name if role.fund else None,
+                "fund_id": str(role.fund.id) if role.fund else None,
             }
             for role in roles
         ]
@@ -310,6 +312,19 @@ class AssignRoleView(APIView):
             target_user.status = "ACTIVE"
             target_user.save(update_fields=["is_active", "status"])
 
+        if fund:
+            from funds.models import FundLog
+            action_map = {
+                "STEERING_COMMITTEE": "SC_MEMBER_ASSIGNED",
+                "INVESTOR": "INVESTOR_ASSIGNED",
+            }
+            FundLog.objects.create(
+                actor=request.user,
+                target_fund=fund,
+                action=action_map.get(role.name, "ROLE_ASSIGNED"),
+                metadata={"user_email": target_user.email, "role": role.name}
+            )
+
         return Response({"message": "Role assigned successfully."})
 
 class RemoveRoleView(APIView):
@@ -351,6 +366,19 @@ class RemoveRoleView(APIView):
                 metadata={"description": f"Role {role.name} was removed from {target_user.email}."},
                 ip=request.META.get("REMOTE_ADDR")
             )
+
+            if fund_id:
+                from funds.models import Fund, FundLog
+                try:
+                    fund = Fund.objects.get(id=fund_id)
+                    FundLog.objects.create(
+                        actor=request.user,
+                        target_fund=fund,
+                        action="ROLE_REMOVED",
+                        metadata={"user_email": target_user.email, "role": role.name}
+                    )
+                except Fund.DoesNotExist:
+                    pass
             
             return Response({"message": "Role removed successfully."})
         except UserRoleAssignment.DoesNotExist:
@@ -381,19 +409,6 @@ class AuditLogView(APIView):
 # -----------------------------
 # Metadata Lists
 # -----------------------------
-class FundSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Fund
-        fields = ["id", "name"]
-
-class ListFundsView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        funds = Fund.objects.all()
-        serializer = FundSerializer(funds, many=True)
-        return Response(serializer.data)
-
 class ListRolesView(APIView):
     permission_classes = [IsAuthenticated]
 

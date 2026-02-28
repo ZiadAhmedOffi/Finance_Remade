@@ -43,7 +43,7 @@ class PermissionService:
     @staticmethod
     def is_sc_member(user, fund):
         """ Checks if user is a Steering Committee member for a specific fund. """
-        return PermissionService.has_role(user, "SC_MEMBER", fund)
+        return PermissionService.has_role(user, "STEERING_COMMITTEE", fund)
 
     @staticmethod
     def is_investor(user, fund):
