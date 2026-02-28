@@ -34,6 +34,10 @@ class CustomUserManager(BaseUserManager):
 # =====================================================
 
 class User(AbstractBaseUser, PermissionsMixin):
+    """
+    Custom User model that uses email as the unique identifier.
+    Includes fields for company, job title, and a approval status.
+    """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
@@ -184,6 +188,10 @@ class UserRoleAssignment(models.Model):
 # =====================================================
 
 class AuditLog(models.Model):
+    """
+    Immutable audit log model to track security-sensitive and administrative actions.
+    Records actor, target, action type, and associated metadata.
+    """
 
     ACTION_CHOICES = [
         ("USER_APPROVED", "User Approved"),

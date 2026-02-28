@@ -1,9 +1,15 @@
 from users.models import AuditLog
 
 class AuditService:
+    """
+    Centralized service for logging audit events across the system.
+    """
 
     @staticmethod
     def log(actor, action, target_user=None, fund=None, metadata=None, ip=None):
+        """
+        Creates a basic AuditLog entry with specified actor, action, and target.
+        """
         AuditLog.objects.create(
             actor=actor,
             action=action,

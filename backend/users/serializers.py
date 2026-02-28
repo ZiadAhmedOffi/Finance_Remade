@@ -7,6 +7,10 @@ from users.models import User, Role, UserRoleAssignment, AuditLog
 # JWT Login Serializer
 # -----------------------------
 class LoginSerializer(serializers.Serializer):
+    """
+    Serializer for user login. Validates credentials, checks if user is active
+    and not deleted.
+    """
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
 
@@ -36,6 +40,10 @@ class LoginSerializer(serializers.Serializer):
 # Apply For Access Serializer
 # -----------------------------
 class ApplyAccessSerializer(serializers.ModelSerializer):
+    """
+    Serializer for new user applications. Captures user details and 
+    sets initial status to PENDING.
+    """
     password = serializers.CharField(write_only=True)
 
     class Meta:
@@ -120,6 +128,10 @@ class UserSerializer(serializers.ModelSerializer):
 # Audit Log Serializer
 # -----------------------------
 class AuditLogSerializer(serializers.ModelSerializer):
+    """
+    Serializer for system audit logs. Includes actor email, target email,
+    and fund name for easier readability.
+    """
     actor_email = serializers.EmailField(source="actor.email", read_only=True)
     target_user_email = serializers.EmailField(source="target_user.email", read_only=True)
     fund_name = serializers.CharField(source="fund.name", read_only=True)

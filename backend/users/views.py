@@ -24,6 +24,10 @@ from users.models import AuditLog
 # JWT Custom Token Serializer
 # -----------------------------
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """
+    Custom JWT Token Serializer that adds extra claims to the token
+    such as email, staff status, superuser status, and assigned roles.
+    """
     @classmethod
     def get_token(cls, user: User):
         token = super().get_token(user)
@@ -98,6 +102,10 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return data
 
 class CustomTokenObtainPairView(TokenObtainPairView):
+    """
+    Custom JWT Token view that returns access and refresh tokens
+    after validating user credentials and logging the event.
+    """
     serializer_class = CustomTokenObtainPairSerializer
 
 # -----------------------------
@@ -109,6 +117,10 @@ class ActiveUsersPagination(PageNumberPagination):
     max_page_size = 100
 
 class ActiveUsersView(APIView):
+    """
+    API view to list all active users in the system.
+    Requires Access Manager permissions.
+    """
     permission_classes = [IsAccessManager]
 
     def get(self, request):
@@ -119,6 +131,10 @@ class ActiveUsersView(APIView):
         return paginator.get_paginated_response(serializer.data)
 
 class PendingUsersView(APIView):
+    """
+    API view to list all users awaiting approval.
+    Requires Access Manager permissions.
+    """
     permission_classes = [IsAccessManager]
 
     def get(self, request):
@@ -130,6 +146,9 @@ class PendingUsersView(APIView):
 # User Actions
 # -----------------------------
 class ApplyForAccessView(APIView):
+    """
+    Public API view for new users to submit an application for access.
+    """
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -153,6 +172,10 @@ class ApplyForAccessView(APIView):
         )
 
 class ApproveUserView(APIView):
+    """
+    API view to approve a pending user application.
+    Updates user status to ACTIVE and enables login.
+    """
     permission_classes = [IsAccessManager]
 
     def post(self, request, user_id):
@@ -179,6 +202,10 @@ class ApproveUserView(APIView):
         return Response({"message": "User approved successfully."})
 
 class RejectUserView(APIView):
+    """
+    API view to reject a pending user application.
+    Updates user status to REJECTED.
+    """
     permission_classes = [IsAccessManager]
 
     def post(self, request, user_id):
@@ -205,6 +232,10 @@ class RejectUserView(APIView):
         return Response({"message": "User rejected successfully."})
 
 class DeactivateUserView(APIView):
+    """
+    API view to deactivate an existing user.
+    Sets is_active to False and status to REJECTED.
+    """
     permission_classes = [IsAccessManager]
 
     def post(self, request, user_id):
@@ -228,6 +259,10 @@ class DeactivateUserView(APIView):
         return Response({"message": "User deactivated successfully."})
 
 class AssignRoleView(APIView):
+    """
+    API view to assign a role (and optionally a fund) to a user.
+    Enforces hierarchical restrictions for Super Admin and Access Manager roles.
+    """
     permission_classes = [IsAccessManager]
 
     def post(self, request, user_id):
@@ -278,6 +313,9 @@ class AssignRoleView(APIView):
         return Response({"message": "Role assigned successfully."})
 
 class RemoveRoleView(APIView):
+    """
+    API view to remove a specific role assignment from a user.
+    """
     permission_classes = [IsAccessManager]
 
     def post(self, request, user_id):
@@ -327,6 +365,10 @@ class AuditLogPagination(PageNumberPagination):
     max_page_size = 100
 
 class AuditLogView(APIView):
+    """
+    API view to retrieve system-wide audit logs.
+    Requires Access Manager permissions.
+    """
     permission_classes = [IsAccessManager]
 
     def get(self, request):
