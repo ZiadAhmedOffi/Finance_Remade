@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/api";
 import "./Dashboard.css";
 
@@ -14,6 +14,7 @@ interface Fund {
  * to the Admin Dashboard for users with 'SUPER_ADMIN' or 'ACCESS_MANAGER' roles.
  */
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [isAdmin, setIsAdmin] = useState(false);
   const [funds, setFunds] = useState<Fund[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,9 +51,18 @@ const Dashboard: React.FC = () => {
     fetchMyFunds();
   }, []);
 
+  const handleLogout = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    navigate("/login");
+  };
+
   return (
     <div className="dashboard-container">
-      <h1>Welcome to Your Dashboard</h1>
+      <div className="dashboard-header">
+        <h1>Welcome to Your Dashboard</h1>
+        <button className="btn btn-logout" onClick={handleLogout}>Logout</button>
+      </div>
       
       <div className="dashboard-section">
         <h3>My Funds</h3>

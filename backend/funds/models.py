@@ -3,6 +3,10 @@ from django.db import models
 from django.conf import settings
 
 class Fund(models.Model):
+    """
+    Represents a private equity or venture capital fund.
+    Tracks core identification, creator, and active status.
+    """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255, unique=True, db_index=True)
     description = models.TextField(blank=True)
@@ -27,11 +31,19 @@ class Fund(models.Model):
         return self.name
 
 class FundLog(models.Model):
+    """
+    Audit log specifically for fund-related events.
+    Records actions like creation, updates, and role assignments.
+    """
     ACTION_CHOICES = [
         ("FUND_CREATED", "Fund Created"),
         ("FUND_DEACTIVATED", "Fund Deactivated"),
         ("FUND_INFO_UPDATED", "Fund Information Updated"),
         ("FUND_INFO_UPDATE_FAILED", "Fund Information Update Failed"),
+        ("MODEL_INPUTS_UPDATED", "Model Inputs Updated"),
+        ("DEAL_CREATED", "Deal Created"),
+        ("DEAL_UPDATED", "Deal Updated"),
+        ("DEAL_DELETED", "Deal Deleted"),
         ("SC_MEMBER_ASSIGNED", "SC Member Assigned"),
         ("INVESTOR_ASSIGNED", "Investor Assigned"),
         ("ROLE_REMOVED", "Role Removed"),
@@ -67,3 +79,71 @@ class FundLog(models.Model):
 
     def __str__(self):
         return f"{self.action} on {self.target_fund.name} by {self.actor}"
+
+
+class ModelInput(models.Model):
+    """
+    Stores financial modeling parameters for a specific fund.
+    Used for calculating metrics like average ticket and investor counts.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    fund = models.OneToOneField(Fund, on_delete=models.CASCADE, related_name="model_inputs")
+    
+    # Financial Inputs
+    target_fund_size = models.DecimalField(max_digits=20, decimal_places=2, default=100000000.00)
+    fund_life = models.PositiveIntegerField(default=10)
+    investment_period = models.PositiveIntegerField(default=5)
+    exit_horizon = models.PositiveIntegerField(default=5)
+    
+    # Ticket Inputs
+    min_investor_ticket = models.DecimalField(max_digits=20, decimal_places=2, default=1000000.00)
+    max_investor_ticket = models.DecimalField(max_digits=20, decimal_places=2, default=5000000.00)
+    
+    # Fees & Returns
+    lock_up_period = models.PositiveIntegerField(default=7)
+    preferred_return = models.DecimalField(max_digits=5, decimal_places=2, default=8.00)
+    management_fee = models.DecimalField(max_digits=5, decimal_places=2, default=2.00)
+    admin_cost = models.DecimalField(max_digits=5, decimal_places=2, default=0.50)
+    
+    # Tiers & Carry
+    least_expected_moic_tier_1 = models.DecimalField(max_digits=5, decimal_places=2, default=1.50)
+    least_expected_moic_tier_2 = models.DecimalField(max_digits=5, decimal_places=2, default=2.00)
+    tier_1_carry = models.DecimalField(max_digits=5, decimal_places=2, default=20.00)
+    tier_2_carry = models.DecimalField(max_digits=5, decimal_places=2, default=25.00)
+    tier_3_carry = models.DecimalField(max_digits=5, decimal_places=2, default=30.00)
+    
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Model Inputs for {self.fund.name}"
+
+
+class InvestmentDeal(models.Model):
+    """
+    Represents an individual investment made by a fund.
+    Tracks the target name, amount, date, and current status.
+    """
+    STATUS_CHOICES = [
+        ("PENDING", "Pending"),
+        ("ACTIVE", "Active"),
+        ("EXITED", "Exited"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    fund = models.ForeignKey(Fund, on_delete=models.CASCADE, related_name="deals")
+    
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    amount_invested = models.DecimalField(max_digits=20, decimal_places=2)
+    date_of_investment = models.DateField()
+    
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="PENDING")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-date_of_investment"]
+
+    def __str__(self):
+        return f"{self.name} ({self.fund.name})"

@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/api";
 import "./FundDashboard.css";
+import ModelInputsTab from "../components/ModelInputsTab";
+import DealsTab from "../components/DealsTab";
 
 interface Fund {
   id: string;
@@ -24,7 +26,7 @@ const FundDashboard: React.FC = () => {
   const { fundId } = useParams<{ fundId: string }>();
   const navigate = useNavigate();
   
-  const [activeTab, setActiveTab] = useState<"overview" | "change-info" | "logs">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "model-inputs" | "deals" | "change-info" | "logs">("overview");
   const [fund, setFund] = useState<Fund | null>(null);
   const [logs, setLogs] = useState<FundLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +43,6 @@ const FundDashboard: React.FC = () => {
     if (token) {
       try {
         const payload = JSON.parse(atob(token.split(".")[1]));
-        const userEmail = payload.email;
         const roles = payload.roles || [];
         
         const superAdmin = roles.some((r: any) => r.role === "SUPER_ADMIN");
@@ -131,6 +132,18 @@ const FundDashboard: React.FC = () => {
         >
           Overview
         </button>
+        <button 
+          className={activeTab === "model-inputs" ? "tab-btn active" : "tab-btn"}
+          onClick={() => setActiveTab("model-inputs")}
+        >
+          Model Inputs
+        </button>
+        <button 
+          className={activeTab === "deals" ? "tab-btn active" : "tab-btn"}
+          onClick={() => setActiveTab("deals")}
+        >
+          Deals
+        </button>
         {canEdit && (
           <button 
             className={activeTab === "change-info" ? "tab-btn active" : "tab-btn"}
@@ -168,6 +181,14 @@ const FundDashboard: React.FC = () => {
               ) : <p>No SC members assigned.</p>}
             </div>
           </section>
+        )}
+
+        {activeTab === "model-inputs" && fundId && (
+          <ModelInputsTab fundId={fundId} canEdit={canEdit} />
+        )}
+
+        {activeTab === "deals" && fundId && (
+          <DealsTab fundId={fundId} canEdit={canEdit} />
         )}
 
         {activeTab === "change-info" && canEdit && (

@@ -4,3 +4,5 @@ backend/backend_app/__pycache__
 backend/users/services/__pycache__
 backend/users/__pycache__
 backend/users/migrations/__pycache__
+backend/funds/__pycache__
+backend/funds/migrations/__pycache__

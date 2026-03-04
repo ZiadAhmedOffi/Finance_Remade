@@ -19,4 +19,19 @@ api.interceptors.request.use(
   }
 );
 
+export const fundsApi = {
+  getFunds: () => api.get("/funds/"),
+  getFund: (id: string) => api.get(`/funds/${id}/`),
+  updateFund: (id: string, data: any) => api.put(`/funds/${id}/`, data),
+  getFundLogs: (id: string) => api.get(`/funds/${id}/logs/`),
+  
+  getModelInputs: (fundId: string) => api.get(`/funds/${fundId}/model-inputs/`),
+  updateModelInputs: (fundId: string, data: any) => api.put(`/funds/${fundId}/model-inputs/`, data),
+  
+  getDeals: (fundId: string) => api.get(`/funds/${fundId}/deals/`),
+  createDeal: (fundId: string, data: any) => api.post(`/funds/${fundId}/deals/`, data),
+  updateDeal: (fundId: string, dealId: string, data: any) => api.put(`/funds/${fundId}/deals/${dealId}/`, data),
+  deleteDeal: (fundId: string, dealId: string) => api.delete(`/funds/${fundId}/deals/${dealId}/`),
+};
+
 export { api };
