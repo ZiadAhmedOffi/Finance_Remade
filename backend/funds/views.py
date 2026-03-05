@@ -94,13 +94,13 @@ class InvestmentDealListView(APIView):
                 actor=request.user,
                 target_fund=fund,
                 action="DEAL_CREATED",
-                metadata={"deal_id": str(deal.id), "name": deal.name}
+                metadata={"deal_id": str(deal.id), "company_name": deal.company_name}
             )
             AuditService.log(
                 actor=request.user,
                 action="DEAL_CREATED",
                 fund=fund,
-                metadata={"deal_id": str(deal.id)},
+                metadata={"deal_id": str(deal.id), "company_name": deal.company_name},
                 ip=request.META.get("REMOTE_ADDR")
             )
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -129,25 +129,29 @@ class InvestmentDealDetailView(APIView):
                 actor=request.user,
                 target_fund=fund,
                 action="DEAL_UPDATED",
-                metadata={"deal_id": str(deal.id), "name": deal.name}
+                metadata={"deal_id": str(deal.id), "company_name": deal.company_name}
             )
             AuditService.log(
                 actor=request.user,
                 action="DEAL_UPDATED",
                 fund=fund,
-                metadata={"deal_id": str(deal.id)},
+                metadata={"deal_id": str(deal.id), "company_name": deal.company_name},
                 ip=request.META.get("REMOTE_ADDR")
             )
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, fund_id, deal_id):
+        """
+        Deletes a specific investment deal.
+        Restricted to Super Admins and Fund Steering Committee members.
+        """
         fund = get_object_or_404(Fund, id=fund_id, is_active=True)
         if not PermissionService.can_edit_fund(request.user, fund):
             return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
         
         deal = get_object_or_404(InvestmentDeal, id=deal_id, fund=fund)
-        deal_name = deal.name
+        company_name = deal.company_name
         deal_id_str = str(deal.id)
         deal.delete()
         
@@ -156,13 +160,13 @@ class InvestmentDealDetailView(APIView):
             actor=request.user,
             target_fund=fund,
             action="DEAL_DELETED",
-            metadata={"deal_id": deal_id_str, "name": deal_name}
+            metadata={"deal_id": deal_id_str, "company_name": company_name}
         )
         AuditService.log(
             actor=request.user,
             action="DEAL_DELETED",
             fund=fund,
-            metadata={"deal_id": deal_id_str},
+            metadata={"deal_id": deal_id_str, "company_name": company_name},
             ip=request.META.get("REMOTE_ADDR")
         )
         return Response({"message": "Deal deleted."}, status=status.HTTP_200_OK)

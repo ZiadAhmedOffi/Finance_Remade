@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/api";
 import "./FundDashboard.css";
 import ModelInputsTab from "../components/ModelInputsTab";
-import DealsTab from "../components/DealsTab";
+import DealPrognosisTab from "../components/DealPrognosisTab";
 
 interface Fund {
   id: string;
@@ -142,7 +142,7 @@ const FundDashboard: React.FC = () => {
           className={activeTab === "deals" ? "tab-btn active" : "tab-btn"}
           onClick={() => setActiveTab("deals")}
         >
-          Deals
+          Deal Prognosis
         </button>
         {canEdit && (
           <button 
@@ -188,7 +188,7 @@ const FundDashboard: React.FC = () => {
         )}
 
         {activeTab === "deals" && fundId && (
-          <DealsTab fundId={fundId} canEdit={canEdit} />
+          <DealPrognosisTab fundId={fundId} canEdit={canEdit} />
         )}
 
         {activeTab === "change-info" && canEdit && (

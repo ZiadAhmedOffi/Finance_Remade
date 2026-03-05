@@ -120,30 +120,47 @@ class ModelInput(models.Model):
 
 class InvestmentDeal(models.Model):
     """
-    Represents an individual investment made by a fund.
-    Tracks the target name, amount, date, and current status.
+    Represents an individual investment made by a fund (Deal Prognosis).
+    Tracks company details, financial entry/exit parameters, and scenarios.
     """
-    STATUS_CHOICES = [
-        ("PENDING", "Pending"),
-        ("ACTIVE", "Active"),
-        ("EXITED", "Exited"),
+    SCENARIO_CHOICES = [
+        ("BASE", "Base"),
+        ("DOWNSIDE", "Downside"),
+        ("UPSIDE", "Upside"),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     fund = models.ForeignKey(Fund, on_delete=models.CASCADE, related_name="deals")
     
-    name = models.CharField(max_length=255)
-    description = models.TextField(blank=True)
-    amount_invested = models.DecimalField(max_digits=20, decimal_places=2)
-    date_of_investment = models.DateField()
+    # Basic Company Info
+    company_name = models.CharField(max_length=255)
+    company_type = models.CharField(max_length=100, blank=True)
+    industry = models.CharField(max_length=100, blank=True)
     
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="PENDING")
+    # Investment Timing
+    entry_year = models.PositiveIntegerField(default=2024)
+    exit_year = models.PositiveIntegerField(default=2029)
+    
+    # Financial Inputs
+    amount_invested = models.DecimalField(max_digits=20, decimal_places=2)
+    entry_valuation = models.DecimalField(max_digits=20, decimal_places=2)
+    
+    # Scenario Factors (Multiples)
+    base_factor = models.DecimalField(max_digits=10, decimal_places=2, default=1.00)
+    downside_factor = models.DecimalField(max_digits=10, decimal_places=2, default=1.00)
+    upside_factor = models.DecimalField(max_digits=10, decimal_places=2, default=1.00)
+    
+    selected_scenario = models.CharField(
+        max_length=10, 
+        choices=SCENARIO_CHOICES, 
+        default="BASE"
+    )
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["-date_of_investment"]
+        ordering = ["-entry_year", "company_name"]
 
     def __str__(self):
-        return f"{self.name} ({self.fund.name})"
+        return f"{self.company_name} ({self.fund.name})"

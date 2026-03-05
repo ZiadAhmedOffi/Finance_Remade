@@ -46,20 +46,61 @@ class ModelInputSerializer(serializers.ModelSerializer):
 
 
 class InvestmentDealSerializer(serializers.ModelSerializer):
+    """
+    Serializer for InvestmentDeal including calculated financial metrics.
+    Calculates holding period, ownership %, exit valuation, and exit value.
+    """
+    holding_period = serializers.SerializerMethodField()
+    post_money_ownership = serializers.SerializerMethodField()
+    exit_valuation = serializers.SerializerMethodField()
+    exit_value = serializers.SerializerMethodField()
+
     class Meta:
         model = InvestmentDeal
         fields = [
             "id",
             "fund",
-            "name",
-            "description",
+            "company_name",
+            "company_type",
+            "industry",
+            "entry_year",
+            "exit_year",
             "amount_invested",
-            "date_of_investment",
-            "status",
+            "entry_valuation",
+            "base_factor",
+            "downside_factor",
+            "upside_factor",
+            "selected_scenario",
+            "holding_period",
+            "post_money_ownership",
+            "exit_valuation",
+            "exit_value",
             "created_at",
             "updated_at",
         ]
         read_only_fields = ["id", "fund", "created_at", "updated_at"]
+
+    def get_holding_period(self, obj):
+        """Calculated by subtracting entry year from exit year."""
+        return obj.exit_year - obj.entry_year
+
+    def get_post_money_ownership(self, obj):
+        """Formula: amount_invested / (amount_invested + entry_valuation)."""
+        denominator = obj.amount_invested + obj.entry_valuation
+        if denominator == 0:
+            return 0
+        return (obj.amount_invested / denominator) * 100
+
+    def get_exit_valuation(self, obj):
+        """Calculated by multiplying the factor of the selected scenario by entry valuation."""
+        factor = getattr(obj, f"{obj.selected_scenario.lower()}_factor", 1.00)
+        return obj.entry_valuation * factor
+
+    def get_exit_value(self, obj):
+        """Calculated by multiplying the ownership percentage by the exit valuation."""
+        ownership_decimal = self.get_post_money_ownership(obj) / 100
+        exit_val = self.get_exit_valuation(obj)
+        return float(ownership_decimal) * float(exit_val)
 
 class FundSerializer(serializers.ModelSerializer):
     created_by_email = serializers.EmailField(source="created_by.email", read_only=True)

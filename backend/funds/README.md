@@ -6,7 +6,7 @@ The `funds` app manages the core business entities: Funds, their financial model
 
 - **Fund**: The central entity representing a private equity or venture capital fund.
 - **ModelInput**: A one-to-one relationship with `Fund` that stores 15 financial parameters used for projections and dashboards.
-- **InvestmentDeal**: Represents individual investments made by a fund, tracking amounts and statuses.
+- **InvestmentDeal**: Represents individual investments made by a fund (Deal Prognosis), tracking company info, entry/exit valuations, and scenario-based forecasting.
 - **FundLog**: A fund-specific audit log for tracking changes to fund information, model inputs, and deals.
 
 ## Features
