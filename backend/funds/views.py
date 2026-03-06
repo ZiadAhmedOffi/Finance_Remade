@@ -320,3 +320,196 @@ class FundLogListView(APIView):
         logs = fund.logs.all()
         serializer = FundLogSerializer(logs, many=True)
         return Response(serializer.data)
+
+def calculate_irr(cash_flows, years, guess=0.1, max_iter=1000, tolerance=1e-6):
+    """
+    Simple Newton-Raphson implementation for IRR.
+    cash_flows: list of amounts (neg for investment, pos for exit)
+    years: list of years corresponding to cash_flows
+    """
+    if not cash_flows or len(cash_flows) < 2:
+        return 0.0
+    
+    # Normalize years to start from 0
+    min_year = min(years)
+    t = [y - min_year for y in years]
+    
+    r = guess
+    for _ in range(max_iter):
+        f_val = sum(cf / ((1 + r) ** time) for cf, time in zip(cash_flows, t))
+        f_prime = sum(-time * cf / ((1 + r) ** (time + 1)) for cf, time in zip(cash_flows, t))
+        
+        if abs(f_prime) < 1e-10: # Avoid division by zero
+            break
+            
+        new_r = r - f_val / f_prime
+        if abs(new_r - r) < tolerance:
+            return new_r
+        r = new_r
+        
+        if abs(r) > 100: # Sanity check to prevent runaway
+            return 0.0
+            
+    return r
+
+class FundPerformanceView(APIView):
+    """
+    Calculates performance metrics for the three dashboard tabs:
+    1. Dashboard Tab
+    2. Aggregated Exits Tab
+    3. Admin Fee Tab
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, fund_id):
+        fund = get_object_or_404(Fund, id=fund_id, is_active=True)
+        if not PermissionService.can_view_fund(request.user, fund):
+            return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        deals = fund.deals.all()
+        model_inputs = getattr(fund, "model_inputs", None)
+        
+        if not model_inputs:
+            return Response({"error": "Model inputs not found for this fund."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 1. Basic Metrics
+        total_invested = sum(deal.amount_invested for deal in deals)
+        
+        # We need to use the serializer logic for exit_value
+        deal_serializer = InvestmentDealSerializer(deals, many=True)
+        deals_data = deal_serializer.data
+        gross_exit_value = sum(float(d["exit_value"]) for d in deals_data)
+        
+        total_invested_float = float(total_invested)
+        moic = gross_exit_value / total_invested_float if total_invested_float > 0 else 0
+        
+        # IRR Calculation
+        # Construct cash flows: -invested at entry_year, +exit_value at exit_year
+        cash_flows_dict = {}
+        for d in deals_data:
+            entry_yr = d["entry_year"]
+            exit_yr = d["exit_year"]
+            amount = float(d["amount_invested"])
+            exit_val = float(d["exit_value"])
+            
+            cash_flows_dict[entry_yr] = cash_flows_dict.get(entry_yr, 0) - amount
+            cash_flows_dict[exit_yr] = cash_flows_dict.get(exit_yr, 0) + exit_val
+            
+        years_sorted = sorted(cash_flows_dict.keys())
+        cash_flows_list = [cash_flows_dict[y] for y in years_sorted]
+        
+        irr = calculate_irr(cash_flows_list, years_sorted)
+        
+        # 2. Performance Table
+        from datetime import datetime
+        current_year = datetime.now().year
+        start_year = min(years_sorted) if years_sorted else current_year
+        end_year = current_year
+        
+        performance_table = []
+        portfolio_capital = 0.0
+        
+        for year in range(start_year, end_year + 1):
+            injection = sum(float(d["amount_invested"]) for d in deals_data if d["entry_year"] == year)
+            appreciation = portfolio_capital * irr
+            portfolio_capital = portfolio_capital + injection + appreciation
+            
+            performance_table.append({
+                "year": year,
+                "injection": injection,
+                "appreciation": appreciation,
+                "total_portfolio_value": portfolio_capital
+            })
+
+        # 3. Aggregated Exits
+        cases = [
+            {"name": "Base Case", "multiplier": 1.0},
+            {"name": "Upside Case", "multiplier": 1.2},
+            {"name": "High Growth Case", "multiplier": 1.5},
+        ]
+        
+        aggregated_exits = []
+        management_fee_pct = float(model_inputs.management_fee)
+        
+        for case in cases:
+            case_gev = gross_exit_value * case["multiplier"]
+            profit_before_carry = case_gev - total_invested_float
+            case_moic = case_gev / total_invested_float if total_invested_float > 0 else 0
+            
+            # Carry calculation
+            carry_pct = 0.0
+            tier1_moic = float(model_inputs.least_expected_moic_tier_1)
+            tier2_moic = float(model_inputs.least_expected_moic_tier_2)
+            
+            if case_moic < tier1_moic:
+                carry_pct = 0.0
+            elif case_moic < tier2_moic:
+                carry_pct = float(model_inputs.tier_1_carry)
+            else:
+                carry_pct = float(model_inputs.tier_2_carry)
+            
+            carry_amount = profit_before_carry * (carry_pct / 100.0) if profit_before_carry > 0 else 0
+            total_fees = total_invested_float * (management_fee_pct / 100.0)
+            net_to_investors = case_gev - (total_fees + carry_amount)
+            real_moic = net_to_investors / total_invested_float if total_invested_float > 0 else 0
+            
+            # IRR for case
+            case_cf_dict = {}
+            for d in deals_data:
+                entry_yr = d["entry_year"]
+                exit_yr = d["exit_year"]
+                amount = float(d["amount_invested"])
+                
+                # Pro-rata exit value for the case
+                # We need to know how much this deal contributed to original GEV
+                orig_deal_exit_val = float(d["exit_value"])
+                case_deal_exit_val = orig_deal_exit_val * case["multiplier"]
+                
+                case_cf_dict[entry_yr] = case_cf_dict.get(entry_yr, 0) - amount
+                case_cf_dict[exit_yr] = case_cf_dict.get(exit_yr, 0) + case_deal_exit_val
+            
+            case_years = sorted(case_cf_dict.keys())
+            case_cfs = [case_cf_dict[y] for y in case_years]
+            case_irr = calculate_irr(case_cfs, case_years)
+            
+            aggregated_exits.append({
+                "case": case["name"],
+                "gev": case_gev,
+                "profit_before_carry": profit_before_carry,
+                "gross_moic": case_moic,
+                "carry_pct": carry_pct,
+                "carry_amount": carry_amount,
+                "total_fees": total_fees,
+                "net_to_investors": net_to_investors,
+                "real_moic": real_moic,
+                "irr": case_irr
+            })
+
+        # 4. Admin Fee Tab
+        target_fund_size = float(model_inputs.target_fund_size)
+        admin_pct = float(model_inputs.admin_cost)
+        investment_period = float(model_inputs.investment_period)
+        
+        total_admin_cost = (admin_pct / 100.0) * target_fund_size
+        operations_fee = (management_fee_pct / 100.0) * target_fund_size
+        management_fees_total = total_admin_cost * investment_period
+        
+        admin_fee_data = {
+            "total_admin_cost": total_admin_cost,
+            "operations_fee": operations_fee,
+            "management_fees": management_fees_total,
+            "total_costs": total_admin_cost + operations_fee + management_fees_total
+        }
+
+        return Response({
+            "dashboard": {
+                "total_invested": total_invested_float,
+                "gross_exit_value": gross_exit_value,
+                "moic": moic,
+                "irr": irr,
+                "total_deals": deals.count(),
+                "performance_table": performance_table
+            },
+            "aggregated_exits": aggregated_exits,
+            "admin_fee": admin_fee_data
+        })

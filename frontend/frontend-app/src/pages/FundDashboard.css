@@ -179,3 +179,106 @@
     font-size: 1.5rem;
     color: #dc3545;
 }
+
+/* Performance Tabs Styles */
+.metric-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.metric-row {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.metric-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    flex: 1;
+    min-width: 200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #eef2f6;
+}
+
+.metric-card.prominent {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    color: white;
+    min-height: 120px;
+}
+
+.metric-card label {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+    opacity: 0.9;
+}
+
+.metric-card .value {
+    font-size: 1.8rem;
+    font-weight: 700;
+}
+
+.metric-card.prominent .value {
+    font-size: 2.2rem;
+}
+
+.metric-card.centered {
+    max-width: 400px;
+    margin: 0 auto 2rem;
+}
+
+.performance-table-container, 
+.comparison-table-container,
+.total-costs-table-container {
+    background: white;
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    margin-top: 2rem;
+}
+
+.performance-table, 
+.comparison-table,
+.total-costs-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+
+.performance-table th, .performance-table td,
+.comparison-table th, .comparison-table td,
+.total-costs-table th, .total-costs-table td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.performance-table th,
+.comparison-table th,
+.total-costs-table th {
+    background: #f8fafc;
+    font-weight: 600;
+    color: #475569;
+}
+
+.total-row {
+    background: #f8fafc;
+    font-size: 1.1rem;
+}
+
+.comparison-table td:not(:first-child) {
+    text-align: center;
+}
+
+.comparison-table th:not(:first-child) {
+    text-align: center;
+}

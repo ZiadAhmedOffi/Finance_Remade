@@ -4,6 +4,9 @@ import { api } from "../api/api";
 import "./FundDashboard.css";
 import ModelInputsTab from "../components/ModelInputsTab";
 import DealPrognosisTab from "../components/DealPrognosisTab";
+import FundPerformanceTab from "../components/FundPerformanceTab";
+import AggregatedExitsTab from "../components/AggregatedExitsTab";
+import AdminFeeTab from "../components/AdminFeeTab";
 
 interface Fund {
   id: string;
@@ -26,7 +29,7 @@ const FundDashboard: React.FC = () => {
   const { fundId } = useParams<{ fundId: string }>();
   const navigate = useNavigate();
   
-  const [activeTab, setActiveTab] = useState<"overview" | "model-inputs" | "deals" | "change-info" | "logs">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "model-inputs" | "deals" | "dashboard" | "aggregated-exits" | "admin-fee" | "change-info" | "logs">("overview");
   const [fund, setFund] = useState<Fund | null>(null);
   const [logs, setLogs] = useState<FundLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -133,6 +136,24 @@ const FundDashboard: React.FC = () => {
           Overview
         </button>
         <button 
+          className={activeTab === "dashboard" ? "tab-btn active" : "tab-btn"}
+          onClick={() => setActiveTab("dashboard")}
+        >
+          Dashboard
+        </button>
+        <button 
+          className={activeTab === "aggregated-exits" ? "tab-btn active" : "tab-btn"}
+          onClick={() => setActiveTab("aggregated-exits")}
+        >
+          Aggregated Exits
+        </button>
+        <button 
+          className={activeTab === "admin-fee" ? "tab-btn active" : "tab-btn"}
+          onClick={() => setActiveTab("admin-fee")}
+        >
+          Admin Fee
+        </button>
+        <button 
           className={activeTab === "model-inputs" ? "tab-btn active" : "tab-btn"}
           onClick={() => setActiveTab("model-inputs")}
         >
@@ -181,6 +202,18 @@ const FundDashboard: React.FC = () => {
               ) : <p>No SC members assigned.</p>}
             </div>
           </section>
+        )}
+
+        {activeTab === "dashboard" && fundId && (
+          <FundPerformanceTab fundId={fundId} />
+        )}
+
+        {activeTab === "aggregated-exits" && fundId && (
+          <AggregatedExitsTab fundId={fundId} />
+        )}
+
+        {activeTab === "admin-fee" && fundId && (
+          <AdminFeeTab fundId={fundId} />
         )}
 
         {activeTab === "model-inputs" && fundId && (

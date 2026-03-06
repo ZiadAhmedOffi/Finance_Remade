@@ -5,7 +5,8 @@ from .views import (
     FundLogListView, 
     ModelInputDetailView,
     InvestmentDealListView,
-    InvestmentDealDetailView
+    InvestmentDealDetailView,
+    FundPerformanceView
 )
 
 urlpatterns = [
@@ -15,4 +16,5 @@ urlpatterns = [
     path("<uuid:fund_id>/model-inputs/", ModelInputDetailView.as_view(), name="fund-model-inputs"),
     path("<uuid:fund_id>/deals/", InvestmentDealListView.as_view(), name="fund-deals"),
     path("<uuid:fund_id>/deals/<uuid:deal_id>/", InvestmentDealDetailView.as_view(), name="fund-deal-detail"),
+    path("<uuid:fund_id>/performance/", FundPerformanceView.as_view(), name="fund-performance"),
 ]
