@@ -15,6 +15,7 @@ class ModelInputSerializer(serializers.ModelSerializer):
             "id",
             "fund",
             "target_fund_size",
+            "inception_year",
             "fund_life",
             "investment_period",
             "exit_horizon",

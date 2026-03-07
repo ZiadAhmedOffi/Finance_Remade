@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../api/api";
 import "./AdminDashboard.css";
 
@@ -54,6 +55,7 @@ interface AuditLog {
  * and viewing system audit logs with detailed metadata.
  */
 const AdminDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"pending" | "active" | "logs" | "funds">("pending");
   const [pendingUsers, setPendingUsers] = useState<User[]>([]);
   const [activeUsers, setActiveUsers] = useState<User[]>([]);
@@ -141,6 +143,12 @@ const AdminDashboard: React.FC = () => {
     };
     init();
   }, [fetchPendingUsers, fetchActiveUsers, fetchAuditLogs, fetchFunds, fetchRolesOnly]);
+
+  const handleLogout = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    navigate("/login");
+  };
 
   const handleApprove = async (userId: string) => {
     try {
@@ -248,7 +256,13 @@ const AdminDashboard: React.FC = () => {
   return (
     <div className="admin-dashboard-container">
       <header className="dashboard-header">
-        <h1>Admin Dashboard</h1>
+        <div className="header-top">
+          <h1>Admin Dashboard</h1>
+          <div className="header-actions">
+            <button className="btn btn-primary" onClick={() => navigate("/dashboard")}>Back to My Dashboard</button>
+            <button className="btn btn-logout" onClick={handleLogout}>Exit</button>
+          </div>
+        </div>
         {message && <div className="alert alert-success">{message}</div>}
         {error && <div className="alert alert-error">{error}</div>}
       </header>

@@ -8,6 +8,7 @@ interface ModelInputsTabProps {
 
 interface ModelInputData {
   target_fund_size: number;
+  inception_year: number;
   fund_life: number;
   investment_period: number;
   exit_horizon: number;
@@ -108,6 +109,10 @@ const ModelInputsTab: React.FC<ModelInputsTabProps> = ({ fundId, canEdit }) => {
             <div className="form-group">
               <label>Target Fund Size [USD]</label>
               <input type="number" name="target_fund_size" value={data.target_fund_size} onChange={handleChange} disabled={!canEdit} step="any" />
+            </div>
+            <div className="form-group">
+              <label>Inception Year</label>
+              <input type="number" name="inception_year" value={data.inception_year} onChange={handleChange} disabled={!canEdit} />
             </div>
             <div className="form-group">
               <label>Fund Life [Years]</label>

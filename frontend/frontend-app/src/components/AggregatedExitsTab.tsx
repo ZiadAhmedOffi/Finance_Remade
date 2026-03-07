@@ -1,5 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../api/api";
+import {
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer
+} from "recharts";
 
 interface CaseData {
   case: string;
@@ -53,10 +64,21 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
 
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(val);
+
+  const formatCurrencyShort = (val: number) => 
+    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact" }).format(val);
   
   const formatPercent = (val: number) => (val * 100).toFixed(2) + "%";
   const formatRawPercent = (val: number) => val.toFixed(2) + "%";
   const formatMultiple = (val: number) => val.toFixed(2) + "x";
+
+  // Prepare data for the chart
+  const chartData = aggregated_exits.map(c => ({
+    name: c.case,
+    invested: dashboard.total_invested,
+    gev: c.gev,
+    irr: c.irr * 100 // Convert to percentage for the axis
+  }));
 
   const rows = [
     { label: "Gross Exit Value", key: "gev", type: "currency" },
@@ -103,6 +125,46 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
           </tbody>
         </table>
       </div>
+
+      <div className="exit-chart-container">
+        <h3>Exits Analysis by Case</h3>
+        <ResponsiveContainer width="100%" height={500}>
+          <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="name" />
+            <YAxis yAxisId="left" orientation="left" tickFormatter={formatCurrencyShort} label={{ value: 'Capital (USD)', angle: -90, position: 'insideLeft' }} />
+            <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} label={{ value: 'IRR (%)', angle: 90, position: 'insideRight' }} />
+            <Tooltip 
+              formatter={(value: any, name: string) => {
+                if (name === "irr") return [`${Number(value).toFixed(2)}%`, "IRR"];
+                return [formatCurrency(Number(value)), name === "invested" ? "Total Invested" : "Gross Exit Value"];
+              }}
+            />
+            <Legend />
+            <Bar yAxisId="left" dataKey="invested" fill="#34495e" name="Total Invested Amount" barSize={40} />
+            <Bar yAxisId="left" dataKey="gev" fill="#3498db" name="Gross Exit Value" barSize={40} />
+            <Line yAxisId="right" type="monotone" dataKey="irr" stroke="#e74c3c" name="IRR (%)" strokeWidth={3} dot={{ r: 6 }} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      <style>{`
+        .exit-chart-container {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+          margin-top: 3rem;
+          border: 1px solid #eef2f6;
+        }
+        .exit-chart-container h3 {
+          margin-top: 0;
+          margin-bottom: 2rem;
+          color: #2c3e50;
+          font-size: 1.3rem;
+          text-align: center;
+        }
+      `}</style>
     </section>
   );
 };

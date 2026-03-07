@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../api/api";
 import "./Profile.css";
 
@@ -26,6 +27,7 @@ interface UserProfile {
 }
 
 const Profile: React.FC = () => {
+  const navigate = useNavigate();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +48,12 @@ const Profile: React.FC = () => {
     fetchUser();
   }, []);
 
+  const handleLogout = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    navigate("/login");
+  };
+
   if (loading) {
     return <div className="profile-container">Loading...</div>;
   }
@@ -60,7 +68,11 @@ const Profile: React.FC = () => {
 
   return (
     <div className="profile-container">
-      <h1>User Profile</h1>
+      <header className="profile-header-main">
+        <button className="back-btn" onClick={() => navigate("/dashboard")}>&larr; Back to Dashboard</button>
+        <h1>User Profile</h1>
+        <button className="btn-logout" onClick={handleLogout}>Exit</button>
+      </header>
       <div className="profile-card">
         <div className="profile-header">
           <h2>

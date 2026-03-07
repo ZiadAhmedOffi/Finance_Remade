@@ -91,6 +91,7 @@ class ModelInput(models.Model):
     
     # Financial Inputs
     target_fund_size = models.DecimalField(max_digits=20, decimal_places=2, default=100000000.00)
+    inception_year = models.PositiveIntegerField(default=2024)
     fund_life = models.PositiveIntegerField(default=10)
     investment_period = models.PositiveIntegerField(default=5)
     exit_horizon = models.PositiveIntegerField(default=5)

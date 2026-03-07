@@ -330,6 +330,10 @@ def calculate_irr(cash_flows, years, guess=0.1, max_iter=1000, tolerance=1e-6):
     if not cash_flows or len(cash_flows) < 2:
         return 0.0
     
+    # If all cash flows are negative (no exits), IRR is effectively -100% or undefined
+    if all(cf <= 0 for cf in cash_flows):
+        return 0.0 # Or maybe -0.99 for display
+    
     # Normalize years to start from 0
     min_year = min(years)
     t = [y - min_year for y in years]
@@ -347,8 +351,8 @@ def calculate_irr(cash_flows, years, guess=0.1, max_iter=1000, tolerance=1e-6):
             return new_r
         r = new_r
         
-        if abs(r) > 100: # Sanity check to prevent runaway
-            return 0.0
+        if abs(r) > 100: # Sanity check
+            break
             
     return r
 
@@ -403,22 +407,46 @@ class FundPerformanceView(APIView):
         # 2. Performance Table
         from datetime import datetime
         current_year = datetime.now().year
-        start_year = min(years_sorted) if years_sorted else current_year
-        end_year = current_year
+        
+        # Determine the year range for the table
+        start_year = int(model_inputs.inception_year)
+        fund_life = int(model_inputs.fund_life)
+        end_year = start_year + fund_life - 1
+        
+        # If no deals yet, we use the model's range. 
+        # If deals exist outside the model range, we expand it.
+        if years_sorted:
+            start_year = min(start_year, min(years_sorted))
+            end_year = max(end_year, max(years_sorted))
         
         performance_table = []
         portfolio_capital = 0.0
+        cumulative_injection = 0.0
+        cumulative_deals_count = 0
+        
+        # Use a safe IRR for table expansion, defaulting to 0 if it failed
+        safe_irr = irr if irr and irr > -1 else 0.0
         
         for year in range(start_year, end_year + 1):
             injection = sum(float(d["amount_invested"]) for d in deals_data if d["entry_year"] == year)
-            appreciation = portfolio_capital * irr
+            deals_count = len([d for d in deals_data if d["entry_year"] == year])
+            
+            appreciation = portfolio_capital * safe_irr
+            start_value = portfolio_capital
             portfolio_capital = portfolio_capital + injection + appreciation
+            
+            cumulative_injection += injection
+            cumulative_deals_count += deals_count
             
             performance_table.append({
                 "year": year,
+                "start_value": start_value,
                 "injection": injection,
                 "appreciation": appreciation,
-                "total_portfolio_value": portfolio_capital
+                "total_portfolio_value": portfolio_capital,
+                "deals_count": deals_count,
+                "cumulative_deals_count": cumulative_deals_count,
+                "cumulative_injection": cumulative_injection
             })
 
         # 3. Aggregated Exits
@@ -498,7 +526,9 @@ class FundPerformanceView(APIView):
             "total_admin_cost": total_admin_cost,
             "operations_fee": operations_fee,
             "management_fees": management_fees_total,
-            "total_costs": total_admin_cost + operations_fee + management_fees_total
+            "total_costs": total_admin_cost + operations_fee + management_fees_total,
+            "inception_year": int(model_inputs.inception_year),
+            "fund_life": int(model_inputs.fund_life)
         }
 
         return Response({

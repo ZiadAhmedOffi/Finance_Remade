@@ -113,6 +113,12 @@ const FundDashboard: React.FC = () => {
     }
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    navigate("/login");
+  };
+
   if (loading) return <div className="fund-dashboard-container">Loading Fund Dashboard...</div>;
   if (error) return <div className="fund-dashboard-container"><div className="error-state">{error}</div></div>;
   if (!fund) return null;
@@ -122,11 +128,18 @@ const FundDashboard: React.FC = () => {
   return (
     <div className="fund-dashboard-container">
       <header className="fund-header">
-        <button className="back-btn" onClick={() => navigate("/dashboard")}>&larr; Back to Dashboard</button>
+        <div className="header-left">
+          <button className="back-btn" onClick={() => navigate("/dashboard")}>&larr; Back to Dashboard</button>
+        </div>
         <h1>Fund: {fund.name}</h1>
+        <div className="header-right">
+          <button className="btn-logout" onClick={handleLogout}>Exit</button>
+        </div>
+      </header>
+      <div className="alert-container">
         {message && <div className="alert alert-success">{message}</div>}
         {error && <div className="alert alert-error">{error}</div>}
-      </header>
+      </div>
 
       <div className="tabs">
         <button 
