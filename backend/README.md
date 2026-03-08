@@ -1,40 +1,32 @@
-# Finance Remade Backend
+# FinanceRemade - Backend API
 
-This is the backend for the Finance Remade application, built with Django and Django REST Framework.
+The backend is built with Django and Django Rest Framework, providing a secure and performant API for fund management.
 
-## Project Structure
+## 🧱 Architecture
 
-- `backend_app/`: Main Django project configuration (settings, URLs, ASGI/WSGI).
-- `users/`: User management app (Authentication, Roles, Audit Logs, Profiles).
-- `static/`: Static files for Django Admin.
-- `manage.py`: Django management utility.
+### Data Models (`funds/models.py`)
+- **Fund:** The root entity.
+- **ModelInput:** One-to-one relationship with Fund, stores modeling parameters.
+- **InvestmentDeal:** Many-to-one with Fund, represents individual investments.
+- **FundLog:** Audit trail for fund-specific changes.
 
-## Key Features
+### Core Logic (`funds/views.py`)
+- **FundPerformanceView:** The "Engine" of the application. Calculates IRR, MOIC, and yearly performance tables on-the-fly based on current deals and model inputs.
+- **InvestmentDealListView/DetailView:** CRUD operations for deals with automatic financial metric calculation via serializers.
 
-- **Custom User Model**: Uses email as the primary identifier and supports soft-deletion.
-- **Role-Based Access Control (RBAC)**: Supports roles like `SUPER_ADMIN`, `ACCESS_MANAGER`, `INVESTOR`, and `STEERING_COMMITTEE`.
-- **Audit Logging**: Tracks critical system events (logins, role changes, user approvals).
-- **JWT Authentication**: Secure stateless authentication using `djangorestframework-simplejwt`.
+### Permissions (`users/permissions.py`)
+- Implements custom permission classes to enforce RBAC.
+- Uses JWT claims to verify user roles and fund assignments.
 
-## Setup and Installation
+## 🧪 Calculations
 
-1. Create and activate a virtual environment:
-   ```bash
-   python -m venv backend-venv
-   source backend-venv/bin/activate
-   ```
-2. Install dependencies (ensure `requirements.txt` is up-to-date or manually install `django`, `djangorestframework`, `django-cors-headers`, `djangorestframework-simplejwt`).
-3. Run migrations:
-   ```bash
-   python manage.py migrate
-   ```
-4. Start the server:
-   ```bash
-   python manage.py runserver
-   ```
+### Internal Rate of Return (IRR)
+The system uses a Newton-Raphson numerical method to calculate IRR based on annual cash flows (investments as negative, exits as positive).
 
-## Development Standards
+### Multiples (MOIC)
+- **Gross MOIC:** Gross Exit Value / Total Invested.
+- **Real MOIC:** Net to Investors / Total Invested (after fees and carry).
 
-- **Models**: Use UUIDs for primary keys to enhance security and portability.
-- **API Views**: Prefer class-based views (APIView) for explicit control.
-- **Audit Logging**: Use `AuditService.log` to record important actions.
+## 🛠 Management Commands
+- `python manage.py createsuperuser`: Create an initial admin account.
+- `python manage.py migrate`: Apply database schema changes.

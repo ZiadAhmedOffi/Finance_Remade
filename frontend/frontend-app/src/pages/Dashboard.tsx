@@ -2,16 +2,20 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/api";
 import "./Dashboard.css";
+import FundCard from "../components/FundCard";
 
 interface Fund {
   id: string;
   name: string;
+  description: string;
 }
 
 /**
- * Dashboard component for authenticated users.
- * Displays personal links, user's funds, and provides conditional access 
- * to the Admin Dashboard for users with 'SUPER_ADMIN' or 'ACCESS_MANAGER' roles.
+ * Dashboard Component
+ * 
+ * The landing page for authenticated users.
+ * Displays all funds the user has access to in a modern card-based layout.
+ * Provides navigation to fund-specific dashboards and the system-wide admin console.
  */
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -19,6 +23,11 @@ const Dashboard: React.FC = () => {
   const [funds, setFunds] = useState<Fund[]>([]);
   const [loading, setLoading] = useState(true);
 
+  /**
+   * Initializes component state:
+   * 1. Checks JWT for admin privileges.
+   * 2. Fetches the list of funds assigned to the user.
+   */
   useEffect(() => {
     const token = localStorage.getItem("access_token");
     if (token) {
@@ -51,6 +60,9 @@ const Dashboard: React.FC = () => {
     fetchMyFunds();
   }, []);
 
+  /**
+   * Clears session and redirects to login.
+   */
   const handleLogout = () => {
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
@@ -58,36 +70,37 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="dashboard-container">
-      <div className="dashboard-header">
-        <h1>Welcome to Your Dashboard</h1>
-        <button className="btn btn-logout" onClick={handleLogout}>Logout</button>
-      </div>
+    <div className="dashboard-container-revamp">
+      <header className="main-header">
+        <div className="header-brand">FinanceRemade</div>
+        <div className="header-nav">
+          <Link to="/profile" className="nav-link">My Profile</Link>
+          {isAdmin && <Link to="/admin" className="nav-link">Admin Console</Link>}
+          <button className="btn-logout" onClick={handleLogout}>Logout</button>
+        </div>
+      </header>
       
-      <div className="dashboard-section">
-        <h3>My Funds</h3>
-        {loading ? <p>Loading funds...</p> : (
-          <div className="funds-grid">
-            {funds.length > 0 ? funds.map(fund => (
-              <Link key={fund.id} to={`/funds/${fund.id}`} className="fund-card">
-                <h4>{fund.name}</h4>
-                <span>View Dashboard &rarr;</span>
-              </Link>
-            )) : <p>You are not assigned to any funds yet.</p>}
-          </div>
-        )}
-      </div>
-
-      <div className="dashboard-links">
-        <Link to="/profile" className="dashboard-link">
-          View My Profile
-        </Link>
-        {isAdmin && (
-          <Link to="/admin" className="dashboard-link">
-            Admin Dashboard
-          </Link>
-        )}
-      </div>
+      <main className="dashboard-content">
+        <section className="funds-section">
+          <h2 className="section-title">Available Funds</h2>
+          
+          {loading ? (
+            <div className="loading-spinner">Loading funds...</div>
+          ) : (
+            <div className="funds-grid-revamp">
+              {funds.length > 0 ? (
+                funds.map(fund => (
+                  <FundCard key={fund.id} fund={fund} />
+                ))
+              ) : (
+                <div className="empty-state">
+                  <p>You are not assigned to any funds yet.</p>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+      </main>
     </div>
   );
 };

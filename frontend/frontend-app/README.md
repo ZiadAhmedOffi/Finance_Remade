@@ -1,44 +1,38 @@
-# Finance Remade Frontend
+# FinanceRemade - Frontend Application
 
-This is the frontend for the Finance Remade application, built with React, TypeScript, and Vite.
+A modern financial dashboard built with React 19, TypeScript, and Vite.
 
-## Project Structure
+## 🏗 Component Structure
 
-- `src/`: Main source code directory.
-  - `api/`: API configuration and Axios interceptors for handling authentication.
-  - `components/`: Reusable UI components.
-  - `pages/`: Page-level components (Login, Dashboard, Admin, Profile).
-  - `App.tsx`: Root component with routing and session expiry logic.
-- `public/`: Static public assets.
-- `package.json`: Project dependencies and scripts.
-- `vite.config.ts`: Vite configuration for development and building.
+### Pages
+- **Dashboard:** The entry point. Features auto-rotating performance graphs for all accessible funds.
+- **FundDashboard:** The main workspace for a specific fund. Uses a tabbed interface to organize financial data.
 
-## Key Features
+### Tabs (`components/`)
+- **ModelInputsTab:** Configuration of fund parameters.
+- **DealPrognosisTab:** Investment tracking and scenario modeling.
+- **FundPerformanceTab:** Advanced analytics and waterfall charts.
+- **AggregatedExitsTab:** Scenario comparison and exit analysis.
+- **AdminFeeTab:** Detailed G&A and operations cost reporting.
 
-- **Authentication Flow**: Supports user login, registration, and private routes.
-- **Admin Dashboard**: Comprehensive management of user applications, roles, and audit logs.
-- **Session Expiry Management**: Automatically detects expired sessions and redirects users to the login page.
-- **Role-Based Views**: Conditionally renders UI elements based on the current user's role.
-- **Paginated Lists**: Efficiently displays large numbers of active users and audit logs.
+## 🎨 Design System
 
-## Setup and Installation
+The application uses a custom "Enterprise" design system defined in `FundDashboard.css` and `Dashboard.css`.
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-2. Start the development server:
-   ```bash
-   npm run dev
-   ```
-3. Build for production:
-   ```bash
-   npm run build
-   ```
+- **Primary Theme:** Professional Blue (`#2563eb`).
+- **Containers:** All major sections are wrapped in `content-card` (rounded rectangles).
+- **Data Display:** Tables use `data-table` with zebra striping and sticky headers.
+- **Spacing:** Generous margins (3rem+) are used to prevent visual clutter in data-heavy views.
 
-## Development Standards
+## 📈 Visualizations
 
-- **TypeScript**: Use strong typing for all interfaces and state variables.
-- **API Requests**: Always use the central `api` instance from `src/api/api.ts` to ensure authentication headers are included.
-- **Hooks**: Use `useCallback` for functions passed as dependencies to `useEffect` to prevent unnecessary re-renders.
-- **Styling**: Prefer vanilla CSS for maximum flexibility and consistency across the application.
+Powered by **Recharts**:
+- **Waterfall Charts:** Annual portfolio expansion.
+- **Line Charts:** IRR-based performance scenarios.
+- **Pie Charts:** Portfolio diversification by company type.
+- **Bar Charts:** Holding period analysis.
+
+## 🛠 Commands
+- `npm run dev`: Start development server.
+- `npm run build`: Build for production.
+- `npm run lint`: Run ESLint.

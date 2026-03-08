@@ -6,6 +6,9 @@ interface ModelInputsTabProps {
   canEdit: boolean;
 }
 
+/**
+ * Interface representing the configurable parameters for a fund's financial model.
+ */
 interface ModelInputData {
   target_fund_size: number;
   inception_year: number;
@@ -25,17 +28,29 @@ interface ModelInputData {
   tier_3_carry: number;
 }
 
+/**
+ * ModelInputsTab Component
+ * 
+ * Allows users to view and update critical fund modeling parameters.
+ * Calculates real-time summaries like Average Ticket and Expected Number of Investors.
+ * 
+ * @param {string} fundId - The unique identifier of the fund.
+ * @param {boolean} canEdit - Flag indicating if the current user has write permissions.
+ */
 const ModelInputsTab: React.FC<ModelInputsTabProps> = ({ fundId, canEdit }) => {
   const [data, setData] = useState<ModelInputData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
+  /**
+   * Fetches the current model inputs from the API.
+   * Handles string-to-number conversion for Decimal fields returned by Django.
+   */
   useEffect(() => {
     const fetchData = async () => {
       try {
         const response = await fundsApi.getModelInputs(fundId);
-        // Ensure all numeric fields are actually numbers (DRF Decimals come as strings)
         const numericData = { ...response.data };
         Object.keys(numericData).forEach(key => {
           if (typeof numericData[key] === 'string' && !isNaN(parseFloat(numericData[key]))) {
@@ -52,15 +67,20 @@ const ModelInputsTab: React.FC<ModelInputsTabProps> = ({ fundId, canEdit }) => {
     fetchData();
   }, [fundId]);
 
+  /**
+   * Syncs local state with form input changes.
+   */
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     if (data) {
-      // Use parseFloat and handle empty string or invalid number
       const val = value === "" ? 0 : parseFloat(value);
       setData({ ...data, [name]: isNaN(val) ? 0 : val });
     }
   };
 
+  /**
+   * Persists the updated model inputs to the backend.
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!data) return;
@@ -77,7 +97,7 @@ const ModelInputsTab: React.FC<ModelInputsTabProps> = ({ fundId, canEdit }) => {
   if (error) return <div className="alert alert-error">{error}</div>;
   if (!data) return null;
 
-  // Real-time calculations with explicit casting
+  // Derive secondary metrics from raw inputs
   const minTicket = Number(data.min_investor_ticket) || 0;
   const maxTicket = Number(data.max_investor_ticket) || 0;
   const targetSize = Number(data.target_fund_size) || 0;
@@ -87,25 +107,29 @@ const ModelInputsTab: React.FC<ModelInputsTabProps> = ({ fundId, canEdit }) => {
 
   return (
     <div className="model-inputs-tab">
-      <div className="calculated-summary-card">
-        <div className="summary-item">
-          <label>Average Ticket (Calculated)</label>
-          <div className="summary-value highlight-value" key={`avg-${averageTicket}`}>
-            ${averageTicket.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      {/* Real-time Calculation Summary */}
+      <div className="content-card" style={{background: '#f0f7ff', borderColor: '#007bff', marginBottom: '3rem'}}>
+        <div style={{display: 'flex', justifyContent: 'space-around', gap: '2rem', flexWrap: 'wrap', textAlign: 'center'}}>
+          <div className="summary-item">
+            <label style={{color: '#0056b3', fontSize: '1rem'}}>Average Ticket (Calculated)</label>
+            <div className="summary-value" style={{fontSize: '2.5rem', fontWeight: '800', color: '#007bff'}}>
+              ${averageTicket.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
           </div>
-        </div>
-        <div className="summary-item">
-          <label>Expected Number of Investors (Calculated)</label>
-          <div className="summary-value highlight-value" key={`exp-${expectedNumberInvestors}`}>
-            {expectedNumberInvestors.toLocaleString()}
+          <div className="summary-item">
+            <label style={{color: '#0056b3', fontSize: '1rem'}}>Expected Number of Investors (Calculated)</label>
+            <div className="summary-value" style={{fontSize: '2.5rem', fontWeight: '800', color: '#007bff'}}>
+              {expectedNumberInvestors.toLocaleString()}
+            </div>
           </div>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="model-inputs-form">
+      {/* Parameter Configuration Form */}
+      <form onSubmit={handleSubmit} className="model-inputs-form content-card">
         <div className="form-section">
           <h3>Fund & Timeline</h3>
-          <div className="input-grid">
+          <div className="input-grid" style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.5rem'}}>
             <div className="form-group">
               <label>Target Fund Size [USD]</label>
               <input type="number" name="target_fund_size" value={data.target_fund_size} onChange={handleChange} disabled={!canEdit} step="any" />
@@ -133,9 +157,11 @@ const ModelInputsTab: React.FC<ModelInputsTabProps> = ({ fundId, canEdit }) => {
           </div>
         </div>
 
+        <div className="divider-h" />
+
         <div className="form-section">
           <h3>Tickets & Fees</h3>
-          <div className="input-grid">
+          <div className="input-grid" style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.5rem'}}>
             <div className="form-group">
               <label>Minimum Investor Ticket [USD]</label>
               <input type="number" name="min_investor_ticket" value={data.min_investor_ticket} onChange={handleChange} disabled={!canEdit} step="any" />
@@ -159,9 +185,11 @@ const ModelInputsTab: React.FC<ModelInputsTabProps> = ({ fundId, canEdit }) => {
           </div>
         </div>
 
+        <div className="divider-h" />
+
         <div className="form-section">
           <h3>Tiers & Carry</h3>
-          <div className="input-grid">
+          <div className="input-grid" style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.5rem'}}>
             <div className="form-group">
               <label>Least Expected MOIC (Tier 1) [x]</label>
               <input type="number" name="least_expected_moic_tier_1" value={data.least_expected_moic_tier_1} onChange={handleChange} disabled={!canEdit} step="any" />
@@ -186,91 +214,12 @@ const ModelInputsTab: React.FC<ModelInputsTabProps> = ({ fundId, canEdit }) => {
         </div>
 
         {canEdit && (
-          <div className="form-actions">
-            {message && <div className="alert alert-success">{message}</div>}
+          <div className="form-actions" style={{marginTop: '2rem', paddingTop: '2rem', borderTop: '1px solid #e2e8f0'}}>
             <button type="submit" className="btn btn-primary">Save Model Inputs</button>
+            {message && <div className="alert alert-success" style={{display: 'inline-block', marginLeft: '2rem', marginBottom: 0}}>{message}</div>}
           </div>
         )}
       </form>
-
-      <style>{`
-        .model-inputs-tab {
-          margin-top: 1rem;
-        }
-        .calculated-summary-card {
-          display: flex;
-          gap: 2rem;
-          background: #f0f7ff;
-          padding: 2rem;
-          border-radius: 12px;
-          border: 2px solid #007bff;
-          margin-bottom: 2rem;
-          box-shadow: 0 4px 12px rgba(0,123,255,0.1);
-          transition: all 0.3s ease;
-        }
-        .summary-item {
-          flex: 1;
-        }
-        .summary-item label {
-          display: block;
-          font-weight: 600;
-          color: #0056b3;
-          margin-bottom: 0.5rem;
-          font-size: 0.9rem;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-        .summary-value {
-          font-size: 2rem;
-          font-weight: 800;
-          color: #007bff;
-          transition: all 0.2s ease;
-        }
-        .highlight-value {
-          display: inline-block;
-          animation: pulse 0.4s ease-out;
-        }
-        @keyframes pulse {
-          0% { transform: scale(1); }
-          50% { transform: scale(1.05); color: #0056b3; }
-          100% { transform: scale(1); }
-        }
-        .model-inputs-form {
-          background: #fff;
-          padding: 2rem;
-          border-radius: 12px;
-          border: 1px solid #eee;
-        }
-        .form-section {
-          margin-bottom: 2.5rem;
-        }
-        .form-section h3 {
-          margin-top: 0;
-          margin-bottom: 1.5rem;
-          font-size: 1.25rem;
-          color: #444;
-          border-bottom: 2px solid #f0f0f0;
-          padding-bottom: 0.5rem;
-        }
-        .input-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-          gap: 1.5rem;
-        }
-        .form-actions {
-          display: flex;
-          align-items: center;
-          gap: 2rem;
-          border-top: 1px solid #eee;
-          padding-top: 2rem;
-        }
-        @media (max-width: 768px) {
-          .calculated-summary-card {
-            flex-direction: column;
-            gap: 1.5rem;
-          }
-        }
-      `}</style>
     </div>
   );
 };

@@ -1,11 +1,27 @@
 import React, { useState, useEffect } from "react";
 import { fundsApi } from "../api/api";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 
 interface DealPrognosisTabProps {
   fundId: string;
   canEdit: boolean;
 }
 
+/**
+ * Interface representing an individual investment deal.
+ */
 interface Deal {
   id: string;
   company_name: string;
@@ -25,10 +41,19 @@ interface Deal {
   exit_value: number;
 }
 
+const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"];
+
 /**
- * DealPrognosisTab Component (Formerly Investment Deals)
- * Displays and manages investment deals for a fund.
- * Restricted to Super Admins and Fund Steering Committee members for editing.
+ * DealPrognosisTab Component
+ * 
+ * Manages the "Deal Prognosis" section of a fund.
+ * Features:
+ * - CRUD operations for investment deals.
+ * - Real-time scenario switching (Base, Upside, Downside).
+ * - Portfolio analytics (Company type distribution, Capital allocation, Holding periods).
+ * 
+ * @param {string} fundId - The unique identifier of the fund.
+ * @param {boolean} canEdit - Flag indicating if the current user has write permissions.
  */
 const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) => {
   const [deals, setDeals] = useState<Deal[]>([]);
@@ -53,6 +78,9 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
 
   const [formData, setFormData] = useState(emptyDeal);
 
+  /**
+   * Fetches the current list of deals for the fund.
+   */
   const fetchDeals = async () => {
     try {
       const response = await fundsApi.getDeals(fundId);
@@ -68,6 +96,38 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
     fetchDeals();
   }, [fundId]);
 
+  /* --- Data Processing for Analytics --- */
+
+  // 1. Group deals by company type for Pie Chart
+  const dealsByType = deals.reduce((acc: any, deal) => {
+    const type = deal.company_type || "Unknown";
+    acc[type] = (acc[type] || 0) + 1;
+    return acc;
+  }, {});
+  const chartDataDealsByType = Object.keys(dealsByType).map(type => ({ name: type, value: dealsByType[type] }));
+
+  // 2. Aggregate invested capital by company type for Pie Chart
+  const capitalByType = deals.reduce((acc: any, deal) => {
+    const type = deal.company_type || "Unknown";
+    acc[type] = (acc[type] || 0) + parseFloat(deal.amount_invested);
+    return acc;
+  }, {});
+  const chartDataCapitalByType = Object.keys(capitalByType).map(type => ({ name: type, value: capitalByType[type] }));
+
+  // 3. Extract max holding periods per distinct company for Bar Chart
+  const holdingPeriods = deals.reduce((acc: any, deal) => {
+    if (!acc[deal.company_name] || deal.holding_period > acc[deal.company_name]) {
+      acc[deal.company_name] = deal.holding_period;
+    }
+    return acc;
+  }, {});
+  const chartDataHoldingPeriod = Object.keys(holdingPeriods)
+    .map(name => ({ name, holding_period: holdingPeriods[name] }))
+    .sort((a, b) => b.holding_period - a.holding_period);
+
+  /**
+   * Handles creation or update of a deal.
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -85,6 +145,9 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
     }
   };
 
+  /**
+   * Pre-populates form for editing an existing deal.
+   */
   const handleEdit = (deal: Deal) => {
     setEditingDeal(deal);
     setFormData({
@@ -103,6 +166,9 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
     setIsAdding(true);
   };
 
+  /**
+   * Permanently deletes a deal.
+   */
   const handleDeleteDeal = async (dealId: string) => {
     if (!window.confirm("Are you sure you want to delete this deal?")) return;
     try {
@@ -113,6 +179,7 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
     }
   };
 
+  // Formatting Utilities
   const formatCurrency = (val: string | number) => {
     const num = typeof val === 'string' ? parseFloat(val) : val;
     return new Intl.NumberFormat('en-US', {
@@ -130,21 +197,15 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
 
   return (
     <div className="deals-tab">
-      <div className="deals-header">
-        <h3>Deal Prognosis</h3>
-        {canEdit && !isAdding && (
-          <button className="btn btn-primary" onClick={() => { setIsAdding(true); setEditingDeal(null); setFormData(emptyDeal); }}>+ Add New Deal</button>
-        )}
-      </div>
-
       {error && <div className="alert alert-error">{error}</div>}
 
+      {/* Add/Edit Deal Overlay */}
       {isAdding && (
-        <div className="add-deal-overlay">
+        <div className="add-deal-overlay content-card" style={{marginBottom: '3rem'}}>
           <form onSubmit={handleSubmit} className="add-deal-form">
             <h4>{editingDeal ? "Edit Investment Deal" : "Add New Investment Deal"}</h4>
             
-            <div className="form-grid">
+            <div className="form-grid" style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1.5rem'}}>
               <div className="form-group">
                 <label>Company Name</label>
                 <input type="text" value={formData.company_name} onChange={e => setFormData({...formData, company_name: e.target.value})} required />
@@ -203,124 +264,139 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
         </div>
       )}
 
-      <div className="table-responsive">
-        {deals.length > 0 ? (
-          <table className="logs-table deals-table">
-            <thead>
-              <tr>
-                <th>Company Name</th>
-                <th>Type</th>
-                <th>Industry</th>
-                <th>Entry Year</th>
-                <th>Amt Invested</th>
-                <th>Entry Val</th>
-                <th>Exit Year</th>
-                <th>Scenario</th>
-                <th>Holding Period</th>
-                <th>Ownership %</th>
-                <th>Exit Val</th>
-                <th>Exit Value</th>
-                {canEdit && <th>Actions</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {deals.map(deal => (
-                <tr key={deal.id}>
-                  <td><strong>{deal.company_name}</strong></td>
-                  <td>{deal.company_type}</td>
-                  <td>{deal.industry}</td>
-                  <td>{deal.entry_year}</td>
-                  <td>{formatCurrency(deal.amount_invested)}</td>
-                  <td>{formatCurrency(deal.entry_valuation)}</td>
-                  <td>{deal.exit_year}</td>
-                  <td>
-                    <span className={`status-badge scenario-${deal.selected_scenario.toLowerCase()}`}>
-                      {deal.selected_scenario}
-                    </span>
-                  </td>
-                  <td>{deal.holding_period} yrs</td>
-                  <td>{formatPercentage(deal.post_money_ownership)}</td>
-                  <td>{formatCurrency(deal.exit_valuation)}</td>
-                  <td>{formatCurrency(deal.exit_value)}</td>
-                  {canEdit && (
-                    <td>
-                      <div className="action-buttons">
-                        <button className="btn-edit" onClick={() => handleEdit(deal)}>Edit</button>
-                        <button className="btn-delete" onClick={() => handleDeleteDeal(deal.id)}>Delete</button>
-                      </div>
-                    </td>
-                  )}
+      {/* Deals Listing Table */}
+      <div className="content-card">
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem'}}>
+          <h3 style={{margin: 0, border: 'none'}}>Investment Deals</h3>
+          {canEdit && !isAdding && (
+            <button className="btn btn-primary" onClick={() => { setIsAdding(true); setEditingDeal(null); setFormData(emptyDeal); }}>+ Add New Deal</button>
+          )}
+        </div>
+        <div className="table-responsive">
+          {deals.length > 0 ? (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Company Name</th>
+                  <th>Type</th>
+                  <th>Industry</th>
+                  <th>Entry Year</th>
+                  <th>Amt Invested</th>
+                  <th>Entry Val</th>
+                  <th>Exit Year</th>
+                  <th>Scenario</th>
+                  <th>Holding Period</th>
+                  <th>Ownership %</th>
+                  <th>Exit Val</th>
+                  <th>Exit Value</th>
+                  {canEdit && <th>Actions</th>}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <div className="empty-state">No investment deals found.</div>
-        )}
+              </thead>
+              <tbody>
+                {deals.map(deal => (
+                  <tr key={deal.id}>
+                    <td><strong>{deal.company_name}</strong></td>
+                    <td>{deal.company_type}</td>
+                    <td>{deal.industry}</td>
+                    <td>{deal.entry_year}</td>
+                    <td>{formatCurrency(deal.amount_invested)}</td>
+                    <td>{formatCurrency(deal.entry_valuation)}</td>
+                    <td>{deal.exit_year}</td>
+                    <td>
+                      <span className={`status-badge scenario-${deal.selected_scenario.toLowerCase()}`}>
+                        {deal.selected_scenario}
+                      </span>
+                    </td>
+                    <td>{deal.holding_period} yrs</td>
+                    <td>{formatPercentage(deal.post_money_ownership)}</td>
+                    <td>{formatCurrency(deal.exit_valuation)}</td>
+                    <td>{formatCurrency(deal.exit_value)}</td>
+                    {canEdit && (
+                      <td>
+                        <div style={{display: 'flex', gap: '0.5rem'}}>
+                          <button onClick={() => handleEdit(deal)} style={{background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontWeight: '600'}}>Edit</button>
+                          <button onClick={() => handleDeleteDeal(deal.id)} style={{background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', fontWeight: '600'}}>Delete</button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div style={{textAlign: 'center', padding: '3rem', color: '#64748b'}}>No investment deals found.</div>
+          )}
+        </div>
       </div>
 
-      <style>{`
-        .deals-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 1.5rem;
-        }
-        .add-deal-overlay {
-          background: #f8f9fa;
-          padding: 2rem;
-          border-radius: 8px;
-          border: 1px solid #ddd;
-          margin-bottom: 2rem;
-        }
-        .form-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-          gap: 1rem;
-        }
-        .table-responsive {
-          overflow-x: auto;
-        }
-        .deals-table {
-          font-size: 0.85rem;
-          min-width: 1200px;
-        }
-        .status-badge {
-          padding: 0.2rem 0.4rem;
-          border-radius: 4px;
-          font-size: 0.7rem;
-          font-weight: 700;
-        }
-        .scenario-base { background: #d1ecf1; color: #0c5460; }
-        .scenario-downside { background: #f8d7da; color: #721c24; }
-        .scenario-upside { background: #d4edda; color: #155724; }
-        .action-buttons {
-          display: flex;
-          gap: 0.5rem;
-        }
-        .btn-edit {
-          background: none;
-          border: none;
-          color: #007bff;
-          cursor: pointer;
-          font-weight: 600;
-        }
-        .btn-delete {
-          background: none;
-          border: none;
-          color: #dc3545;
-          cursor: pointer;
-          font-weight: 600;
-        }
-        .btn-edit:hover, .btn-delete:hover { text-decoration: underline; }
-        .empty-state {
-          text-align: center;
-          padding: 3rem;
-          background: #f8f9fa;
-          border-radius: 8px;
-          color: #666;
-        }
-      `}</style>
+      {/* Analytics Visualizations */}
+      {deals.length > 0 && (
+        <div className="charts-grid" style={{marginTop: '3rem'}}>
+          <div className="chart-container">
+            <h4>Deals by Company Type</h4>
+            <ResponsiveContainer width="100%" height={250}>
+              <PieChart>
+                <Pie
+                  data={chartDataDealsByType}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                  label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                >
+                  {chartDataDealsByType.map((_entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="chart-container">
+            <h4>Capital Invested by Company Type</h4>
+            <ResponsiveContainer width="100%" height={250}>
+              <PieChart>
+                <Pie
+                  data={chartDataCapitalByType}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  fill="#82ca9d"
+                  dataKey="value"
+                  label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                >
+                  {chartDataCapitalByType.map((_entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="chart-container wide">
+            <h4>Holding Period by Company (Years)</h4>
+            <ResponsiveContainer width="100%" height={Math.max(250, chartDataHoldingPeriod.length * 40)}>
+              <BarChart
+                layout="vertical"
+                data={chartDataHoldingPeriod}
+                margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" />
+                <YAxis dataKey="name" type="category" width={90} />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="holding_period" fill="#8884d8" name="Holding Period (Years)" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

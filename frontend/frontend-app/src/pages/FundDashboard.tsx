@@ -29,7 +29,7 @@ const FundDashboard: React.FC = () => {
   const { fundId } = useParams<{ fundId: string }>();
   const navigate = useNavigate();
   
-  const [activeTab, setActiveTab] = useState<"overview" | "model-inputs" | "deals" | "dashboard" | "aggregated-exits" | "admin-fee" | "change-info" | "logs">("overview");
+  const [activeTab, setActiveTab] = useState<"model-inputs" | "deals" | "dashboard" | "aggregated-exits" | "admin-fee" | "basic-info" | "logs">("model-inputs");
   const [fund, setFund] = useState<Fund | null>(null);
   const [logs, setLogs] = useState<FundLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +49,6 @@ const FundDashboard: React.FC = () => {
         const roles = payload.roles || [];
         
         const superAdmin = roles.some((r: any) => r.role === "SUPER_ADMIN");
-        // Check by fund name as it was originally, but now we have fund name in 'fund' property of the token
         const scMember = roles.some((r: any) => r.role === "STEERING_COMMITTEE" && r.fund === fundData.name);
         
         setIsSuperAdmin(superAdmin);
@@ -129,92 +128,78 @@ const FundDashboard: React.FC = () => {
     <div className="fund-dashboard-container">
       <header className="fund-header">
         <div className="header-left">
-          <button className="back-btn" onClick={() => navigate("/dashboard")}>&larr; Back to Dashboard</button>
+          <button className="back-btn" onClick={() => navigate("/dashboard")}>&larr; Funds</button>
+          <div className="fund-title-block">
+            <h1>{fund.name}</h1>
+            <span className="badge">{fund.is_active ? "Active" : "Inactive"}</span>
+          </div>
         </div>
-        <h1>Fund: {fund.name}</h1>
         <div className="header-right">
-          <button className="btn-logout" onClick={handleLogout}>Exit</button>
+          <button className="btn-logout" onClick={handleLogout}>Logout</button>
         </div>
       </header>
+      
       <div className="alert-container">
         {message && <div className="alert alert-success">{message}</div>}
         {error && <div className="alert alert-error">{error}</div>}
       </div>
 
-      <div className="tabs">
-        <button 
-          className={activeTab === "overview" ? "tab-btn active" : "tab-btn"}
-          onClick={() => setActiveTab("overview")}
-        >
-          Overview
-        </button>
-        <button 
-          className={activeTab === "dashboard" ? "tab-btn active" : "tab-btn"}
-          onClick={() => setActiveTab("dashboard")}
-        >
-          Dashboard
-        </button>
-        <button 
-          className={activeTab === "aggregated-exits" ? "tab-btn active" : "tab-btn"}
-          onClick={() => setActiveTab("aggregated-exits")}
-        >
-          Aggregated Exits
-        </button>
-        <button 
-          className={activeTab === "admin-fee" ? "tab-btn active" : "tab-btn"}
-          onClick={() => setActiveTab("admin-fee")}
-        >
-          Admin Fee
-        </button>
-        <button 
-          className={activeTab === "model-inputs" ? "tab-btn active" : "tab-btn"}
-          onClick={() => setActiveTab("model-inputs")}
-        >
-          Model Inputs
-        </button>
-        <button 
-          className={activeTab === "deals" ? "tab-btn active" : "tab-btn"}
-          onClick={() => setActiveTab("deals")}
-        >
-          Deal Prognosis
-        </button>
-        {canEdit && (
+      <div className="tabs-container">
+        <div className="tabs">
           <button 
-            className={activeTab === "change-info" ? "tab-btn active" : "tab-btn"}
-            onClick={() => setActiveTab("change-info")}
+            className={activeTab === "model-inputs" ? "tab-btn active" : "tab-btn"}
+            onClick={() => setActiveTab("model-inputs")}
           >
-            Change Info
+            Model Inputs
           </button>
-        )}
-        {canEdit && (
           <button 
-            className={activeTab === "logs" ? "tab-btn active" : "tab-btn"}
-            onClick={() => setActiveTab("logs")}
+            className={activeTab === "deals" ? "tab-btn active" : "tab-btn"}
+            onClick={() => setActiveTab("deals")}
           >
-            Logs
+            Deal Prognosis
           </button>
-        )}
+          <button 
+            className={activeTab === "dashboard" ? "tab-btn active" : "tab-btn"}
+            onClick={() => setActiveTab("dashboard")}
+          >
+            Dashboard
+          </button>
+          <button 
+            className={activeTab === "aggregated-exits" ? "tab-btn active" : "tab-btn"}
+            onClick={() => setActiveTab("aggregated-exits")}
+          >
+            Aggregated Exits
+          </button>
+          <button 
+            className={activeTab === "admin-fee" ? "tab-btn active" : "tab-btn"}
+            onClick={() => setActiveTab("admin-fee")}
+          >
+            Admin Fee
+          </button>
+          <button 
+            className={activeTab === "basic-info" ? "tab-btn active" : "tab-btn"}
+            onClick={() => setActiveTab("basic-info")}
+          >
+            Basic Info
+          </button>
+          {canEdit && (
+            <button 
+              className={activeTab === "logs" ? "tab-btn active" : "tab-btn"}
+              onClick={() => setActiveTab("logs")}
+            >
+              Logs
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="tab-content">
-        {activeTab === "overview" && (
-          <section className="overview-section">
-            <div className="info-card">
-              <h3>Fund Details</h3>
-              <p><strong>Name:</strong> {fund.name}</p>
-              <p><strong>Description:</strong> {fund.description || "No description provided."}</p>
-            </div>
-            <div className="info-card">
-              <h3>Steering Committee</h3>
-              {fund.steering_committee.length > 0 ? (
-                <ul>
-                  {fund.steering_committee.map((email, idx) => (
-                    <li key={idx}>{email}</li>
-                  ))}
-                </ul>
-              ) : <p>No SC members assigned.</p>}
-            </div>
-          </section>
+        {activeTab === "model-inputs" && fundId && (
+          <ModelInputsTab fundId={fundId} canEdit={canEdit} />
+        )}
+
+        {activeTab === "deals" && fundId && (
+          <DealPrognosisTab fundId={fundId} canEdit={canEdit} />
         )}
 
         {activeTab === "dashboard" && fundId && (
@@ -229,68 +214,89 @@ const FundDashboard: React.FC = () => {
           <AdminFeeTab fundId={fundId} />
         )}
 
-        {activeTab === "model-inputs" && fundId && (
-          <ModelInputsTab fundId={fundId} canEdit={canEdit} />
-        )}
-
-        {activeTab === "deals" && fundId && (
-          <DealPrognosisTab fundId={fundId} canEdit={canEdit} />
-        )}
-
-        {activeTab === "change-info" && canEdit && (
-          <section className="change-info-section">
-            <form onSubmit={handleUpdateInfo} className="edit-form">
-              <h3>Edit Fund Information</h3>
-              <div className="form-group">
-                <label>Fund Name</label>
-                <input 
-                  type="text" 
-                  value={newName} 
-                  onChange={(e) => setNewName(e.target.value)} 
-                  required
-                />
+        {activeTab === "basic-info" && (
+          <section className="basic-info-section">
+            <div className="card-container">
+              {canEdit ? (
+                <form onSubmit={handleUpdateInfo} className="edit-form">
+                  <h3>Edit Fund Information</h3>
+                  <div className="form-group">
+                    <label>Fund Name</label>
+                    <input 
+                      type="text" 
+                      value={newName} 
+                      onChange={(e) => setNewName(e.target.value)} 
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Description</label>
+                    <textarea 
+                      value={newDescription} 
+                      onChange={(e) => setNewDescription(e.target.value)} 
+                      rows={5}
+                    />
+                  </div>
+                  <button type="submit" className="btn btn-primary">Update Information</button>
+                </form>
+              ) : (
+                <div className="info-display">
+                   <h3>Fund Information</h3>
+                   <div className="info-row">
+                     <label>Fund Name</label>
+                     <p>{fund.name}</p>
+                   </div>
+                   <div className="info-row">
+                     <label>Description</label>
+                     <p>{fund.description || "No description provided."}</p>
+                   </div>
+                </div>
+              )}
+              
+              <div className="sc-display" style={{marginTop: "2rem"}}>
+                <h3>Steering Committee</h3>
+                {fund.steering_committee.length > 0 ? (
+                  <ul className="sc-list">
+                    {fund.steering_committee.map((email, idx) => (
+                      <li key={idx}>{email}</li>
+                    ))}
+                  </ul>
+                ) : <p>No SC members assigned.</p>}
               </div>
-              <div className="form-group">
-                <label>Description</label>
-                <textarea 
-                  value={newDescription} 
-                  onChange={(e) => setNewDescription(e.target.value)} 
-                  rows={5}
-                />
-              </div>
-              <button type="submit" className="btn btn-primary">Update Information</button>
-            </form>
+            </div>
           </section>
         )}
 
         {activeTab === "logs" && canEdit && (
-          <section className="logs-section">
+          <section className="logs-section content-card">
             <h3>Action Logs</h3>
             {logs.length > 0 ? (
-              <table className="logs-table">
-                <thead>
-                  <tr>
-                    <th>Timestamp</th>
-                    <th>Actor</th>
-                    <th>Action</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {logs.map(log => (
-                    <tr key={log.id}>
-                      <td>{new Date(log.timestamp).toLocaleString()}</td>
-                      <td>{log.actor_email}</td>
-                      <td>{log.action}</td>
-                      <td>
-                        <span className={log.success ? "status-success" : "status-failed"}>
-                          {log.success ? "Success" : "Failed"}
-                        </span>
-                      </td>
+              <div className="table-responsive">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Timestamp</th>
+                      <th>Actor</th>
+                      <th>Action</th>
+                      <th>Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {logs.map(log => (
+                      <tr key={log.id}>
+                        <td>{new Date(log.timestamp).toLocaleString()}</td>
+                        <td>{log.actor_email}</td>
+                        <td>{log.action}</td>
+                        <td>
+                          <span className={log.success ? "status-success" : "status-failed"}>
+                            {log.success ? "Success" : "Failed"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             ) : <p>No logs available for this fund.</p>}
           </section>
         )}

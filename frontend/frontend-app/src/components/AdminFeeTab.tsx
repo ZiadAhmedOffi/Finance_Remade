@@ -11,6 +11,9 @@ import {
   ResponsiveContainer
 } from "recharts";
 
+/**
+ * Interface representing the primary fund cost categories.
+ */
 interface AdminFeeData {
   total_admin_cost: number;
   operations_fee: number;
@@ -28,11 +31,25 @@ interface AdminFeeTabProps {
   fundId: string;
 }
 
+/**
+ * AdminFeeTab Component
+ * 
+ * Provides a granular breakdown of the fund's General & Administrative (G&A) costs.
+ * Logic includes specific allocation rules for:
+ * - Legal & Admin Costs (Licensing, Contracts)
+ * - Operations (Onboarding, Marketing, Auditing)
+ * - Management Fees
+ * 
+ * @param {string} fundId - The unique identifier of the fund.
+ */
 const AdminFeeTab: React.FC<AdminFeeTabProps> = ({ fundId }) => {
   const [data, setData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Fetches fee and cost data.
+   */
   useEffect(() => {
     const fetchPerformance = async () => {
       try {
@@ -55,6 +72,7 @@ const AdminFeeTab: React.FC<AdminFeeTabProps> = ({ fundId }) => {
   const { admin_fee } = data;
   const { inception_year, fund_life, total_admin_cost, operations_fee, management_fees } = admin_fee;
 
+  // Formatting Utilities
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(val);
 
@@ -63,7 +81,9 @@ const AdminFeeTab: React.FC<AdminFeeTabProps> = ({ fundId }) => {
 
   const years = Array.from({ length: fund_life }, (_, i) => inception_year + i);
 
-  // Table 1: Legal & Admin Costs
+  /* --- Cost Allocation Logic --- */
+
+  // 1. Legal & Admin Costs Breakdown
   const estLicensingY1 = total_admin_cost * 0.05;
   const estLicensingLater = estLicensingY1 * 0.5;
   const row1Vals = years.map((_, i) => i === 0 ? estLicensingY1 : estLicensingLater);
@@ -80,7 +100,7 @@ const AdminFeeTab: React.FC<AdminFeeTabProps> = ({ fundId }) => {
 
   const table1TotalsPerYear = years.map((_, i) => row1Vals[i] + row2Vals[i] + row3Vals[i]);
 
-  // Table 2: Operations
+  // 2. Operations Costs Breakdown
   const onboardingVal = operations_fee * 0.05;
   const rowO1Vals = years.map((_, i) => i < 2 ? onboardingVal : 0);
   const rowO1Total = rowO1Vals.reduce((a, b) => a + b, 0);
@@ -101,41 +121,30 @@ const AdminFeeTab: React.FC<AdminFeeTabProps> = ({ fundId }) => {
   const rowO5Vals = years.map(() => othersOpsVal);
   const rowO5Total = othersOpsVal * fund_life;
 
-  const table2TotalsPerYear = years.map((_, i) => 
+  const table2TotalsPerYear = years_arr.map((_, i) => 
     rowO1Vals[i] + rowO2Vals[i] + rowO3Vals[i] + rowO4Vals[i] + rowO5Vals[i]
   );
 
-  // Table 3: Fund Management
+  // 3. Fund Management Fees (Static annual allocation)
   const managementVal = management_fees / fund_life;
   const rowM1Vals = years.map(() => managementVal);
 
-  // Table 4: Total G&A
+  // 4. Combined G&A Total
   const totalGAVals = years.map((_, i) => table1TotalsPerYear[i] + table2TotalsPerYear[i] + rowM1Vals[i]);
 
-  // Prepare Chart Data
-  const chartData = years.map((year, i) => ({
-    year,
-    "Fund Estabilishment & Licensing": row1Vals[i],
-    "Contracts & Agreements": row2Vals[i],
-    "Legal Others": row3Vals[i],
-    "Startups Onboarding": rowO1Vals[i],
-    "Marketing & Events": rowO2Vals[i],
-    "Annual Fund Performance Report": rowO3Vals[i],
-    "Accounting & Auditing": rowO4Vals[i],
-    "Ops Others": rowO5Vals[i],
-    "Total G&A": totalGAVals[i],
-  }));
-
+  /**
+   * Helper to render yearly cost tables with consistent formatting.
+   */
   const renderYearlyTable = (
     title: string, 
     rows: { label: string, values: number[], total: number, isBold?: boolean }[], 
     totals: number[],
     showTotalRow: boolean = true
   ) => (
-    <div className="yearly-table-container">
+    <div className="content-card">
       <h3>{title}</h3>
       <div className="table-responsive">
-        <table className="performance-table">
+        <table className="data-table">
           <thead>
             <tr>
               <th>Description</th>
@@ -166,91 +175,56 @@ const AdminFeeTab: React.FC<AdminFeeTabProps> = ({ fundId }) => {
     </div>
   );
 
+  // Prepare chart data for breakdown visualizations
+  const chartData = years.map((year, i) => ({
+    year,
+    "Fund Estabilishment & Licensing": row1Vals[i],
+    "Contracts & Agreements": row2Vals[i],
+    "Legal Others": row3Vals[i],
+    "Startups Onboarding": rowO1Vals[i],
+    "Marketing & Events": rowO2Vals[i],
+    "Annual Fund Performance Report": rowO3Vals[i],
+    "Accounting & Auditing": rowO4Vals[i],
+    "Ops Others": rowO5Vals[i],
+    "Total G&A": totalGAVals[i],
+  }));
+
   return (
-    <section className="admin-fee-tab">
-      <div className="total-costs-table-container">
+    <section className="admin-fee-tab" style={{display: 'flex', flexDirection: 'column', gap: '4rem'}}>
+      {/* Master Summary Table */}
+      <div className="content-card">
         <h3>Total Fund Costs</h3>
-        <table className="total-costs-table">
-          <thead>
-            <tr>
-              <th>Description</th>
-              <th>Total (USD)</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Total Admin Cost</td>
-              <td>{formatCurrency(admin_fee.total_admin_cost)}</td>
-            </tr>
-            <tr>
-              <td>Operations Fee</td>
-              <td>{formatCurrency(admin_fee.operations_fee)}</td>
-            </tr>
-            <tr>
-              <td>Management Fees</td>
-              <td>{formatCurrency(admin_fee.management_fees)}</td>
-            </tr>
-            <tr className="total-row">
-              <td><strong>Total Fund Costs</strong></td>
-              <td><strong>{formatCurrency(admin_fee.total_costs)}</strong></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div className="admin-charts-grid">
-        {/* Graph 1: Total G&A costs per year */}
-        <div className="chart-container">
-          <h3>Total G&A Costs per Year</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="year" />
-              <YAxis tickFormatter={formatCurrencyShort} />
-              <Tooltip formatter={(v: number) => formatCurrency(v)} />
-              <Legend />
-              <Line type="monotone" dataKey="Total G&A" stroke="#2c3e50" strokeWidth={3} dot={{ r: 5 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Graph 2: Operations costs per year */}
-        <div className="chart-container">
-          <h3>Operations Costs Breakdown</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="year" />
-              <YAxis tickFormatter={formatCurrencyShort} />
-              <Tooltip formatter={(v: number) => formatCurrency(v)} />
-              <Legend />
-              <Line type="monotone" dataKey="Startups Onboarding" stroke="#3498db" strokeWidth={2} />
-              <Line type="monotone" dataKey="Marketing & Events" stroke="#e67e22" strokeWidth={2} />
-              <Line type="monotone" dataKey="Annual Fund Performance Report" stroke="#9b59b6" strokeWidth={2} />
-              <Line type="monotone" dataKey="Accounting & Auditing" stroke="#f1c40f" strokeWidth={2} />
-              <Line type="monotone" dataKey="Ops Others" stroke="#7f8c8d" strokeWidth={2} strokeDasharray="5 5" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Graph 3: Admin Costs per year */}
-        <div className="chart-container">
-          <h3>Admin Costs Breakdown</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="year" />
-              <YAxis tickFormatter={formatCurrencyShort} />
-              <Tooltip formatter={(v: number) => formatCurrency(v)} />
-              <Legend />
-              <Line type="monotone" dataKey="Fund Estabilishment & Licensing" stroke="#27ae60" strokeWidth={2} />
-              <Line type="monotone" dataKey="Contracts & Agreements" stroke="#e74c3c" strokeWidth={2} />
-              <Line type="monotone" dataKey="Legal Others" stroke="#95a5a6" strokeWidth={2} strokeDasharray="5 5" />
-            </LineChart>
-          </ResponsiveContainer>
+        <div className="table-responsive">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th>Total (USD)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Total Admin Cost</td>
+                <td>{formatCurrency(admin_fee.total_admin_cost)}</td>
+              </tr>
+              <tr>
+                <td>Operations Fee</td>
+                <td>{formatCurrency(admin_fee.operations_fee)}</td>
+              </tr>
+              <tr>
+                <td>Management Fees</td>
+                <td>{formatCurrency(admin_fee.management_fees)}</td>
+              </tr>
+              <tr className="total-row">
+                <td><strong>Total Fund Costs</strong></td>
+                <td><strong>{formatCurrency(admin_fee.total_costs)}</strong></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
+      {/* Segmented Yearly Breakdown Tables */}
       {renderYearlyTable("Legal & Admin Costs", [
         { label: "Fund Estabilishment & Licensing costs", values: row1Vals, total: row1Total },
         { label: "Contracts & Agreements", values: row2Vals, total: row2Total },
@@ -273,51 +247,56 @@ const AdminFeeTab: React.FC<AdminFeeTabProps> = ({ fundId }) => {
         { label: "Total G&A", values: totalGAVals, total: totalGAVals.reduce((a, b) => a + b, 0), isBold: true }
       ], totalGAVals, false)}
 
-      <style>{`
-        .admin-fee-tab {
-          display: flex;
-          flex-direction: column;
-          gap: 2rem;
-        }
-        .admin-charts-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-          gap: 2rem;
-          margin-bottom: 2rem;
-        }
-        .yearly-table-container {
-          background: white;
-          padding: 1.5rem;
-          border-radius: 12px;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-          border: 1px solid #eef2f6;
-        }
-        .table-responsive {
-          overflow-x: auto;
-        }
-        .performance-table th {
-          white-space: nowrap;
-        }
-        .total-costs-table-container {
-            max-width: 500px;
-        }
-        .chart-container {
-          background: white;
-          padding: 1.5rem;
-          border-radius: 12px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-          border: 1px solid #eef2f6;
-        }
-        .chart-container h3 {
-          margin-top: 0;
-          margin-bottom: 1.5rem;
-          color: #2c3e50;
-          font-size: 1.1rem;
-          border-bottom: 1px solid #f0f0f0;
-          padding-bottom: 0.5rem;
-          text-align: center;
-        }
-      `}</style>
+      {/* Cost Trend Visualizations */}
+      <div className="charts-grid">
+        <div className="chart-container">
+          <h3>Total G&A Costs per Year</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="year" />
+              <YAxis tickFormatter={formatCurrencyShort} />
+              <Tooltip formatter={(v: number) => formatCurrency(v)} />
+              <Legend />
+              <Line type="monotone" dataKey="Total G&A" stroke="#2c3e50" strokeWidth={3} dot={{ r: 5 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="chart-container">
+          <h3>Operations Costs Breakdown</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="year" />
+              <YAxis tickFormatter={formatCurrencyShort} />
+              <Tooltip formatter={(v: number) => formatCurrency(v)} />
+              <Legend />
+              <Line type="monotone" dataKey="Startups Onboarding" stroke="#3498db" strokeWidth={2} />
+              <Line type="monotone" dataKey="Marketing & Events" stroke="#e67e22" strokeWidth={2} />
+              <Line type="monotone" dataKey="Annual Fund Performance Report" stroke="#9b59b6" strokeWidth={2} />
+              <Line type="monotone" dataKey="Accounting & Auditing" stroke="#f1c40f" strokeWidth={2} />
+              <Line type="monotone" dataKey="Ops Others" stroke="#7f8c8d" strokeWidth={2} strokeDasharray="5 5" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="chart-container wide">
+          <h3>Admin Costs Breakdown</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="year" />
+              <YAxis tickFormatter={formatCurrencyShort} />
+              <Tooltip formatter={(v: number) => formatCurrency(v)} />
+              <Legend />
+              <Line type="monotone" dataKey="Fund Estabilishment & Licensing" stroke="#27ae60" strokeWidth={2} />
+              <Line type="monotone" dataKey="Contracts & Agreements" stroke="#e74c3c" strokeWidth={2} />
+              <Line type="monotone" dataKey="Legal Others" stroke="#95a5a6" strokeWidth={2} strokeDasharray="5 5" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
     </section>
   );
 };

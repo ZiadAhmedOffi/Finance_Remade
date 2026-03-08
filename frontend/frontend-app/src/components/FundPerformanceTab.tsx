@@ -11,9 +11,11 @@ import {
   ResponsiveContainer,
   ComposedChart,
   Line,
-  Cell
 } from "recharts";
 
+/**
+ * Interface representing a single year's entry in the performance table.
+ */
 interface PerformanceTableEntry {
   year: number;
   start_value: number;
@@ -25,6 +27,9 @@ interface PerformanceTableEntry {
   cumulative_injection: number;
 }
 
+/**
+ * Interface for the complete performance data payload from the API.
+ */
 interface PerformanceData {
   dashboard: {
     total_invested: number;
@@ -34,17 +39,43 @@ interface PerformanceData {
     total_deals: number;
     performance_table: PerformanceTableEntry[];
   };
+  aggregated_exits: {
+    case: string;
+    irr: number;
+    [key: string]: any;
+  }[];
+  admin_fee: {
+    total_admin_cost: number;
+    operations_fee: number;
+    management_fees: number;
+    total_costs: number;
+    inception_year: number;
+    fund_life: number;
+  };
 }
 
 interface FundPerformanceTabProps {
   fundId: string;
 }
 
+/**
+ * FundPerformanceTab Component
+ * 
+ * Provides a high-level overview of fund performance, including:
+ * 1. Primary financial metrics (Total Invested, GEV, MOIC, IRR).
+ * 2. Detailed annual performance table.
+ * 3. Advanced data visualizations (Base Points, Waterfall, Investment Velocity).
+ * 
+ * @param {string} fundId - The unique identifier of the fund.
+ */
 const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
   const [data, setData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Fetches performance data from the backend.
+   */
   useEffect(() => {
     const fetchPerformance = async () => {
       try {
@@ -61,11 +92,105 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
   }, [fundId]);
 
   if (loading) return <div>Loading Dashboard Data...</div>;
-  if (error) return <div className="error-state">{error}</div>;
+  if (error) return <div className="alert alert-error">{error}</div>;
   if (!data) return null;
 
-  const { dashboard } = data;
+  const { dashboard, aggregated_exits, admin_fee } = data;
 
+  /**
+   * Calculates data for the "Base Points" chart.
+   * Treats total invested capital as 100 base points.
+   * Lines represent portfolio value net of annual G&A fees.
+   * 
+   * @returns {Array} Array of objects formatted for Recharts.
+   */
+  const calculateBasePointsData = () => {
+    if (!admin_fee || !dashboard.performance_table) return [];
+
+    const { inception_year, fund_life, total_admin_cost, operations_fee, management_fees } = admin_fee;
+    const years_arr = Array.from({ length: fund_life }, (_, i) => inception_year + i);
+
+    // Reconstruct G&A allocation logic (consistent with AdminFeeTab)
+    const estLicensingY1 = total_admin_cost * 0.05;
+    const estLicensingLater = estLicensingY1 * 0.5;
+    const row1Vals = years_arr.map((_, i) => i === 0 ? estLicensingY1 : estLicensingLater);
+    const row1Total = row1Vals.reduce((a, b) => a + b, 0);
+
+    const contractsY1 = operations_fee * 0.2;
+    const contractsLater = operations_fee * 0.02;
+    const row2Vals = years_arr.map((_, i) => i === 0 ? contractsY1 : contractsLater);
+    const row2Total = row2Vals.reduce((a, b) => a + b, 0);
+
+    const othersLegalVal = (total_admin_cost - (row1Total + row2Total)) / fund_life;
+    const row3Vals = years_arr.map(() => othersLegalVal);
+
+    const table1TotalsPerYear = years_arr.map((_, i) => row1Vals[i] + row2Vals[i] + row3Vals[i]);
+
+    const onboardingVal = operations_fee * 0.05;
+    const rowO1Vals = years_arr.map((_, i) => i < 2 ? onboardingVal : 0);
+    const rowO1Total = rowO1Vals.reduce((a, b) => a + b, 0);
+
+    const marketingVal = (operations_fee * 0.4) / fund_life;
+    const rowO2Vals = years_arr.map(() => marketingVal);
+    const rowO2Total = marketingVal * fund_life;
+
+    const reportVal = operations_fee * 0.02;
+    const rowO3Vals = years_arr.map(() => reportVal);
+    const rowO3Total = rowO3Vals.reduce((a, b) => a + b, 0);
+
+    const accountingVal = operations_fee * 0.04;
+    const rowO4Vals = years_arr.map(() => accountingVal);
+    const rowO4Total = accountingVal * fund_life;
+
+    const othersOpsVal = (operations_fee - (rowO1Total + rowO2Total + rowO3Total + rowO4Total)) / fund_life;
+    const rowO5Vals = years_arr.map(() => othersOpsVal);
+
+    const table2TotalsPerYear = years_arr.map((_, i) => 
+      rowO1Vals[i] + rowO2Vals[i] + rowO3Vals[i] + rowO4Vals[i] + rowO5Vals[i]
+    );
+
+    const managementVal = management_fees / fund_life;
+    const rowM1Vals = years_arr.map(() => managementVal);
+
+    const totalGAVals = years_arr.map((_, i) => table1TotalsPerYear[i] + table2TotalsPerYear[i] + rowM1Vals[i]);
+    const gaMap: Record<number, number> = {};
+    years_arr.forEach((year, i) => { gaMap[year] = totalGAVals[i]; });
+
+    const totalInvested = dashboard.total_invested;
+    const irrBase = aggregated_exits.find(c => c.case === "Base Case")?.irr || 0;
+    const irrUpside = aggregated_exits.find(c => c.case === "Upside Case")?.irr || 0;
+    const irrHighGrowth = aggregated_exits.find(c => c.case === "High Growth Case")?.irr || 0;
+
+    let portfolioBase = 0;
+    let portfolioUpside = 0;
+    let portfolioHighGrowth = 0;
+
+    return dashboard.performance_table.map((row) => {
+      const injection = row.injection;
+      const gaYearly = gaMap[row.year] || 0;
+
+      portfolioBase = portfolioBase * (1 + irrBase) + injection;
+      portfolioUpside = portfolioUpside * (1 + irrUpside) + injection;
+      portfolioHighGrowth = portfolioHighGrowth * (1 + irrHighGrowth) + injection;
+
+      const investedBP = totalInvested > 0 ? (injection / totalInvested) * 100 : 0;
+      const lineBase = totalInvested > 0 ? ((portfolioBase - gaYearly) / totalInvested) * 100 : 0;
+      const lineUpside = totalInvested > 0 ? ((portfolioUpside - gaYearly) / totalInvested) * 100 : 0;
+      const lineHighGrowth = totalInvested > 0 ? ((portfolioHighGrowth - gaYearly) / totalInvested) * 100 : 0;
+
+      return {
+        year: row.year,
+        investedBP: investedBP,
+        "Base Case": lineBase,
+        "Upside Case": lineUpside,
+        "High Growth Case": lineHighGrowth
+      };
+    });
+  };
+
+  const basePointsChartData = calculateBasePointsData();
+
+  // Formatting Utilities
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact" }).format(val);
 
@@ -75,56 +200,104 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
   const formatPercent = (val: number) => (val * 100).toFixed(2) + "%";
   const formatMultiple = (val: number) => val.toFixed(2) + "x";
 
-  // Prepare data for Waterfall Chart (Annual Portfolio Value Expansion)
-  // We use stacked bars: 
-  // 1. Transparent bar for "start_value"
-  // 2. Bar for "injection"
-  // 3. Bar for "appreciation"
-  const waterfallData = dashboard.performance_table.map((entry, index) => ({
+  const waterfallData = dashboard.performance_table.map((entry) => ({
     ...entry,
-    // For connecting lines, we need the start point of next year's bar 
-    // which is the end point of current year's bar.
-    // Horizontal lines in Recharts can be represented by a Line with 
-    // points at (x, y) and (x+1, y). This is hard.
-    // Simpler: Just provide the end value.
     end_value: entry.total_portfolio_value
   }));
-
-  // Helper component to render connecting lines for the waterfall
-  // This is a custom shape or just another line series?
-  // Let's use a "Step" line for connecting the bars if possible.
   
   return (
     <section className="performance-tab">
-      <div className="metric-rows">
-        <div className="metric-row">
-          <div className="metric-card prominent">
-            <label>Total Amount Invested</label>
-            <div className="value">{formatCurrencyLong(dashboard.total_invested)}</div>
+      {/* Top Metrics Card */}
+      <div className="content-card" style={{background: '#f0f7ff', borderColor: '#007bff', marginBottom: '3rem'}}>
+        <div style={{display: 'flex', flexDirection: 'column', gap: '2.5rem', textAlign: 'center'}}>
+          {/* Row 1: Primary Metrics */}
+          <div style={{display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: '2rem'}}>
+            <div className="summary-item">
+              <label style={{color: '#0056b3', fontSize: '1.1rem', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block'}}>Total Invested</label>
+              <div className="summary-value" style={{fontSize: '3rem', fontWeight: '900', color: '#007bff'}}>
+                {formatCurrencyLong(dashboard.total_invested)}
+              </div>
+            </div>
+            <div className="summary-item">
+              <label style={{color: '#0056b3', fontSize: '1.1rem', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block'}}>Gross Exit Value</label>
+              <div className="summary-value" style={{fontSize: '3rem', fontWeight: '900', color: '#007bff'}}>
+                {formatCurrencyLong(dashboard.gross_exit_value)}
+              </div>
+            </div>
           </div>
-          <div className="metric-card prominent">
-            <label>Gross Exit Value</label>
-            <div className="value">{formatCurrencyLong(dashboard.gross_exit_value)}</div>
-          </div>
-        </div>
-        <div className="metric-row">
-          <div className="metric-card">
-            <label>MOIC Multiple</label>
-            <div className="value">{formatMultiple(dashboard.moic)}</div>
-          </div>
-          <div className="metric-card">
-            <label>IRR</label>
-            <div className="value">{formatPercent(dashboard.irr)}</div>
-          </div>
-          <div className="metric-card">
-            <label>Total Deals</label>
-            <div className="value">{dashboard.total_deals}</div>
+
+          <div className="divider-h" style={{margin: '0 auto', width: '80%', opacity: '0.3'}} />
+
+          {/* Row 2: Secondary Metrics */}
+          <div style={{display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: '2rem'}}>
+            <div className="summary-item">
+              <label style={{color: '#0056b3', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>MOIC Multiple</label>
+              <div className="summary-value" style={{fontSize: '1.8rem', fontWeight: '700', color: '#007bff'}}>
+                {formatMultiple(dashboard.moic)}
+              </div>
+            </div>
+            <div className="summary-item">
+              <label style={{color: '#0056b3', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>IRR</label>
+              <div className="summary-value" style={{fontSize: '1.8rem', fontWeight: '700', color: '#007bff'}}>
+                {formatPercent(dashboard.irr)}
+              </div>
+            </div>
+            <div className="summary-item">
+              <label style={{color: '#0056b3', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>Total Deals</label>
+              <div className="summary-value" style={{fontSize: '1.8rem', fontWeight: '700', color: '#007bff'}}>
+                {dashboard.total_deals}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
+      {/* Annual Performance Table */}
+      <div className="content-card" style={{marginBottom: '4rem'}}>
+        <h3>Annual Portfolio Performance Data</h3>
+        <div className="table-responsive">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Year</th>
+                <th>Capital Injection (USD)</th>
+                <th>Capital Appreciation</th>
+                <th>Total Portfolio Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dashboard.performance_table.map((row) => (
+                <tr key={row.year}>
+                  <td>{row.year}</td>
+                  <td>{formatCurrencyLong(row.injection)}</td>
+                  <td>{formatCurrencyLong(row.appreciation)}</td>
+                  <td>{formatCurrencyLong(row.total_portfolio_value)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Visualizations Grid */}
       <div className="charts-grid">
-        {/* Graph 1: Annual Portfolio Value Expansion */}
+        <div className="chart-container wide">
+          <h3>Fund Performance (Base Points)</h3>
+          <ResponsiveContainer width="100%" height={400}>
+            <ComposedChart data={basePointsChartData}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="year" />
+              <YAxis label={{ value: 'Base Points', angle: -90, position: 'insideLeft' }} />
+              <Tooltip formatter={(value: number) => value.toFixed(2)} />
+              <Legend />
+              <Bar dataKey="investedBP" fill="#e67e22" name="Invested Capital (BP)" barSize={40} />
+              <Line type="monotone" dataKey="Base Case" stroke="#2ecc71" strokeWidth={3} dot={{ r: 4 }} />
+              <Line type="monotone" dataKey="Upside Case" stroke="#3498db" strokeWidth={3} dot={{ r: 4 }} />
+              <Line type="monotone" dataKey="High Growth Case" stroke="#9b59b6" strokeWidth={3} dot={{ r: 4 }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+
         <div className="chart-container wide">
           <h3>Annual Portfolio Value Expansion</h3>
           <ResponsiveContainer width="100%" height={400}>
@@ -134,25 +307,14 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
               <YAxis tickFormatter={formatCurrency} />
               <Tooltip formatter={(value: number) => formatCurrencyLong(value)} />
               <Legend />
-              {/* Transparent "push" bar */}
               <Bar dataKey="start_value" stackId="a" fill="transparent" />
               <Bar dataKey="injection" stackId="a" fill="#3498db" name="Capital Injection" />
               <Bar dataKey="appreciation" stackId="a" fill="#2ecc71" name="Capital Appreciation" />
-              {/* Connecting line using a "step" type line */}
-              <Line 
-                type="stepAfter" 
-                dataKey="total_portfolio_value" 
-                stroke="#7f8c8d" 
-                strokeWidth={2} 
-                dot={false}
-                name="Value Step"
-                legendType="none"
-              />
+              <Line type="stepAfter" dataKey="total_portfolio_value" stroke="#7f8c8d" strokeWidth={2} dot={false} name="Value Step" legendType="none" />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Graph 2: Investment Velocity - Deals */}
         <div className="chart-container">
           <h3>Investment Velocity (Deals)</h3>
           <ResponsiveContainer width="100%" height={300}>
@@ -169,7 +331,6 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
           </ResponsiveContainer>
         </div>
 
-        {/* Graph 3: Investment Velocity - Amount */}
         <div className="chart-container">
           <h3>Investment Velocity (Amount)</h3>
           <ResponsiveContainer width="100%" height={300}>
@@ -186,7 +347,6 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
           </ResponsiveContainer>
         </div>
 
-        {/* Graph 4: Capital Appreciation */}
         <div className="chart-container wide">
           <h3>Capital Appreciation</h3>
           <ResponsiveContainer width="100%" height={400}>
@@ -202,57 +362,6 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
           </ResponsiveContainer>
         </div>
       </div>
-
-      <div className="performance-table-container">
-        <h3>Annual Portfolio Performance Data</h3>
-        <table className="performance-table">
-          <thead>
-            <tr>
-              <th>Year</th>
-              <th>Capital Injection (USD)</th>
-              <th>Capital Appreciation</th>
-              <th>Total Portfolio Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            {dashboard.performance_table.map((row) => (
-              <tr key={row.year}>
-                <td>{row.year}</td>
-                <td>{formatCurrencyLong(row.injection)}</td>
-                <td>{formatCurrencyLong(row.appreciation)}</td>
-                <td>{formatCurrencyLong(row.total_portfolio_value)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <style>{`
-        .charts-grid {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 2rem;
-          margin: 2rem 0;
-        }
-        .chart-container {
-          background: white;
-          padding: 1.5rem;
-          border-radius: 12px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-          border: 1px solid #eef2f6;
-        }
-        .chart-container.wide {
-          grid-column: span 2;
-        }
-        .chart-container h3 {
-          margin-top: 0;
-          margin-bottom: 1.5rem;
-          color: #2c3e50;
-          font-size: 1.1rem;
-          border-bottom: 1px solid #f0f0f0;
-          padding-bottom: 0.5rem;
-        }
-      `}</style>
     </section>
   );
 };
