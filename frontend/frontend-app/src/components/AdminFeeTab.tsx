@@ -111,7 +111,7 @@ const AdminFeeTab: React.FC<AdminFeeTabProps> = ({ fundId }) => {
 
   const reportVal = operations_fee * 0.02;
   const rowO3Vals = years.map(() => reportVal);
-  const rowO3Total = reportVal * fund_life;
+  const rowO3Total = rowO3Vals.reduce((a, b) => a + b, 0);
 
   const accountingVal = operations_fee * 0.04;
   const rowO4Vals = years.map(() => accountingVal);
@@ -121,7 +121,7 @@ const AdminFeeTab: React.FC<AdminFeeTabProps> = ({ fundId }) => {
   const rowO5Vals = years.map(() => othersOpsVal);
   const rowO5Total = othersOpsVal * fund_life;
 
-  const table2TotalsPerYear = years_arr.map((_, i) => 
+  const table2TotalsPerYear = years.map((_, i) => 
     rowO1Vals[i] + rowO2Vals[i] + rowO3Vals[i] + rowO4Vals[i] + rowO5Vals[i]
   );
 
@@ -256,7 +256,7 @@ const AdminFeeTab: React.FC<AdminFeeTabProps> = ({ fundId }) => {
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="year" />
               <YAxis tickFormatter={formatCurrencyShort} />
-              <Tooltip formatter={(v: number) => formatCurrency(v)} />
+              <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
               <Legend />
               <Line type="monotone" dataKey="Total G&A" stroke="#2c3e50" strokeWidth={3} dot={{ r: 5 }} />
             </LineChart>
@@ -270,7 +270,7 @@ const AdminFeeTab: React.FC<AdminFeeTabProps> = ({ fundId }) => {
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="year" />
               <YAxis tickFormatter={formatCurrencyShort} />
-              <Tooltip formatter={(v: number) => formatCurrency(v)} />
+              <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
               <Legend />
               <Line type="monotone" dataKey="Startups Onboarding" stroke="#3498db" strokeWidth={2} />
               <Line type="monotone" dataKey="Marketing & Events" stroke="#e67e22" strokeWidth={2} />
@@ -288,7 +288,7 @@ const AdminFeeTab: React.FC<AdminFeeTabProps> = ({ fundId }) => {
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="year" />
               <YAxis tickFormatter={formatCurrencyShort} />
-              <Tooltip formatter={(v: number) => formatCurrency(v)} />
+              <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
               <Legend />
               <Line type="monotone" dataKey="Fund Estabilishment & Licensing" stroke="#27ae60" strokeWidth={2} />
               <Line type="monotone" dataKey="Contracts & Agreements" stroke="#e74c3c" strokeWidth={2} />

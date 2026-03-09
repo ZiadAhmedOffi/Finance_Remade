@@ -1,8 +1,21 @@
-node_modules
-backend/backend-venv/
-backend/backend_app/__pycache__
-backend/users/services/__pycache__
-backend/users/__pycache__
-backend/users/migrations/__pycache__
-backend/funds/__pycache__
-backend/funds/migrations/__pycache__
+# General
+.DS_Store
+.env
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+backend-venv/
+venv/
+env/
+
+# Node
+node_modules/
+dist/
+coverage/
+
+# IDEs
+.vscode/
+.idea/

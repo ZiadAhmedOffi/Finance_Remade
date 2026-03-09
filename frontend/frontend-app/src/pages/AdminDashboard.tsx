@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/api";
 import "./AdminDashboard.css";
+import NotFound from "./NotFound";
 
 interface Role {
   id: string;
@@ -81,6 +82,24 @@ const AdminDashboard: React.FC = () => {
 
   const [newFundName, setNewFundName] = useState("");
   const [newFundDescription, setNewFundDescription] = useState("");
+
+  const [userRoles, setUserRoles] = useState<string[]>([]);
+  const [privilegeError, setPrivilegeError] = useState<{title: string, message: string} | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split(".")[1]));
+        const rNames = (payload.roles || []).map((r: any) => r.role);
+        setUserRoles(rNames);
+      } catch (e) {
+        console.error("Error decoding token", e);
+      }
+    }
+  }, []);
+
+  const isSuperAdmin = userRoles.includes("SUPER_ADMIN");
 
   const fetchPendingUsers = useCallback(async () => {
     try {
@@ -186,6 +205,13 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleCreateFund = async () => {
+    if (!isSuperAdmin) {
+      setPrivilegeError({
+        title: "Privilege Error",
+        message: "Only Super Administrators are authorized to create new funds in the system."
+      });
+      return;
+    }
     if (!newFundName) return;
     try {
       await api.post("/funds/", {
@@ -203,6 +229,13 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleDeactivateFund = async (fundId: string) => {
+    if (!isSuperAdmin) {
+      setPrivilegeError({
+        title: "Privilege Error",
+        message: "Only Super Administrators are authorized to deactivate funds."
+      });
+      return;
+    }
     if (!window.confirm("Are you sure you want to deactivate this fund?")) return;
     try {
       await api.delete(`/funds/${fundId}/`);
@@ -250,6 +283,10 @@ const AdminDashboard: React.FC = () => {
       setError(err.response?.data?.error || "Failed to remove role.");
     }
   };
+
+  if (privilegeError) {
+    return <NotFound title={privilegeError.title} message={privilegeError.message} />;
+  }
 
   if (loading) return <div className="admin-dashboard-container">Loading Dashboard...</div>;
 
@@ -404,7 +441,9 @@ const AdminDashboard: React.FC = () => {
           <section>
             <div className="section-header">
               <h2>Funds Management</h2>
-              <button onClick={() => setIsFundModalOpen(true)} className="btn btn-approve">Create New Fund</button>
+              {isSuperAdmin && (
+                <button onClick={() => setIsFundModalOpen(true)} className="btn btn-approve">Create New Fund</button>
+              )}
             </div>
             {funds.length > 0 ? (
               <table className="users-table">
@@ -429,7 +468,9 @@ const AdminDashboard: React.FC = () => {
                         </div>
                       </td>
                       <td className="actions">
-                        <button onClick={() => handleDeactivateFund(fund.id)} className="btn btn-deactivate">Deactivate</button>
+                        {isSuperAdmin && (
+                          <button onClick={() => handleDeactivateFund(fund.id)} className="btn btn-deactivate">Deactivate</button>
+                        )}
                       </td>
                     </tr>
                   ))}

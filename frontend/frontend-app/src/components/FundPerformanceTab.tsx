@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../api/api";
 import {
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -11,6 +9,7 @@ import {
   ResponsiveContainer,
   ComposedChart,
   Line,
+  Bar,
 } from "recharts";
 
 /**
@@ -64,7 +63,7 @@ interface FundPerformanceTabProps {
  * Provides a high-level overview of fund performance, including:
  * 1. Primary financial metrics (Total Invested, GEV, MOIC, IRR).
  * 2. Detailed annual performance table.
- * 3. Advanced data visualizations (Base Points, Waterfall, Investment Velocity).
+ * 3. Advanced data visualizations (Waterfall, Investment Velocity).
  * 
  * @param {string} fundId - The unique identifier of the fund.
  */
@@ -95,100 +94,7 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
   if (error) return <div className="alert alert-error">{error}</div>;
   if (!data) return null;
 
-  const { dashboard, aggregated_exits, admin_fee } = data;
-
-  /**
-   * Calculates data for the "Base Points" chart.
-   * Treats total invested capital as 100 base points.
-   * Lines represent portfolio value net of annual G&A fees.
-   * 
-   * @returns {Array} Array of objects formatted for Recharts.
-   */
-  const calculateBasePointsData = () => {
-    if (!admin_fee || !dashboard.performance_table) return [];
-
-    const { inception_year, fund_life, total_admin_cost, operations_fee, management_fees } = admin_fee;
-    const years_arr = Array.from({ length: fund_life }, (_, i) => inception_year + i);
-
-    // Reconstruct G&A allocation logic (consistent with AdminFeeTab)
-    const estLicensingY1 = total_admin_cost * 0.05;
-    const estLicensingLater = estLicensingY1 * 0.5;
-    const row1Vals = years_arr.map((_, i) => i === 0 ? estLicensingY1 : estLicensingLater);
-    const row1Total = row1Vals.reduce((a, b) => a + b, 0);
-
-    const contractsY1 = operations_fee * 0.2;
-    const contractsLater = operations_fee * 0.02;
-    const row2Vals = years_arr.map((_, i) => i === 0 ? contractsY1 : contractsLater);
-    const row2Total = row2Vals.reduce((a, b) => a + b, 0);
-
-    const othersLegalVal = (total_admin_cost - (row1Total + row2Total)) / fund_life;
-    const row3Vals = years_arr.map(() => othersLegalVal);
-
-    const table1TotalsPerYear = years_arr.map((_, i) => row1Vals[i] + row2Vals[i] + row3Vals[i]);
-
-    const onboardingVal = operations_fee * 0.05;
-    const rowO1Vals = years_arr.map((_, i) => i < 2 ? onboardingVal : 0);
-    const rowO1Total = rowO1Vals.reduce((a, b) => a + b, 0);
-
-    const marketingVal = (operations_fee * 0.4) / fund_life;
-    const rowO2Vals = years_arr.map(() => marketingVal);
-    const rowO2Total = marketingVal * fund_life;
-
-    const reportVal = operations_fee * 0.02;
-    const rowO3Vals = years_arr.map(() => reportVal);
-    const rowO3Total = rowO3Vals.reduce((a, b) => a + b, 0);
-
-    const accountingVal = operations_fee * 0.04;
-    const rowO4Vals = years_arr.map(() => accountingVal);
-    const rowO4Total = accountingVal * fund_life;
-
-    const othersOpsVal = (operations_fee - (rowO1Total + rowO2Total + rowO3Total + rowO4Total)) / fund_life;
-    const rowO5Vals = years_arr.map(() => othersOpsVal);
-
-    const table2TotalsPerYear = years_arr.map((_, i) => 
-      rowO1Vals[i] + rowO2Vals[i] + rowO3Vals[i] + rowO4Vals[i] + rowO5Vals[i]
-    );
-
-    const managementVal = management_fees / fund_life;
-    const rowM1Vals = years_arr.map(() => managementVal);
-
-    const totalGAVals = years_arr.map((_, i) => table1TotalsPerYear[i] + table2TotalsPerYear[i] + rowM1Vals[i]);
-    const gaMap: Record<number, number> = {};
-    years_arr.forEach((year, i) => { gaMap[year] = totalGAVals[i]; });
-
-    const totalInvested = dashboard.total_invested;
-    const irrBase = aggregated_exits.find(c => c.case === "Base Case")?.irr || 0;
-    const irrUpside = aggregated_exits.find(c => c.case === "Upside Case")?.irr || 0;
-    const irrHighGrowth = aggregated_exits.find(c => c.case === "High Growth Case")?.irr || 0;
-
-    let portfolioBase = 0;
-    let portfolioUpside = 0;
-    let portfolioHighGrowth = 0;
-
-    return dashboard.performance_table.map((row) => {
-      const injection = row.injection;
-      const gaYearly = gaMap[row.year] || 0;
-
-      portfolioBase = portfolioBase * (1 + irrBase) + injection;
-      portfolioUpside = portfolioUpside * (1 + irrUpside) + injection;
-      portfolioHighGrowth = portfolioHighGrowth * (1 + irrHighGrowth) + injection;
-
-      const investedBP = totalInvested > 0 ? (injection / totalInvested) * 100 : 0;
-      const lineBase = totalInvested > 0 ? ((portfolioBase - gaYearly) / totalInvested) * 100 : 0;
-      const lineUpside = totalInvested > 0 ? ((portfolioUpside - gaYearly) / totalInvested) * 100 : 0;
-      const lineHighGrowth = totalInvested > 0 ? ((portfolioHighGrowth - gaYearly) / totalInvested) * 100 : 0;
-
-      return {
-        year: row.year,
-        investedBP: investedBP,
-        "Base Case": lineBase,
-        "Upside Case": lineUpside,
-        "High Growth Case": lineHighGrowth
-      };
-    });
-  };
-
-  const basePointsChartData = calculateBasePointsData();
+  const { dashboard } = data;
 
   // Formatting Utilities
   const formatCurrency = (val: number) => 
@@ -282,30 +188,13 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
       {/* Visualizations Grid */}
       <div className="charts-grid">
         <div className="chart-container wide">
-          <h3>Fund Performance (Base Points)</h3>
-          <ResponsiveContainer width="100%" height={400}>
-            <ComposedChart data={basePointsChartData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="year" />
-              <YAxis label={{ value: 'Base Points', angle: -90, position: 'insideLeft' }} />
-              <Tooltip formatter={(value: number) => value.toFixed(2)} />
-              <Legend />
-              <Bar dataKey="investedBP" fill="#e67e22" name="Invested Capital (BP)" barSize={40} />
-              <Line type="monotone" dataKey="Base Case" stroke="#2ecc71" strokeWidth={3} dot={{ r: 4 }} />
-              <Line type="monotone" dataKey="Upside Case" stroke="#3498db" strokeWidth={3} dot={{ r: 4 }} />
-              <Line type="monotone" dataKey="High Growth Case" stroke="#9b59b6" strokeWidth={3} dot={{ r: 4 }} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="chart-container wide">
           <h3>Annual Portfolio Value Expansion</h3>
           <ResponsiveContainer width="100%" height={400}>
             <ComposedChart data={waterfallData}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="year" />
               <YAxis tickFormatter={formatCurrency} />
-              <Tooltip formatter={(value: number) => formatCurrencyLong(value)} />
+              <Tooltip formatter={(value: any) => formatCurrencyLong(Number(value))} />
               <Legend />
               <Bar dataKey="start_value" stackId="a" fill="transparent" />
               <Bar dataKey="injection" stackId="a" fill="#3498db" name="Capital Injection" />
@@ -339,7 +228,7 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
               <XAxis dataKey="year" />
               <YAxis yAxisId="left" tickFormatter={formatCurrency} />
               <YAxis yAxisId="right" orientation="right" tickFormatter={formatCurrency} />
-              <Tooltip formatter={(v: number) => formatCurrencyLong(v)} />
+              <Tooltip formatter={(v: any) => formatCurrencyLong(Number(v))} />
               <Legend />
               <Bar yAxisId="left" dataKey="injection" fill="#e67e22" name="Amount Invested" />
               <Line yAxisId="right" dataKey="cumulative_injection" stroke="#e74c3c" name="Cumulative Amount" strokeWidth={3} />
@@ -354,7 +243,7 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="year" />
               <YAxis tickFormatter={formatCurrency} />
-              <Tooltip formatter={(v: number) => formatCurrencyLong(v)} />
+              <Tooltip formatter={(v: any) => formatCurrencyLong(Number(v))} />
               <Legend />
               <Line type="monotone" dataKey="cumulative_injection" stroke="#34495e" name="Total Invested Amount" strokeWidth={3} dot={{ r: 4 }} />
               <Line type="monotone" dataKey="total_portfolio_value" stroke="#27ae60" name="Total Portfolio Value" strokeWidth={3} dot={{ r: 4 }} />

@@ -29,7 +29,7 @@ const FundDashboard: React.FC = () => {
   const { fundId } = useParams<{ fundId: string }>();
   const navigate = useNavigate();
   
-  const [activeTab, setActiveTab] = useState<"model-inputs" | "deals" | "dashboard" | "aggregated-exits" | "admin-fee" | "basic-info" | "logs">("model-inputs");
+  const [activeTab, setActiveTab] = useState<"model-inputs" | "deals" | "dashboard" | "aggregated-exits" | "admin-fee" | "basic-info" | "logs">("dashboard");
   const [fund, setFund] = useState<Fund | null>(null);
   const [logs, setLogs] = useState<FundLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -124,183 +124,180 @@ const FundDashboard: React.FC = () => {
 
   const canEdit = isSuperAdmin || isSCMember;
 
-  return (
-    <div className="fund-dashboard-container">
-      <header className="fund-header">
-        <div className="header-left">
-          <button className="back-btn" onClick={() => navigate("/dashboard")}>&larr; Funds</button>
-          <div className="fund-title-block">
-            <h1>{fund.name}</h1>
-            <span className="badge">{fund.is_active ? "Active" : "Inactive"}</span>
-          </div>
-        </div>
-        <div className="header-right">
-          <button className="btn-logout" onClick={handleLogout}>Logout</button>
-        </div>
-      </header>
-      
-      <div className="alert-container">
-        {message && <div className="alert alert-success">{message}</div>}
-        {error && <div className="alert alert-error">{error}</div>}
-      </div>
+  const menuItems = [
+    { id: "dashboard", label: "Dashboard", icon: "📊" },
+    { id: "deals", label: "Deal Prognosis", icon: "🤝" },
+    { id: "model-inputs", label: "Model Inputs", icon: "⚙️" },
+    { id: "aggregated-exits", label: "Aggregated Exits", icon: "📈" },
+    { id: "admin-fee", label: "Admin Fee", icon: "💰" },
+    { id: "basic-info", label: "Basic Info", icon: "ℹ️" },
+    ...(canEdit ? [{ id: "logs", label: "Action Logs", icon: "📝" }] : []),
+  ];
 
-      <div className="tabs-container">
-        <div className="tabs">
-          <button 
-            className={activeTab === "model-inputs" ? "tab-btn active" : "tab-btn"}
-            onClick={() => setActiveTab("model-inputs")}
-          >
-            Model Inputs
+  return (
+    <div className="fund-dashboard-layout">
+      <aside className="sidebar">
+        <div className="sidebar-header">
+          <div className="brand">FinanceRemade</div>
+          <button className="back-link" onClick={() => navigate("/dashboard")}>
+            &larr; Back to Funds
           </button>
-          <button 
-            className={activeTab === "deals" ? "tab-btn active" : "tab-btn"}
-            onClick={() => setActiveTab("deals")}
-          >
-            Deal Prognosis
-          </button>
-          <button 
-            className={activeTab === "dashboard" ? "tab-btn active" : "tab-btn"}
-            onClick={() => setActiveTab("dashboard")}
-          >
-            Dashboard
-          </button>
-          <button 
-            className={activeTab === "aggregated-exits" ? "tab-btn active" : "tab-btn"}
-            onClick={() => setActiveTab("aggregated-exits")}
-          >
-            Aggregated Exits
-          </button>
-          <button 
-            className={activeTab === "admin-fee" ? "tab-btn active" : "tab-btn"}
-            onClick={() => setActiveTab("admin-fee")}
-          >
-            Admin Fee
-          </button>
-          <button 
-            className={activeTab === "basic-info" ? "tab-btn active" : "tab-btn"}
-            onClick={() => setActiveTab("basic-info")}
-          >
-            Basic Info
-          </button>
-          {canEdit && (
-            <button 
-              className={activeTab === "logs" ? "tab-btn active" : "tab-btn"}
-              onClick={() => setActiveTab("logs")}
+        </div>
+        
+        <nav className="sidebar-nav">
+          {menuItems.map((item) => (
+            <button
+              key={item.id}
+              className={`nav-item ${activeTab === item.id ? "active" : ""}`}
+              onClick={() => setActiveTab(item.id as any)}
             >
-              Logs
+              <span className="nav-icon">{item.icon}</span>
+              <span className="nav-label">{item.label}</span>
             </button>
+          ))}
+        </nav>
+
+        <div className="sidebar-footer">
+          <div className="user-info">
+            <span className="user-icon">👤</span>
+            <span className="user-role">{isSuperAdmin ? "Super Admin" : isSCMember ? "SC Member" : "Investor"}</span>
+          </div>
+          <button className="logout-button" onClick={handleLogout}>
+            Logout
+          </button>
+        </div>
+      </aside>
+
+      <main className="main-content">
+        <header className="content-header">
+          <div className="header-title">
+            <h1>{fund.name}</h1>
+            <span className={`status-badge ${fund.is_active ? "active" : "inactive"}`}>
+              {fund.is_active ? "Active" : "Inactive"}
+            </span>
+          </div>
+          <div className="header-actions">
+            {message && <div className="alert-mini success">{message}</div>}
+            {error && <div className="alert-mini error">{error}</div>}
+          </div>
+        </header>
+
+        <div className="scrollable-content">
+          {activeTab === "dashboard" && fundId && (
+            <FundPerformanceTab fundId={fundId} />
+          )}
+
+          {activeTab === "deals" && fundId && (
+            <DealPrognosisTab fundId={fundId} canEdit={canEdit} />
+          )}
+
+          {activeTab === "model-inputs" && fundId && (
+            <ModelInputsTab fundId={fundId} canEdit={canEdit} />
+          )}
+
+          {activeTab === "aggregated-exits" && fundId && (
+            <AggregatedExitsTab fundId={fundId} />
+          )}
+
+          {activeTab === "admin-fee" && fundId && (
+            <AdminFeeTab fundId={fundId} />
+          )}
+
+          {activeTab === "basic-info" && (
+            <section className="basic-info-tab">
+              <div className="content-card">
+                {canEdit ? (
+                  <form onSubmit={handleUpdateInfo} className="edit-form">
+                    <h3>Edit Fund Information</h3>
+                    <div className="form-group">
+                      <label>Fund Name</label>
+                      <input 
+                        type="text" 
+                        value={newName} 
+                        onChange={(e) => setNewName(e.target.value)} 
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Description</label>
+                      <textarea 
+                        value={newDescription} 
+                        onChange={(e) => setNewDescription(e.target.value)} 
+                        rows={5}
+                      />
+                    </div>
+                    <button type="submit" className="btn btn-primary">Update Information</button>
+                  </form>
+                ) : (
+                  <div className="info-display">
+                     <h3>Fund Information</h3>
+                     <div className="info-grid">
+                       <div className="info-item">
+                         <label>Fund Name</label>
+                         <p className="value">{fund.name}</p>
+                       </div>
+                       <div className="info-item full-width">
+                         <label>Description</label>
+                         <p className="value description">{fund.description || "No description provided."}</p>
+                       </div>
+                     </div>
+                  </div>
+                )}
+              </div>
+              
+              <div className="content-card">
+                <div className="sc-display">
+                  <h3>Steering Committee</h3>
+                  {fund.steering_committee.length > 0 ? (
+                    <div className="sc-grid">
+                      {fund.steering_committee.map((email, idx) => (
+                        <div key={idx} className="sc-member-card">
+                          <div className="sc-icon">👤</div>
+                          <div className="sc-email">{email}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <p className="empty-msg">No SC members assigned to this fund.</p>}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {activeTab === "logs" && canEdit && (
+            <section className="logs-section content-card">
+              <h3>Action Logs</h3>
+              {logs.length > 0 ? (
+                <div className="table-responsive">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Timestamp</th>
+                        <th>Actor</th>
+                        <th>Action</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {logs.map(log => (
+                        <tr key={log.id}>
+                          <td>{new Date(log.timestamp).toLocaleString()}</td>
+                          <td>{log.actor_email}</td>
+                          <td>{log.action}</td>
+                          <td>
+                            <span className={log.success ? "status-success" : "status-failed"}>
+                              {log.success ? "Success" : "Failed"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : <p>No logs available for this fund.</p>}
+            </section>
           )}
         </div>
-      </div>
-
-      <div className="tab-content">
-        {activeTab === "model-inputs" && fundId && (
-          <ModelInputsTab fundId={fundId} canEdit={canEdit} />
-        )}
-
-        {activeTab === "deals" && fundId && (
-          <DealPrognosisTab fundId={fundId} canEdit={canEdit} />
-        )}
-
-        {activeTab === "dashboard" && fundId && (
-          <FundPerformanceTab fundId={fundId} />
-        )}
-
-        {activeTab === "aggregated-exits" && fundId && (
-          <AggregatedExitsTab fundId={fundId} />
-        )}
-
-        {activeTab === "admin-fee" && fundId && (
-          <AdminFeeTab fundId={fundId} />
-        )}
-
-        {activeTab === "basic-info" && (
-          <section className="basic-info-section">
-            <div className="card-container">
-              {canEdit ? (
-                <form onSubmit={handleUpdateInfo} className="edit-form">
-                  <h3>Edit Fund Information</h3>
-                  <div className="form-group">
-                    <label>Fund Name</label>
-                    <input 
-                      type="text" 
-                      value={newName} 
-                      onChange={(e) => setNewName(e.target.value)} 
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Description</label>
-                    <textarea 
-                      value={newDescription} 
-                      onChange={(e) => setNewDescription(e.target.value)} 
-                      rows={5}
-                    />
-                  </div>
-                  <button type="submit" className="btn btn-primary">Update Information</button>
-                </form>
-              ) : (
-                <div className="info-display">
-                   <h3>Fund Information</h3>
-                   <div className="info-row">
-                     <label>Fund Name</label>
-                     <p>{fund.name}</p>
-                   </div>
-                   <div className="info-row">
-                     <label>Description</label>
-                     <p>{fund.description || "No description provided."}</p>
-                   </div>
-                </div>
-              )}
-              
-              <div className="sc-display" style={{marginTop: "2rem"}}>
-                <h3>Steering Committee</h3>
-                {fund.steering_committee.length > 0 ? (
-                  <ul className="sc-list">
-                    {fund.steering_committee.map((email, idx) => (
-                      <li key={idx}>{email}</li>
-                    ))}
-                  </ul>
-                ) : <p>No SC members assigned.</p>}
-              </div>
-            </div>
-          </section>
-        )}
-
-        {activeTab === "logs" && canEdit && (
-          <section className="logs-section content-card">
-            <h3>Action Logs</h3>
-            {logs.length > 0 ? (
-              <div className="table-responsive">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Timestamp</th>
-                      <th>Actor</th>
-                      <th>Action</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {logs.map(log => (
-                      <tr key={log.id}>
-                        <td>{new Date(log.timestamp).toLocaleString()}</td>
-                        <td>{log.actor_email}</td>
-                        <td>{log.action}</td>
-                        <td>
-                          <span className={log.success ? "status-success" : "status-failed"}>
-                            {log.success ? "Success" : "Failed"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : <p>No logs available for this fund.</p>}
-          </section>
-        )}
-      </div>
+      </main>
     </div>
   );
 };

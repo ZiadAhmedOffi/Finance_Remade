@@ -32,6 +32,7 @@ interface FundCardProps {
  *   waterfall chart and a "Base Points" performance chart.
  * - **Hover-Pause:** Auto-rotation pauses when the user hovers over the card.
  * - **Dynamic Data:** Fetches performance analytics asynchronously for the specific fund.
+ * - **Metric Badges:** Shows high-level KPIs like MOIC and IRR.
  * 
  * @param {Fund} fund - The fund object containing ID, name, and description.
  */
@@ -193,6 +194,7 @@ const FundCard: React.FC<FundCardProps> = ({ fund }) => {
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact" }).format(val);
   const formatCurrencyLong = (val: number) => 
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(val);
+  const formatPercent = (val: number) => (val * 100).toFixed(1) + "%";
 
   return (
     <div 
@@ -224,7 +226,7 @@ const FundCard: React.FC<FundCardProps> = ({ fund }) => {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="year" tick={{fontSize: 10}} />
                 <YAxis tickFormatter={formatCurrency} tick={{fontSize: 10}} width={40} />
-                <Tooltip formatter={(value: number) => formatCurrencyLong(value)} />
+                <Tooltip formatter={(value: any) => formatCurrencyLong(Number(value))} />
                 <Bar dataKey="start_value" stackId="a" fill="transparent" />
                 <Bar dataKey="injection" stackId="a" fill="#3498db" name="Injection" />
                 <Bar dataKey="appreciation" stackId="a" fill="#2ecc71" name="Appreciation" />
@@ -240,7 +242,7 @@ const FundCard: React.FC<FundCardProps> = ({ fund }) => {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="year" tick={{fontSize: 10}} />
                 <YAxis label={{ value: 'BP', angle: -90, position: 'insideLeft', fontSize: 10 }} tick={{fontSize: 10}} width={30} />
-                <Tooltip formatter={(value: number) => value.toFixed(2)} />
+                <Tooltip formatter={(value: any) => Number(value).toFixed(2)} />
                 <Bar dataKey="investedBP" fill="#e67e22" name="Inv. Cap (BP)" />
                 <Line type="monotone" dataKey="Base Case" stroke="#2ecc71" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="Upside Case" stroke="#3498db" strokeWidth={2} dot={false} />
@@ -253,14 +255,33 @@ const FundCard: React.FC<FundCardProps> = ({ fund }) => {
 
       {/* Fund Metadata */}
       <div className="card-content">
-        <h3 className="fund-name">
-            <Link to={`/funds/${fund.id}`}>{fund.name}</Link>
-        </h3>
+        <div className="card-header-row">
+          <h3 className="fund-name">
+              <Link to={`/funds/${fund.id}`}>{fund.name}</Link>
+          </h3>
+          <div className="metric-badges">
+            <span className="metric-badge moic">{dashboard?.moic.toFixed(2)}x MOIC</span>
+            <span className="metric-badge irr">{formatPercent(dashboard?.irr)} IRR</span>
+          </div>
+        </div>
+        
         <p className="fund-desc">{fund.description || "No description provided."}</p>
         
-        <Link to={`/funds/${fund.id}`} className="view-btn">
-          View Details &rarr;
-        </Link>
+        <div className="card-footer">
+          <div className="quick-stats">
+            <div className="stat">
+              <span className="stat-label">Invested</span>
+              <span className="stat-value">{formatCurrency(dashboard?.total_invested)}</span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">Deals</span>
+              <span className="stat-value">{dashboard?.total_deals}</span>
+            </div>
+          </div>
+          <Link to={`/funds/${fund.id}`} className="view-btn">
+            View Analytics &rarr;
+          </Link>
+        </div>
       </div>
     </div>
   );

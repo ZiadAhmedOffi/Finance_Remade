@@ -7,6 +7,8 @@ import Profile from "./pages/Profile";
 import AdminDashboard from "./pages/AdminDashboard";
 import FundDashboard from "./pages/FundDashboard";
 import PrivateRoute from "./components/PrivateRoute";
+import AdminRoute from "./components/AdminRoute";
+import NotFound from "./pages/NotFound";
 
 /**
  * Main App component. Handles routing and global user activity tracking
@@ -72,9 +74,17 @@ function App() {
       <Route element={<PrivateRoute />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/profile" element={<Profile />} />
-        <Route path="/admin" element={<AdminDashboard />} />
+        
+        {/* Admin routes protected by AdminRoute */}
+        <Route element={<AdminRoute />}>
+          <Route path="/admin" element={<AdminDashboard />} />
+        </Route>
+
         <Route path="/funds/:fundId" element={<FundDashboard />} />
       </Route>
+      
+      {/* Catch-all route for 404 */}
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }

@@ -73,7 +73,7 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
     base_factor: "2.00",
     downside_factor: "1.00",
     upside_factor: "3.50",
-    selected_scenario: "BASE" as const
+    selected_scenario: "BASE" as "BASE" | "DOWNSIDE" | "UPSIDE"
   };
 
   const [formData, setFormData] = useState(emptyDeal);
@@ -343,7 +343,7 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
-                  label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                  label={({ name, percent }) => `${name} (${((percent || 0) * 100).toFixed(0)}%)`}
                 >
                   {chartDataDealsByType.map((_entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -366,13 +366,13 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
                   outerRadius={80}
                   fill="#82ca9d"
                   dataKey="value"
-                  label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                  label={({ name, percent }) => `${name} (${((percent || 0) * 100).toFixed(0)}%)`}
                 >
                   {chartDataCapitalByType.map((_entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
