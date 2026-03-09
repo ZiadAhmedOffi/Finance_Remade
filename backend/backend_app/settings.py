@@ -15,8 +15,9 @@ from datetime import timedelta
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file ONLY if not on Render
+if not os.getenv('RENDER'):
+    load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -113,17 +114,20 @@ if not CORS_ALLOWED_ORIGINS or CORS_ALLOWED_ORIGINS == ['']:
 
 import dj_database_url
 
-DATABASE_URL = os.getenv('DATABASE_URL')
-
-if DATABASE_URL:
+# Render provides the DATABASE_URL environment variable by default.
+# dj_database_url.config() will automatically look for that variable.
+if os.getenv('DATABASE_URL'):
+    print("Cloud database detected. Configuring for Supabase/Render...")
     DATABASES = {
         'default': dj_database_url.config(
-            default=DATABASE_URL,
             conn_max_age=600,
             conn_health_checks=True,
         )
     }
+    # Enforce PostgreSQL engine
+    DATABASES['default']['ENGINE'] = 'django.db.backends.postgresql'
 else:
+    print("No DATABASE_URL found. Falling back to local configuration...")
     # Local Development Fallback
     DATABASES = {
         'default': {
