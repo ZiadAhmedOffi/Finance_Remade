@@ -113,19 +113,46 @@ if not CORS_ALLOWED_ORIGINS or CORS_ALLOWED_ORIGINS == ['']:
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 import dj_database_url
+from urllib.parse import urlparse, unquote
 
-# Render provides the DATABASE_URL environment variable by default.
-# dj_database_url.config() will automatically look for that variable.
-if os.getenv('DATABASE_URL'):
-    print("Cloud database detected. Configuring for Supabase/Render...")
-    DATABASES = {
-        'default': dj_database_url.config(
-            conn_max_age=600,
-            conn_health_checks=True,
-        )
-    }
-    # Enforce PostgreSQL engine
-    DATABASES['default']['ENGINE'] = 'django.db.backends.postgresql'
+DATABASE_URL = os.getenv('DATABASE_URL')
+
+if DATABASE_URL:
+    print("Cloud database detected. Attempting to configure...")
+    try:
+        # Standard parsing
+        DATABASES = {
+            'default': dj_database_url.config(
+                default=DATABASE_URL,
+                conn_max_age=600,
+                conn_health_checks=True,
+            )
+        }
+        # Ensure correct engine
+        DATABASES['default']['ENGINE'] = 'django.db.backends.postgresql'
+        print("Database configuration successful.")
+    except Exception as e:
+        print(f"Error parsing DATABASE_URL: {e}")
+        print("Falling back to manual parse logic...")
+
+        # Manual fallback for problematic passwords
+        # postgres://user:pass@host:port/db
+        try:
+            url = urlparse(DATABASE_URL)
+            DATABASES = {
+                'default': {
+                    'ENGINE': 'django.db.backends.postgresql',
+                    'NAME': url.path[1:],
+                    'USER': url.username,
+                    'PASSWORD': unquote(url.password) if url.password else '',
+                    'HOST': url.hostname,
+                    'PORT': url.port or 5432,
+                }
+            }
+            print("Manual parsing successful.")
+        except Exception as manual_e:
+            print(f"Critical Error: Could not parse database URL even with fallback: {manual_e}")
+            raise
 else:
     print("No DATABASE_URL found. Falling back to local configuration...")
     # Local Development Fallback
@@ -134,7 +161,7 @@ else:
             'ENGINE': 'django.db.backends.postgresql',
             'NAME': os.getenv('DB_NAME', 'funds_manager_db'),
             'USER': os.getenv('DB_USER', 'app_admin'),
-            'PASSWORD': os.getenv('DB_PASSWORD', 'P@$$w0rd'),
+            'PASSWORD': 'P@$$w0rd',
             'HOST': os.getenv('DB_HOST', 'localhost'),
             'PORT': os.getenv('DB_PORT', '5433'),
         }
