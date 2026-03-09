@@ -1,7 +1,10 @@
 import axios from "axios";
 
 // Priority: Environment Variable (Vercel/Production), then local default
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
+// Using a relative path if possible, or protocol-relative to avoid mixed content
+const API_BASE = import.meta.env.VITE_API_BASE_URL || (window.location.origin.includes("localhost") || window.location.origin.includes("127.0.0.1") 
+  ? "http://127.0.0.1:8000/api" 
+  : "/api"); 
 
 const api = axios.create({
   baseURL: API_BASE,

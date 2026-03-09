@@ -418,6 +418,19 @@ class FundPerformanceView(APIView):
         if years_sorted:
             start_year = min(start_year, min(years_sorted))
             end_year = max(end_year, max(years_sorted))
+
+        # SAFETY CHECK: Prevent massive loops if user entered bad data (e.g. exit_year 2000000)
+        # Cap range to 100 years max
+        if end_year - start_year > 100:
+            end_year = start_year + 100
+
+        # Optimization: Pre-group deals by entry_year to avoid O(N*Y) complexity
+        deals_by_year = {}
+        for d in deals_data:
+            yr = d["entry_year"]
+            if yr not in deals_by_year:
+                deals_by_year[yr] = []
+            deals_by_year[yr].append(d)
         
         performance_table = []
         portfolio_capital = 0.0
@@ -428,8 +441,9 @@ class FundPerformanceView(APIView):
         safe_irr = irr if irr and irr > -1 else 0.0
         
         for year in range(start_year, end_year + 1):
-            injection = sum(float(d["amount_invested"]) for d in deals_data if d["entry_year"] == year)
-            deals_count = len([d for d in deals_data if d["entry_year"] == year])
+            year_deals = deals_by_year.get(year, [])
+            injection = sum(float(d["amount_invested"]) for d in year_deals)
+            deals_count = len(year_deals)
             
             appreciation = portfolio_capital * safe_irr
             start_value = portfolio_capital
