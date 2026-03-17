@@ -44,6 +44,9 @@ class FundLog(models.Model):
         ("DEAL_CREATED", "Deal Created"),
         ("DEAL_UPDATED", "Deal Updated"),
         ("DEAL_DELETED", "Deal Deleted"),
+        ("CURRENT_DEAL_CREATED", "Current Deal Created"),
+        ("CURRENT_DEAL_UPDATED", "Current Deal Updated"),
+        ("CURRENT_DEAL_DELETED", "Current Deal Deleted"),
         ("SC_MEMBER_ASSIGNED", "SC Member Assigned"),
         ("INVESTOR_ASSIGNED", "Investor Assigned"),
         ("ROLE_REMOVED", "Role Removed"),
@@ -165,3 +168,33 @@ class InvestmentDeal(models.Model):
 
     def __str__(self):
         return f"{self.company_name} ({self.fund.name})"
+
+class CurrentDeal(models.Model):
+    """
+    Represents an investment deal already made by the fund.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    fund = models.ForeignKey(Fund, on_delete=models.CASCADE, related_name="current_deals")
+    
+    # Basic Company Info
+    company_name = models.CharField(max_length=255)
+    company_type = models.CharField(max_length=100, blank=True)
+    industry = models.CharField(max_length=100, blank=True)
+    
+    # Investment Timing
+    entry_year = models.PositiveIntegerField(default=2024)
+    latest_valuation_year = models.PositiveIntegerField(default=2024)
+    
+    # Financial Inputs
+    amount_invested = models.DecimalField(max_digits=20, decimal_places=2)
+    entry_valuation = models.DecimalField(max_digits=20, decimal_places=2)
+    latest_valuation = models.DecimalField(max_digits=20, decimal_places=2)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-entry_year", "company_name"]
+
+    def __str__(self):
+        return f"{self.company_name} (Current) - {self.fund.name}"

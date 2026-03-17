@@ -1,6 +1,6 @@
 import math
 from rest_framework import serializers
-from .models import Fund, FundLog, ModelInput, InvestmentDeal
+from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -102,6 +102,60 @@ class InvestmentDealSerializer(serializers.ModelSerializer):
         ownership_decimal = self.get_post_money_ownership(obj) / 100
         exit_val = self.get_exit_valuation(obj)
         return float(ownership_decimal) * float(exit_val)
+
+class CurrentDealSerializer(serializers.ModelSerializer):
+    """
+    Serializer for CurrentDeal including calculated financial metrics.
+    Calculates holding period, ownership %, MOIC, and final exit amount.
+    """
+    holding_period = serializers.SerializerMethodField()
+    post_money_ownership = serializers.SerializerMethodField()
+    moic = serializers.SerializerMethodField()
+    final_exit_amount = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CurrentDeal
+        fields = [
+            "id",
+            "fund",
+            "company_name",
+            "company_type",
+            "industry",
+            "entry_year",
+            "latest_valuation_year",
+            "amount_invested",
+            "entry_valuation",
+            "latest_valuation",
+            "holding_period",
+            "post_money_ownership",
+            "moic",
+            "final_exit_amount",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "fund", "created_at", "updated_at"]
+
+    def get_holding_period(self, obj):
+        """Calculated by subtracting entry year from latest valuation year."""
+        return obj.latest_valuation_year - obj.entry_year
+
+    def get_post_money_ownership(self, obj):
+        """Formula: amount_invested / (amount_invested + entry_valuation)."""
+        denominator = obj.amount_invested + obj.entry_valuation
+        if denominator == 0:
+            return 0
+        return (obj.amount_invested / denominator) * 100
+
+    def get_moic(self, obj):
+        """Formula: latest_valuation / entry_valuation."""
+        if obj.entry_valuation == 0:
+            return 0
+        return obj.latest_valuation / obj.entry_valuation
+
+    def get_final_exit_amount(self, obj):
+        """Formula: post_money_ownership % * latest_valuation."""
+        ownership_decimal = self.get_post_money_ownership(obj) / 100
+        return float(ownership_decimal) * float(obj.latest_valuation)
 
 class FundSerializer(serializers.ModelSerializer):
     created_by_email = serializers.EmailField(source="created_by.email", read_only=True)

@@ -3,8 +3,14 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
-from .models import Fund, FundLog, ModelInput, InvestmentDeal
-from .serializers import FundSerializer, FundLogSerializer, ModelInputSerializer, InvestmentDealSerializer
+from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal
+from .serializers import (
+    FundSerializer, 
+    FundLogSerializer, 
+    ModelInputSerializer, 
+    InvestmentDealSerializer,
+    CurrentDealSerializer
+)
 from users.services.permission_service import PermissionService
 from users.services.audit_service import AuditService
 
@@ -170,6 +176,108 @@ class InvestmentDealDetailView(APIView):
             ip=request.META.get("REMOTE_ADDR")
         )
         return Response({"message": "Deal deleted."}, status=status.HTTP_200_OK)
+
+
+class CurrentDealListView(APIView):
+    """
+    Handles listing and creating current deals (deals already made) for a specific fund.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, fund_id):
+        fund = get_object_or_404(Fund, id=fund_id, is_active=True)
+        if not PermissionService.can_view_fund(request.user, fund):
+            return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        deals = fund.current_deals.all()
+        serializer = CurrentDealSerializer(deals, many=True)
+        return Response(serializer.data)
+
+    def post(self, request, fund_id):
+        fund = get_object_or_404(Fund, id=fund_id, is_active=True)
+        if not PermissionService.can_edit_fund(request.user, fund):
+            return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = CurrentDealSerializer(data=request.data)
+        if serializer.is_valid():
+            deal = serializer.save(fund=fund)
+            
+            # Log the change
+            FundLog.objects.create(
+                actor=request.user,
+                target_fund=fund,
+                action="CURRENT_DEAL_CREATED",
+                metadata={"deal_id": str(deal.id), "company_name": deal.company_name}
+            )
+            AuditService.log(
+                actor=request.user,
+                action="CURRENT_DEAL_CREATED",
+                fund=fund,
+                metadata={"deal_id": str(deal.id), "company_name": deal.company_name},
+                ip=request.META.get("REMOTE_ADDR")
+            )
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CurrentDealDetailView(APIView):
+    """
+    Handles updating and deleting specific current deals.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, fund_id, deal_id):
+        fund = get_object_or_404(Fund, id=fund_id, is_active=True)
+        if not PermissionService.can_edit_fund(request.user, fund):
+            return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        deal = get_object_or_404(CurrentDeal, id=deal_id, fund=fund)
+        serializer = CurrentDealSerializer(deal, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            
+            # Log the change
+            FundLog.objects.create(
+                actor=request.user,
+                target_fund=fund,
+                action="CURRENT_DEAL_UPDATED",
+                metadata={"deal_id": str(deal.id), "company_name": deal.company_name}
+            )
+            AuditService.log(
+                actor=request.user,
+                action="CURRENT_DEAL_UPDATED",
+                fund=fund,
+                metadata={"deal_id": str(deal.id), "company_name": deal.company_name},
+                ip=request.META.get("REMOTE_ADDR")
+            )
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, fund_id, deal_id):
+        fund = get_object_or_404(Fund, id=fund_id, is_active=True)
+        if not PermissionService.can_edit_fund(request.user, fund):
+            return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        deal = get_object_or_404(CurrentDeal, id=deal_id, fund=fund)
+        company_name = deal.company_name
+        deal_id_str = str(deal.id)
+        deal.delete()
+        
+        # Log the change
+        FundLog.objects.create(
+            actor=request.user,
+            target_fund=fund,
+            action="CURRENT_DEAL_DELETED",
+            metadata={"deal_id": deal_id_str, "company_name": company_name}
+        )
+        AuditService.log(
+            actor=request.user,
+            action="CURRENT_DEAL_DELETED",
+            fund=fund,
+            metadata={"deal_id": deal_id_str, "company_name": company_name},
+            ip=request.META.get("REMOTE_ADDR")
+        )
+        return Response({"message": "Current deal deleted."}, status=status.HTTP_200_OK)
 
 
 class FundListView(APIView):
@@ -371,15 +479,14 @@ class FundPerformanceView(APIView):
             return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
         
         deals = fund.deals.all()
+        current_deals = fund.current_deals.all()
         model_inputs = getattr(fund, "model_inputs", None)
         
         if not model_inputs:
             return Response({"error": "Model inputs not found for this fund."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 1. Basic Metrics
+        # 1. Deal Prognosis Metrics
         total_invested = sum(deal.amount_invested for deal in deals)
-        
-        # We need to use the serializer logic for exit_value
         deal_serializer = InvestmentDealSerializer(deals, many=True)
         deals_data = deal_serializer.data
         gross_exit_value = sum(float(d["exit_value"]) for d in deals_data)
@@ -387,44 +494,55 @@ class FundPerformanceView(APIView):
         total_invested_float = float(total_invested)
         moic = gross_exit_value / total_invested_float if total_invested_float > 0 else 0
         
-        # IRR Calculation
-        # Construct cash flows: -invested at entry_year, +exit_value at exit_year
         cash_flows_dict = {}
         for d in deals_data:
             entry_yr = d["entry_year"]
             exit_yr = d["exit_year"]
             amount = float(d["amount_invested"])
             exit_val = float(d["exit_value"])
-            
             cash_flows_dict[entry_yr] = cash_flows_dict.get(entry_yr, 0) - amount
             cash_flows_dict[exit_yr] = cash_flows_dict.get(exit_yr, 0) + exit_val
             
         years_sorted = sorted(cash_flows_dict.keys())
         cash_flows_list = [cash_flows_dict[y] for y in years_sorted]
-        
         irr = calculate_irr(cash_flows_list, years_sorted)
+
+        # 2. Current Deals Metrics
+        c_total_invested = sum(d.amount_invested for d in current_deals)
+        c_deal_serializer = CurrentDealSerializer(current_deals, many=True)
+        c_deals_data = c_deal_serializer.data
+        c_gross_exit_value = sum(float(d["final_exit_amount"]) for d in c_deals_data)
         
-        # 2. Performance Table
+        c_total_invested_float = float(c_total_invested)
+        c_moic = c_gross_exit_value / c_total_invested_float if c_total_invested_float > 0 else 0
+        
+        c_cash_flows_dict = {}
+        for d in c_deals_data:
+            entry_yr = d["entry_year"]
+            val_yr = d["latest_valuation_year"]
+            amount = float(d["amount_invested"])
+            exit_val = float(d["final_exit_amount"])
+            c_cash_flows_dict[entry_yr] = c_cash_flows_dict.get(entry_yr, 0) - amount
+            c_cash_flows_dict[val_yr] = c_cash_flows_dict.get(val_yr, 0) + exit_val
+            
+        c_years_sorted = sorted(c_cash_flows_dict.keys())
+        c_cash_flows_list = [c_cash_flows_dict[y] for y in c_years_sorted]
+        c_irr = calculate_irr(c_cash_flows_list, c_years_sorted)
+
+        # 3. Performance Table (using Deal Prognosis as before)
         from datetime import datetime
         current_year = datetime.now().year
-        
-        # Determine the year range for the table
         start_year = int(model_inputs.inception_year)
         fund_life = int(model_inputs.fund_life)
         end_year = start_year + fund_life - 1
         
-        # If no deals yet, we use the model's range. 
-        # If deals exist outside the model range, we expand it.
         if years_sorted:
             start_year = min(start_year, min(years_sorted))
             end_year = max(end_year, max(years_sorted))
 
-        # SAFETY CHECK: Prevent massive loops if user entered bad data (e.g. exit_year 2000000)
-        # Cap range to 100 years max
         if end_year - start_year > 100:
             end_year = start_year + 100
 
-        # Optimization: Pre-group deals by entry_year to avoid O(N*Y) complexity
         deals_by_year = {}
         for d in deals_data:
             yr = d["entry_year"]
@@ -436,19 +554,15 @@ class FundPerformanceView(APIView):
         portfolio_capital = 0.0
         cumulative_injection = 0.0
         cumulative_deals_count = 0
-        
-        # Use a safe IRR for table expansion, defaulting to 0 if it failed
         safe_irr = irr if irr and irr > -1 else 0.0
         
         for year in range(start_year, end_year + 1):
             year_deals = deals_by_year.get(year, [])
             injection = sum(float(d["amount_invested"]) for d in year_deals)
             deals_count = len(year_deals)
-            
             appreciation = portfolio_capital * safe_irr
             start_value = portfolio_capital
             portfolio_capital = portfolio_capital + injection + appreciation
-            
             cumulative_injection += injection
             cumulative_deals_count += deals_count
             
@@ -463,13 +577,12 @@ class FundPerformanceView(APIView):
                 "cumulative_injection": cumulative_injection
             })
 
-        # 3. Aggregated Exits
+        # 4. Aggregated Exits (using Deal Prognosis as before)
         cases = [
             {"name": "Base Case", "multiplier": 1.0},
             {"name": "Upside Case", "multiplier": 1.2},
             {"name": "High Growth Case", "multiplier": 1.5},
         ]
-        
         aggregated_exits = []
         management_fee_pct = float(model_inputs.management_fee)
         
@@ -477,8 +590,6 @@ class FundPerformanceView(APIView):
             case_gev = gross_exit_value * case["multiplier"]
             profit_before_carry = case_gev - total_invested_float
             case_moic = case_gev / total_invested_float if total_invested_float > 0 else 0
-            
-            # Carry calculation
             carry_pct = 0.0
             tier1_moic = float(model_inputs.least_expected_moic_tier_1)
             tier2_moic = float(model_inputs.least_expected_moic_tier_2)
@@ -495,18 +606,13 @@ class FundPerformanceView(APIView):
             net_to_investors = case_gev - (total_fees + carry_amount)
             real_moic = net_to_investors / total_invested_float if total_invested_float > 0 else 0
             
-            # IRR for case
             case_cf_dict = {}
             for d in deals_data:
                 entry_yr = d["entry_year"]
                 exit_yr = d["exit_year"]
                 amount = float(d["amount_invested"])
-                
-                # Pro-rata exit value for the case
-                # We need to know how much this deal contributed to original GEV
                 orig_deal_exit_val = float(d["exit_value"])
                 case_deal_exit_val = orig_deal_exit_val * case["multiplier"]
-                
                 case_cf_dict[entry_yr] = case_cf_dict.get(entry_yr, 0) - amount
                 case_cf_dict[exit_yr] = case_cf_dict.get(exit_yr, 0) + case_deal_exit_val
             
@@ -527,11 +633,10 @@ class FundPerformanceView(APIView):
                 "irr": case_irr
             })
 
-        # 4. Admin Fee Tab
+        # 5. Admin Fee Tab
         target_fund_size = float(model_inputs.target_fund_size)
         admin_pct = float(model_inputs.admin_cost)
         investment_period = float(model_inputs.investment_period)
-        
         total_admin_cost = (admin_pct / 100.0) * target_fund_size
         operations_fee = (management_fee_pct / 100.0) * target_fund_size
         management_fees_total = total_admin_cost * investment_period
@@ -553,6 +658,13 @@ class FundPerformanceView(APIView):
                 "irr": irr,
                 "total_deals": deals.count(),
                 "performance_table": performance_table
+            },
+            "current_deals_metrics": {
+                "total_invested": c_total_invested_float,
+                "gross_exit_value": c_gross_exit_value,
+                "moic": c_moic,
+                "irr": c_irr,
+                "total_deals": current_deals.count()
             },
             "aggregated_exits": aggregated_exits,
             "admin_fee": admin_fee_data

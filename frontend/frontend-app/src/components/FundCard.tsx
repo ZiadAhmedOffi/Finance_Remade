@@ -94,7 +94,7 @@ const FundCard: React.FC<FundCardProps> = ({ fund }) => {
 
   /* --- Analytics Logic (Mirrors FundPerformanceTab) --- */
 
-  const { dashboard, aggregated_exits, admin_fee } = performanceData || {};
+  const { dashboard, current_deals_metrics, aggregated_exits, admin_fee } = performanceData || {};
   
   // Prepare waterfall chart data
   const waterfallData = dashboard?.performance_table?.map((entry: any) => ({
@@ -255,31 +255,61 @@ const FundCard: React.FC<FundCardProps> = ({ fund }) => {
 
       {/* Fund Metadata */}
       <div className="card-content">
-        <div className="card-header-row">
-          <h3 className="fund-name">
-              <Link to={`/funds/${fund.id}`}>{fund.name}</Link>
+        <div className="card-header-row" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
+          <h3 className="fund-name" style={{margin: 0, fontSize: '1.25rem', fontWeight: '700'}}>
+              <Link to={`/funds/${fund.id}`} style={{color: '#1e293b', textDecoration: 'none'}}>{fund.name}</Link>
           </h3>
-          <div className="metric-badges">
-            <span className="metric-badge moic">{dashboard?.moic.toFixed(2)}x MOIC</span>
-            <span className="metric-badge irr">{formatPercent(dashboard?.irr)} IRR</span>
+          <div className="metric-badges" style={{display: 'flex', gap: '0.5rem'}}>
+            <span className="metric-badge moic" title="Prognosis MOIC" style={{background: '#dbeafe', color: '#1e40af', padding: '0.25rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '600'}}>{dashboard?.moic.toFixed(2)}x (Fut)</span>
+            <span className="metric-badge moic-past" title="Achieved MOIC" style={{background: '#e2e8f0', color: '#475569', padding: '0.25rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '600'}}>{current_deals_metrics?.moic.toFixed(2)}x (Past)</span>
           </div>
         </div>
         
-        <p className="fund-desc">{fund.description || "No description provided."}</p>
+        <p className="fund-desc" style={{marginBottom: '1rem', fontSize: '0.875rem', color: '#64748b', lineClamp: 2, overflow: 'hidden'}}>{fund.description || "No description provided."}</p>
         
-        <div className="card-footer">
-          <div className="quick-stats">
-            <div className="stat">
-              <span className="stat-label">Invested</span>
-              <span className="stat-value">{formatCurrency(dashboard?.total_invested)}</span>
-            </div>
-            <div className="stat">
-              <span className="stat-label">Deals</span>
-              <span className="stat-value">{dashboard?.total_deals}</span>
+        <div className="stats-container" style={{display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem'}}>
+          {/* Current Deals (Past) */}
+          <div className="stats-group">
+            <h6 style={{fontSize: '0.7rem', textTransform: 'uppercase', color: '#64748b', marginBottom: '0.5rem', fontWeight: '700'}}>Deals Already Made (Past)</h6>
+            <div className="quick-stats" style={{display: 'flex', gap: '1.5rem'}}>
+              <div className="stat" style={{display: 'flex', flexDirection: 'column'}}>
+                <span className="stat-label" style={{fontSize: '0.65rem', color: '#94a3b8'}}>Invested</span>
+                <span className="stat-value" style={{fontSize: '0.85rem', fontWeight: '600'}}>{formatCurrency(current_deals_metrics?.total_invested)}</span>
+              </div>
+              <div className="stat" style={{display: 'flex', flexDirection: 'column'}}>
+                <span className="stat-label" style={{fontSize: '0.65rem', color: '#94a3b8'}}>Deals</span>
+                <span className="stat-value" style={{fontSize: '0.85rem', fontWeight: '600'}}>{current_deals_metrics?.total_deals}</span>
+              </div>
+              <div className="stat" style={{display: 'flex', flexDirection: 'column'}}>
+                <span className="stat-label" style={{fontSize: '0.65rem', color: '#94a3b8'}}>IRR</span>
+                <span className="stat-value" style={{fontSize: '0.85rem', fontWeight: '600'}}>{formatPercent(current_deals_metrics?.irr)}</span>
+              </div>
             </div>
           </div>
-          <Link to={`/funds/${fund.id}`} className="view-btn">
-            View Analytics &rarr;
+
+          {/* Deal Prognosis (Future) */}
+          <div className="stats-group">
+            <h6 style={{fontSize: '0.7rem', textTransform: 'uppercase', color: '#3b82f6', marginBottom: '0.5rem', fontWeight: '700'}}>Prognosis for Future Deals (Future)</h6>
+            <div className="quick-stats" style={{display: 'flex', gap: '1.5rem'}}>
+              <div className="stat" style={{display: 'flex', flexDirection: 'column'}}>
+                <span className="stat-label" style={{fontSize: '0.65rem', color: '#94a3b8'}}>To Invest</span>
+                <span className="stat-value" style={{fontSize: '0.85rem', fontWeight: '600', color: '#1e40af'}}>{formatCurrency(dashboard?.total_invested)}</span>
+              </div>
+              <div className="stat" style={{display: 'flex', flexDirection: 'column'}}>
+                <span className="stat-label" style={{fontSize: '0.65rem', color: '#94a3b8'}}>Est. Deals</span>
+                <span className="stat-value" style={{fontSize: '0.85rem', fontWeight: '600', color: '#1e40af'}}>{dashboard?.total_deals}</span>
+              </div>
+              <div className="stat" style={{display: 'flex', flexDirection: 'column'}}>
+                <span className="stat-label" style={{fontSize: '0.65rem', color: '#94a3b8'}}>Exp. IRR</span>
+                <span className="stat-value" style={{fontSize: '0.85rem', fontWeight: '600', color: '#1e40af'}}>{formatPercent(dashboard?.irr)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="card-footer" style={{borderTop: '1px solid #f1f5f9', paddingTop: '1rem'}}>
+          <Link to={`/funds/${fund.id}`} className="view-btn" style={{width: '100%', textAlign: 'center', display: 'block', background: '#1e293b', color: 'white', padding: '0.6rem', borderRadius: '0.5rem', fontWeight: '600', textDecoration: 'none'}}>
+            View Full Analytics &rarr;
           </Link>
         </div>
       </div>

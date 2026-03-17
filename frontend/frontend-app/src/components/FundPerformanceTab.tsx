@@ -38,6 +38,13 @@ interface PerformanceData {
     total_deals: number;
     performance_table: PerformanceTableEntry[];
   };
+  current_deals_metrics: {
+    total_invested: number;
+    gross_exit_value: number;
+    moic: number;
+    irr: number;
+    total_deals: number;
+  };
   aggregated_exits: {
     case: string;
     irr: number;
@@ -94,7 +101,7 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
   if (error) return <div className="alert alert-error">{error}</div>;
   if (!data) return null;
 
-  const { dashboard } = data;
+  const { dashboard, current_deals_metrics } = data;
 
   // Formatting Utilities
   const formatCurrency = (val: number) => 
@@ -113,44 +120,87 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
   
   return (
     <section className="performance-tab">
-      {/* Top Metrics Card */}
-      <div className="content-card" style={{background: '#f0f7ff', borderColor: '#007bff', marginBottom: '3rem'}}>
+      {/* Current Deals Metrics Card (Past) */}
+      <div className="content-card" style={{background: '#f8fafc', borderColor: '#64748b', marginBottom: '3rem'}}>
+        <h3 style={{textAlign: 'center', color: '#475569', marginBottom: '2rem', textTransform: 'uppercase', letterSpacing: '0.05em'}}>Performance of Deals Already Made (Past)</h3>
         <div style={{display: 'flex', flexDirection: 'column', gap: '2.5rem', textAlign: 'center'}}>
-          {/* Row 1: Primary Metrics */}
           <div style={{display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: '2rem'}}>
             <div className="summary-item">
-              <label style={{color: '#0056b3', fontSize: '1.1rem', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block'}}>Total Invested</label>
-              <div className="summary-value" style={{fontSize: '3rem', fontWeight: '900', color: '#007bff'}}>
+              <label style={{color: '#64748b', fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block'}}>Total Amount Invested</label>
+              <div className="summary-value" style={{fontSize: '2.5rem', fontWeight: '900', color: '#1e293b'}}>
+                {formatCurrencyLong(current_deals_metrics.total_invested)}
+              </div>
+            </div>
+            <div className="summary-item">
+              <label style={{color: '#64748b', fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block'}}>Gross Exit Value Achieved</label>
+              <div className="summary-value" style={{fontSize: '2.5rem', fontWeight: '900', color: '#1e293b'}}>
+                {formatCurrencyLong(current_deals_metrics.gross_exit_value)}
+              </div>
+            </div>
+          </div>
+
+          <div className="divider-h" style={{margin: '0 auto', width: '80%', opacity: '0.2', borderTop: '1px solid #64748b'}} />
+
+          <div style={{display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: '2rem'}}>
+            <div className="summary-item">
+              <label style={{color: '#64748b', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>MOIC Achieved</label>
+              <div className="summary-value" style={{fontSize: '1.6rem', fontWeight: '700', color: '#1e293b'}}>
+                {formatMultiple(current_deals_metrics.moic)}
+              </div>
+            </div>
+            <div className="summary-item">
+              <label style={{color: '#64748b', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>IRR (Realized/Current)</label>
+              <div className="summary-value" style={{fontSize: '1.6rem', fontWeight: '700', color: '#1e293b'}}>
+                {formatPercent(current_deals_metrics.irr)}
+              </div>
+            </div>
+            <div className="summary-item">
+              <label style={{color: '#64748b', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>Number of Deals Made</label>
+              <div className="summary-value" style={{fontSize: '1.6rem', fontWeight: '700', color: '#1e293b'}}>
+                {current_deals_metrics.total_deals}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Deal Prognosis Metrics Card (Future) */}
+      <div className="content-card" style={{background: '#f0f7ff', borderColor: '#007bff', marginBottom: '3rem'}}>
+        <h3 style={{textAlign: 'center', color: '#0056b3', marginBottom: '2rem', textTransform: 'uppercase', letterSpacing: '0.05em'}}>Prognosis for Future Deals (Future)</h3>
+        <div style={{display: 'flex', flexDirection: 'column', gap: '2.5rem', textAlign: 'center'}}>
+          <div style={{display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: '2rem'}}>
+            <div className="summary-item">
+              <label style={{color: '#0056b3', fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block'}}>Total Amount to be Invested</label>
+              <div className="summary-value" style={{fontSize: '2.5rem', fontWeight: '900', color: '#007bff'}}>
                 {formatCurrencyLong(dashboard.total_invested)}
               </div>
             </div>
             <div className="summary-item">
-              <label style={{color: '#0056b3', fontSize: '1.1rem', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block'}}>Gross Exit Value</label>
-              <div className="summary-value" style={{fontSize: '3rem', fontWeight: '900', color: '#007bff'}}>
+              <label style={{color: '#0056b3', fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block'}}>Expected Gross Exit Value</label>
+              <div className="summary-value" style={{fontSize: '2.5rem', fontWeight: '900', color: '#007bff'}}>
                 {formatCurrencyLong(dashboard.gross_exit_value)}
               </div>
             </div>
           </div>
 
-          <div className="divider-h" style={{margin: '0 auto', width: '80%', opacity: '0.3'}} />
+          <div className="divider-h" style={{margin: '0 auto', width: '80%', opacity: '0.3', borderTop: '1px solid #007bff'}} />
 
-          {/* Row 2: Secondary Metrics */}
           <div style={{display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: '2rem'}}>
             <div className="summary-item">
-              <label style={{color: '#0056b3', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>MOIC Multiple</label>
-              <div className="summary-value" style={{fontSize: '1.8rem', fontWeight: '700', color: '#007bff'}}>
+              <label style={{color: '#0056b3', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>Target MOIC</label>
+              <div className="summary-value" style={{fontSize: '1.6rem', fontWeight: '700', color: '#007bff'}}>
                 {formatMultiple(dashboard.moic)}
               </div>
             </div>
             <div className="summary-item">
-              <label style={{color: '#0056b3', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>IRR</label>
-              <div className="summary-value" style={{fontSize: '1.8rem', fontWeight: '700', color: '#007bff'}}>
+              <label style={{color: '#0056b3', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>Expected IRR</label>
+              <div className="summary-value" style={{fontSize: '1.6rem', fontWeight: '700', color: '#007bff'}}>
                 {formatPercent(dashboard.irr)}
               </div>
             </div>
             <div className="summary-item">
-              <label style={{color: '#0056b3', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>Total Deals</label>
-              <div className="summary-value" style={{fontSize: '1.8rem', fontWeight: '700', color: '#007bff'}}>
+              <label style={{color: '#0056b3', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>Total Deals to be Made</label>
+              <div className="summary-value" style={{fontSize: '1.6rem', fontWeight: '700', color: '#007bff'}}>
                 {dashboard.total_deals}
               </div>
             </div>

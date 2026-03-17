@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/api";
 import "./FundDashboard.css";
 import ModelInputsTab from "../components/ModelInputsTab";
+import CurrentDealsTab from "../components/CurrentDealsTab";
 import DealPrognosisTab from "../components/DealPrognosisTab";
 import FundPerformanceTab from "../components/FundPerformanceTab";
 import AggregatedExitsTab from "../components/AggregatedExitsTab";
@@ -126,7 +127,7 @@ const FundDashboard: React.FC = () => {
 
   const menuItems = [
     { id: "dashboard", label: "Dashboard", icon: "📊" },
-    { id: "deals", label: "Deal Prognosis", icon: "🤝" },
+    { id: "deals", label: "Investment Deals", icon: "🤝" },
     { id: "model-inputs", label: "Model Inputs", icon: "⚙️" },
     { id: "aggregated-exits", label: "Aggregated Exits", icon: "📈" },
     { id: "admin-fee", label: "Admin Fee", icon: "💰" },
@@ -188,7 +189,17 @@ const FundDashboard: React.FC = () => {
           )}
 
           {activeTab === "deals" && fundId && (
-            <DealPrognosisTab fundId={fundId} canEdit={canEdit} />
+            <div className="deals-content-wrapper">
+              <div style={{ marginBottom: "4rem" }}>
+                <h2 style={{ marginBottom: "2rem", borderBottom: "2px solid #64748b", paddingBottom: "0.5rem", color: "#475569" }}>Current Deals (Already Made)</h2>
+                <CurrentDealsTab fundId={fundId} canEdit={canEdit} />
+              </div>
+              
+              <div style={{ marginTop: "4rem" }}>
+                <h2 style={{ marginBottom: "2rem", borderBottom: "2px solid #007bff", paddingBottom: "0.5rem", color: "#0056b3" }}>Deal Prognosis (Future)</h2>
+                <DealPrognosisTab fundId={fundId} canEdit={canEdit} />
+              </div>
+            </div>
           )}
 
           {activeTab === "model-inputs" && fundId && (

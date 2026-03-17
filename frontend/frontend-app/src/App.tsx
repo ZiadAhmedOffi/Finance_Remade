@@ -1,5 +1,6 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
+import { api } from "./api/api";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
@@ -17,13 +18,38 @@ import NotFound from "./pages/NotFound";
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
+  const lastRefreshTime = useRef<number>(0);
+
+  /**
+   * Refreshes the access token using the refresh token.
+   */
+  const refreshToken = useCallback(async () => {
+    const refresh = localStorage.getItem("refresh_token");
+    if (!refresh) return false;
+
+    // Prevent multiple refreshes in a short period (e.g., 30 seconds)
+    if (Date.now() - lastRefreshTime.current < 30000) return true;
+
+    try {
+      const response = await api.post("/users/token/refresh/", { refresh });
+      localStorage.setItem("access_token", response.data.access);
+      if (response.data.refresh) {
+        localStorage.setItem("refresh_token", response.data.refresh);
+      }
+      lastRefreshTime.current = Date.now();
+      return true;
+    } catch (e) {
+      console.error("Failed to refresh token", e);
+      return false;
+    }
+  }, []);
 
   /**
    * Helper function to check if the current JWT token is expired by decoding its payload.
    */
   const isTokenExpired = useCallback(() => {
     const token = localStorage.getItem("access_token");
-    if (!token) return true;
+    if (!token) return { expired: true, almostExpired: false };
 
     try {
       const payloadBase64 = token.split(".")[1];
@@ -31,38 +57,51 @@ function App() {
       const decoded = JSON.parse(decodedJson);
       const exp = decoded.exp;
       const now = Date.now() / 1000;
-      return now > exp;
+      
+      // If token expires in less than 5 minutes, we consider it "almost expired"
+      // and will try to refresh it during activity.
+      const isAlmostExpired = (exp - now) < 300; 
+      
+      return { expired: now > exp, almostExpired: isAlmostExpired };
     } catch (e) {
-      return true;
+      return { expired: true, almostExpired: false };
     }
   }, []);
 
   /**
    * Monitors user activity to ensure they are still authenticated.
-   * Redirects to login if the session has expired.
+   * Redirects to login if the session has expired and cannot be refreshed.
    */
-  const handleUserActivity = useCallback(() => {
-    // Only check for public routes if we want to avoid redirect loops, 
-    // but the request is to redirect immediately once it runs out.
-    // If we are already on login/register, no need to redirect.
+  const handleUserActivity = useCallback(async () => {
     if (location.pathname === "/login" || location.pathname === "/register") {
       return;
     }
 
-    if (isTokenExpired()) {
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
-      navigate("/login");
+    const { expired, almostExpired } = isTokenExpired();
+
+    if (expired) {
+      const success = await refreshToken();
+      if (!success) {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+        navigate("/login");
+      }
+    } else if (almostExpired) {
+      // Proactively refresh if almost expired and user is active
+      await refreshToken();
     }
-  }, [isTokenExpired, navigate, location.pathname]);
+  }, [isTokenExpired, refreshToken, navigate, location.pathname]);
 
   useEffect(() => {
-    window.addEventListener("click", handleUserActivity);
-    window.addEventListener("scroll", handleUserActivity);
+    const events = ["mousedown", "keydown", "scroll", "touchstart", "click"];
+    const throttledActivity = () => {
+        handleUserActivity();
+    };
+
+    events.forEach(event => window.addEventListener(event, throttledActivity));
 
     return () => {
-      window.removeEventListener("click", handleUserActivity);
-      window.removeEventListener("scroll", handleUserActivity);
+      events.forEach(event => window.removeEventListener(event, throttledActivity));
     };
   }, [handleUserActivity]);
 
