@@ -46,6 +46,8 @@ class ModelInputSerializer(serializers.ModelSerializer):
         return math.ceil(obj.target_fund_size / avg)
 
 
+from datetime import datetime
+
 class InvestmentDealSerializer(serializers.ModelSerializer):
     """
     Serializer for InvestmentDeal including calculated financial metrics.
@@ -80,6 +82,23 @@ class InvestmentDealSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "fund", "created_at", "updated_at"]
+
+    def validate(self, data):
+        """
+        Check that entry_year and exit_year are at least the current year.
+        """
+        current_year = datetime.now().year
+        entry_year = data.get("entry_year")
+        exit_year = data.get("exit_year")
+
+        if entry_year and entry_year < current_year:
+            raise serializers.ValidationError({"entry_year": f"Entry year must be at least {current_year}."})
+        if exit_year and exit_year < current_year:
+            raise serializers.ValidationError({"exit_year": f"Exit year must be at least {current_year}."})
+        if entry_year and exit_year and exit_year < entry_year:
+            raise serializers.ValidationError({"exit_year": "Exit year cannot be before entry year."})
+        
+        return data
 
     def get_holding_period(self, obj):
         """Calculated by subtracting entry year from exit year."""
@@ -134,6 +153,23 @@ class CurrentDealSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "fund", "created_at", "updated_at"]
+
+    def validate(self, data):
+        """
+        Check that entry_year and latest_valuation_year are not in the future.
+        """
+        current_year = datetime.now().year
+        entry_year = data.get("entry_year")
+        val_year = data.get("latest_valuation_year")
+
+        if entry_year and entry_year > current_year:
+            raise serializers.ValidationError({"entry_year": f"Entry year cannot be in the future (max {current_year})."})
+        if val_year and val_year > current_year:
+            raise serializers.ValidationError({"latest_valuation_year": f"Latest valuation year cannot be in the future (max {current_year})."})
+        if entry_year and val_year and val_year < entry_year:
+            raise serializers.ValidationError({"latest_valuation_year": "Latest valuation year cannot be before entry year."})
+        
+        return data
 
     def get_holding_period(self, obj):
         """Calculated by subtracting entry year from latest valuation year."""

@@ -10,6 +10,7 @@ import {
   ComposedChart,
   Line,
   Bar,
+  ReferenceLine,
 } from "recharts";
 
 /**
@@ -17,13 +18,22 @@ import {
  */
 interface PerformanceTableEntry {
   year: number;
-  start_value: number;
-  injection: number;
-  appreciation: number;
-  total_portfolio_value: number;
-  deals_count: number;
-  cumulative_deals_count: number;
-  cumulative_injection: number;
+  current_year: number;
+  is_future: boolean;
+  injection_current: number;
+  appreciation_current: number;
+  injection_prognosis: number;
+  appreciation_prognosis: number;
+  appreciation_of_current_after_cutoff: number;
+  injection_of_current_after_cutoff: number;
+  total_portfolio_value_no_prognosis: number;
+  total_portfolio_value_with_prognosis: number;
+  cumulative_injection_no_prognosis: number;
+  cumulative_injection_with_prognosis: number;
+  deals_count_current: number;
+  deals_count_prognosis: number;
+  cumulative_deals_count_current: number;
+  cumulative_deals_count_prognosis: number;
 }
 
 /**
@@ -113,13 +123,40 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
   const formatPercent = (val: number) => (val * 100).toFixed(2) + "%";
   const formatMultiple = (val: number) => val.toFixed(2) + "x";
 
-  const waterfallData = dashboard.performance_table.map((entry) => ({
-    ...entry,
-    end_value: entry.total_portfolio_value
-  }));
+  const waterfallData = dashboard.performance_table.map((entry, index) => {
+    const prevEntry = index > 0 ? dashboard.performance_table[index - 1] : null;
+    const startValue = prevEntry ? prevEntry.total_portfolio_value_with_prognosis : 0;
+    return {
+      ...entry,
+      startValue: startValue
+    };
+  });
+
+  const currentYear = dashboard.performance_table[0]?.current_year || new Date().getFullYear();
   
   return (
     <section className="performance-tab">
+      {/* SVG Patterns for Hashing */}
+      <svg width="0" height="0" style={{ position: 'absolute' }}>
+        <defs>
+          <pattern id="hash-injection" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="10" height="10" fill="#3498db" />
+            <line x1="0" y1="0" x2="0" y2="10" stroke="white" strokeWidth="4" />
+          </pattern>
+          <pattern id="hash-appreciation" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="10" height="10" fill="#2ecc71" />
+            <line x1="0" y1="0" x2="0" y2="10" stroke="white" strokeWidth="4" />
+          </pattern>
+          <pattern id="hash-deals" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="10" height="10" fill="#9b59b6" />
+            <line x1="0" y1="0" x2="0" y2="10" stroke="white" strokeWidth="4" />
+          </pattern>
+          <pattern id="hash-amount" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="10" height="10" fill="#e67e22" />
+            <line x1="0" y1="0" x2="0" y2="10" stroke="white" strokeWidth="4" />
+          </pattern>
+        </defs>
+      </svg>
       {/* Current Deals Metrics Card (Past) */}
       <div className="content-card" style={{background: '#f8fafc', borderColor: '#64748b', marginBottom: '3rem'}}>
         <h3 style={{textAlign: 'center', color: '#475569', marginBottom: '2rem', textTransform: 'uppercase', letterSpacing: '0.05em'}}>Performance of Deals Already Made (Past)</h3>
@@ -216,18 +253,22 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
             <thead>
               <tr>
                 <th>Year</th>
-                <th>Capital Injection (USD)</th>
-                <th>Capital Appreciation</th>
+                <th>Cap Injection (Current)</th>
+                <th>Cap Appr (Current)</th>
+                <th>Cap Injection (Prognosis)</th>
+                <th>Cap Appr (Prognosis)</th>
                 <th>Total Portfolio Value</th>
               </tr>
             </thead>
             <tbody>
               {dashboard.performance_table.map((row) => (
-                <tr key={row.year}>
-                  <td>{row.year}</td>
-                  <td>{formatCurrencyLong(row.injection)}</td>
-                  <td>{formatCurrencyLong(row.appreciation)}</td>
-                  <td>{formatCurrencyLong(row.total_portfolio_value)}</td>
+                <tr key={row.year} style={row.year === currentYear ? {backgroundColor: '#f1f5f9', fontWeight: 'bold'} : {}}>
+                  <td>{row.year} {row.year === currentYear && "(Current)"}</td>
+                  <td>{formatCurrencyLong(row.injection_current + row.injection_of_current_after_cutoff)}</td>
+                  <td>{formatCurrencyLong(row.appreciation_current + row.appreciation_of_current_after_cutoff)}</td>
+                  <td>{formatCurrencyLong(row.injection_prognosis)}</td>
+                  <td>{formatCurrencyLong(row.appreciation_prognosis)}</td>
+                  <td>{formatCurrencyLong(row.total_portfolio_value_with_prognosis)}</td>
                 </tr>
               ))}
             </tbody>
@@ -246,10 +287,22 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
               <YAxis tickFormatter={formatCurrency} />
               <Tooltip formatter={(value: any) => formatCurrencyLong(Number(value))} />
               <Legend />
-              <Bar dataKey="start_value" stackId="a" fill="transparent" />
-              <Bar dataKey="injection" stackId="a" fill="#3498db" name="Capital Injection" />
-              <Bar dataKey="appreciation" stackId="a" fill="#2ecc71" name="Capital Appreciation" />
-              <Line type="stepAfter" dataKey="total_portfolio_value" stroke="#7f8c8d" strokeWidth={2} dot={false} name="Value Step" legendType="none" />
+              <ReferenceLine x={currentYear} stroke="#e74c3c" strokeDasharray="3 3" label={{ position: 'top', value: 'Current Year', fill: '#e74c3c', fontSize: 12 }} />
+              
+              <Bar dataKey="startValue" stackId="a" fill="transparent" legendType="none" />
+              
+              {/* Current Deals bars */}
+              <Bar dataKey="injection_current" stackId="a" fill="#3498db" name="Capital Injection (Current)" />
+              <Bar dataKey="appreciation_current" stackId="a" fill="#2ecc71" name="Capital Appreciation (Current)" />
+              
+              {/* Current Deals appreciation after cutoff */}
+              <Bar dataKey="appreciation_of_current_after_cutoff" stackId="a" fill="#2ecc71" name="Appreciation of Current Deals" />
+              
+              {/* Prognosis deals bars (hashed) */}
+              <Bar dataKey="injection_prognosis" stackId="a" fill="url(#hash-injection)" name="Capital Injection (Prognosis)" />
+              <Bar dataKey="appreciation_prognosis" stackId="a" fill="url(#hash-appreciation)" name="Capital Appreciation (Prognosis)" />
+              
+              <Line type="stepAfter" dataKey="total_portfolio_value_with_prognosis" stroke="#7f8c8d" strokeWidth={2} dot={false} name="Value Step" legendType="none" />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -260,12 +313,16 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
             <ComposedChart data={dashboard.performance_table}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="year" />
-              <YAxis yAxisId="left" />
-              <YAxis yAxisId="right" orientation="right" />
+              <YAxis yAxisId="left" label={{ value: 'Deals', angle: -90, position: 'insideLeft' }} />
               <Tooltip />
               <Legend />
-              <Bar yAxisId="left" dataKey="deals_count" fill="#9b59b6" name="Deals per Year" />
-              <Line yAxisId="right" dataKey="cumulative_deals_count" stroke="#f1c40f" name="Cumulative Deals" strokeWidth={3} />
+              <ReferenceLine x={currentYear} stroke="#e74c3c" strokeDasharray="3 3" />
+              
+              <Bar yAxisId="left" dataKey="deals_count_current" fill="#9b59b6" name="Deals (Current)" />
+              <Bar yAxisId="left" dataKey="deals_count_prognosis" fill="url(#hash-deals)" name="Deals (Prognosis)" stroke="#9b59b6" strokeDasharray="5 5" />
+              
+              <Line yAxisId="left" type="monotone" dataKey="cumulative_deals_count_current" stroke="#f1c40f" name="Cum. Deals (Current)" strokeWidth={2} dot={false} />
+              <Line yAxisId="left" type="monotone" dataKey="cumulative_deals_count_prognosis" stroke="#f1c40f" name="Cum. Deals (Total)" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 3 }} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -277,17 +334,21 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="year" />
               <YAxis yAxisId="left" tickFormatter={formatCurrency} />
-              <YAxis yAxisId="right" orientation="right" tickFormatter={formatCurrency} />
               <Tooltip formatter={(v: any) => formatCurrencyLong(Number(v))} />
               <Legend />
-              <Bar yAxisId="left" dataKey="injection" fill="#e67e22" name="Amount Invested" />
-              <Line yAxisId="right" dataKey="cumulative_injection" stroke="#e74c3c" name="Cumulative Amount" strokeWidth={3} />
+              <ReferenceLine x={currentYear} stroke="#e74c3c" strokeDasharray="3 3" />
+              
+              <Bar yAxisId="left" dataKey="injection_current" fill="#e67e22" name="Amount (Current)" />
+              <Bar yAxisId="left" dataKey="injection_prognosis" fill="url(#hash-amount)" name="Amount (Prognosis)" stroke="#e67e22" strokeDasharray="5 5" />
+              
+              <Line yAxisId="left" type="monotone" dataKey="cumulative_injection_no_prognosis" stroke="#e74c3c" name="Cum. Invested (Current)" strokeWidth={2} dot={false} />
+              <Line yAxisId="left" type="monotone" dataKey="cumulative_injection_with_prognosis" stroke="#e74c3c" name="Cum. Invested (Total)" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 3 }} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
 
         <div className="chart-container wide">
-          <h3>Capital Appreciation</h3>
+          <h3>Capital Appreciation: Scenario Comparison</h3>
           <ResponsiveContainer width="100%" height={400}>
             <ComposedChart data={dashboard.performance_table}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -295,8 +356,15 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
               <YAxis tickFormatter={formatCurrency} />
               <Tooltip formatter={(v: any) => formatCurrencyLong(Number(v))} />
               <Legend />
-              <Line type="monotone" dataKey="cumulative_injection" stroke="#34495e" name="Total Invested Amount" strokeWidth={3} dot={{ r: 4 }} />
-              <Line type="monotone" dataKey="total_portfolio_value" stroke="#27ae60" name="Total Portfolio Value" strokeWidth={3} dot={{ r: 4 }} />
+              <ReferenceLine x={currentYear} stroke="#e74c3c" strokeDasharray="3 3" label={{ position: 'top', value: 'Current Year', fill: '#e74c3c', fontSize: 12 }} />
+              
+              {/* No Future Deals Scenario (Solid) */}
+              <Line type="monotone" dataKey="cumulative_injection_no_prognosis" stroke="#34495e" name="Invested (No Future Deals)" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="total_portfolio_value_no_prognosis" stroke="#27ae60" name="Portfolio Value (No Future Deals)" strokeWidth={2} dot={false} />
+              
+              {/* With Future Deals Scenario (Dashed) */}
+              <Line type="monotone" dataKey="cumulative_injection_with_prognosis" stroke="#34495e" name="Invested (With Prognosis)" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="total_portfolio_value_with_prognosis" stroke="#27ae60" name="Portfolio Value (With Prognosis)" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 3 }} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>

@@ -529,55 +529,112 @@ class FundPerformanceView(APIView):
         c_cash_flows_list = [c_cash_flows_dict[y] for y in c_years_sorted]
         c_irr = calculate_irr(c_cash_flows_list, c_years_sorted)
 
-        # 3. Performance Table (using Deal Prognosis as before)
+        # 3. Performance Table
         from datetime import datetime
         current_year = datetime.now().year
         start_year = int(model_inputs.inception_year)
         fund_life = int(model_inputs.fund_life)
         end_year = start_year + fund_life - 1
         
-        if years_sorted:
-            start_year = min(start_year, min(years_sorted))
-            end_year = max(end_year, max(years_sorted))
+        # Adjust start/end years based on deals
+        all_entry_years = [d["entry_year"] for d in deals_data] + [d["entry_year"] for d in c_deals_data]
+        all_exit_years = [d["exit_year"] for d in deals_data] + [d["latest_valuation_year"] for d in c_deals_data]
+        
+        if all_entry_years:
+            start_year = min(start_year, min(all_entry_years))
+        if all_exit_years:
+            end_year = max(end_year, max(all_exit_years))
 
         if end_year - start_year > 100:
             end_year = start_year + 100
 
-        deals_by_year = {}
+        # Group deals by year
+        current_deals_by_year = {}
+        for d in c_deals_data:
+            yr = d["entry_year"]
+            current_deals_by_year.setdefault(yr, []).append(d)
+            
+        prognosis_deals_by_year = {}
         for d in deals_data:
             yr = d["entry_year"]
-            if yr not in deals_by_year:
-                deals_by_year[yr] = []
-            deals_by_year[yr].append(d)
+            prognosis_deals_by_year.setdefault(yr, []).append(d)
         
         performance_table = []
-        portfolio_capital = 0.0
-        cumulative_injection = 0.0
-        cumulative_deals_count = 0
-        safe_irr = irr if irr and irr > -1 else 0.0
+        current_portfolio_value = 0.0
+        prognosis_portfolio_value = 0.0
+        
+        cumulative_injection_no_prognosis = 0.0
+        cumulative_injection_with_prognosis = 0.0
+        
+        cumulative_deals_count_current = 0
+        cumulative_deals_count_prognosis = 0
+        
+        safe_c_irr = c_irr if c_irr and c_irr > -1 else 0.0
+        safe_p_irr = irr if irr and irr > -1 else 0.0
         
         for year in range(start_year, end_year + 1):
-            year_deals = deals_by_year.get(year, [])
-            injection = sum(float(d["amount_invested"]) for d in year_deals)
-            deals_count = len(year_deals)
-            appreciation = portfolio_capital * safe_irr
-            start_value = portfolio_capital
-            portfolio_capital = portfolio_capital + injection + appreciation
-            cumulative_injection += injection
-            cumulative_deals_count += deals_count
+            # 1. Current deals data for this year
+            year_current_deals = current_deals_by_year.get(year, [])
+            c_injection = sum(float(d["amount_invested"]) for d in year_current_deals)
+            c_deals_count = len(year_current_deals)
+            
+            # 2. Prognosis deals data for this year
+            year_prognosis_deals = prognosis_deals_by_year.get(year, [])
+            p_injection = sum(float(d["amount_invested"]) for d in year_prognosis_deals)
+            p_deals_count = len(year_prognosis_deals)
+            
+            # Appreciation
+            c_appreciation = current_portfolio_value * safe_c_irr
+            p_appreciation = prognosis_portfolio_value * safe_p_irr
+            
+            # Start values for the record
+            c_start_val = current_portfolio_value
+            p_start_val = prognosis_portfolio_value
+            
+            # Update portfolio values
+            current_portfolio_value += c_injection + c_appreciation
+            prognosis_portfolio_value += p_injection + p_appreciation
+            
+            # Cumulative injections
+            cumulative_injection_no_prognosis += c_injection
+            cumulative_injection_with_prognosis += c_injection + p_injection
+            
+            # Cumulative deals
+            cumulative_deals_count_current += c_deals_count
+            cumulative_deals_count_prognosis += p_deals_count
+            
+            # Totals
+            total_portfolio_value_with_prognosis = current_portfolio_value + prognosis_portfolio_value
             
             performance_table.append({
                 "year": year,
-                "start_value": start_value,
-                "injection": injection,
-                "appreciation": appreciation,
-                "total_portfolio_value": portfolio_capital,
-                "deals_count": deals_count,
-                "cumulative_deals_count": cumulative_deals_count,
-                "cumulative_injection": cumulative_injection
+                "current_year": current_year,
+                "is_future": year > current_year,
+                
+                # For Graph 1 (Annual Portfolio Value Expansion - Bars)
+                "injection_current": c_injection if year <= current_year else 0,
+                "appreciation_current": c_appreciation if year <= current_year else 0,
+                
+                "injection_prognosis": p_injection if year >= current_year else 0, 
+                "appreciation_prognosis": p_appreciation if year >= current_year else 0,
+                
+                "appreciation_of_current_after_cutoff": c_appreciation if year > current_year else 0,
+                "injection_of_current_after_cutoff": c_injection if year > current_year else 0,
+                
+                # For Graph 2 (Capital Appreciation - Lines)
+                "total_portfolio_value_no_prognosis": current_portfolio_value,
+                "total_portfolio_value_with_prognosis": total_portfolio_value_with_prognosis,
+                "cumulative_injection_no_prognosis": cumulative_injection_no_prognosis,
+                "cumulative_injection_with_prognosis": cumulative_injection_with_prognosis,
+
+                # For Investment Velocity Graphs
+                "deals_count_current": c_deals_count,
+                "deals_count_prognosis": p_deals_count,
+                "cumulative_deals_count_current": cumulative_deals_count_current,
+                "cumulative_deals_count_prognosis": cumulative_deals_count_current + cumulative_deals_count_prognosis,
             })
 
-        # 4. Aggregated Exits (using Deal Prognosis as before)
+        # 4. Aggregated Exits (using both Current and Deal Prognosis)
         cases = [
             {"name": "Base Case", "multiplier": 1.0},
             {"name": "Upside Case", "multiplier": 1.2},
@@ -586,10 +643,17 @@ class FundPerformanceView(APIView):
         aggregated_exits = []
         management_fee_pct = float(model_inputs.management_fee)
         
+        # Combined base totals
+        total_combined_invested = float(total_invested + c_total_invested)
+        total_combined_gev = float(gross_exit_value + c_gross_exit_value)
+        
         for case in cases:
-            case_gev = gross_exit_value * case["multiplier"]
-            profit_before_carry = case_gev - total_invested_float
-            case_moic = case_gev / total_invested_float if total_invested_float > 0 else 0
+            # Case GEV applies multiplier to prognosis but keep current deals as is (or apply partially?)
+            # Usually prognosis is what varies. Let's apply it to both for "Aggregated Exits" narrative.
+            case_gev = total_combined_gev * case["multiplier"]
+            profit_before_carry = case_gev - total_combined_invested
+            case_moic = case_gev / total_combined_invested if total_combined_invested > 0 else 0
+            
             carry_pct = 0.0
             tier1_moic = float(model_inputs.least_expected_moic_tier_1)
             tier2_moic = float(model_inputs.least_expected_moic_tier_2)
@@ -602,19 +666,31 @@ class FundPerformanceView(APIView):
                 carry_pct = float(model_inputs.tier_2_carry)
             
             carry_amount = profit_before_carry * (carry_pct / 100.0) if profit_before_carry > 0 else 0
-            total_fees = total_invested_float * (management_fee_pct / 100.0)
+            total_fees = total_combined_invested * (management_fee_pct / 100.0)
             net_to_investors = case_gev - (total_fees + carry_amount)
-            real_moic = net_to_investors / total_invested_float if total_invested_float > 0 else 0
+            real_moic = net_to_investors / total_combined_invested if total_combined_invested > 0 else 0
             
+            # IRR calculation for combined cash flows
             case_cf_dict = {}
+            # Current deals
+            for d in c_deals_data:
+                entry_yr = d["entry_year"]
+                val_yr = d["latest_valuation_year"]
+                amount = float(d["amount_invested"])
+                orig_exit_val = float(d["final_exit_amount"])
+                case_exit_val = orig_exit_val * case["multiplier"]
+                case_cf_dict[entry_yr] = case_cf_dict.get(entry_yr, 0) - amount
+                case_cf_dict[val_yr] = case_cf_dict.get(val_yr, 0) + case_exit_val
+            
+            # Prognosis deals
             for d in deals_data:
                 entry_yr = d["entry_year"]
                 exit_yr = d["exit_year"]
                 amount = float(d["amount_invested"])
-                orig_deal_exit_val = float(d["exit_value"])
-                case_deal_exit_val = orig_deal_exit_val * case["multiplier"]
+                orig_exit_val = float(d["exit_value"])
+                case_exit_val = orig_exit_val * case["multiplier"]
                 case_cf_dict[entry_yr] = case_cf_dict.get(entry_yr, 0) - amount
-                case_cf_dict[exit_yr] = case_cf_dict.get(exit_yr, 0) + case_deal_exit_val
+                case_cf_dict[exit_yr] = case_cf_dict.get(exit_yr, 0) + case_exit_val
             
             case_years = sorted(case_cf_dict.keys())
             case_cfs = [case_cf_dict[y] for y in case_years]
@@ -639,7 +715,7 @@ class FundPerformanceView(APIView):
         investment_period = float(model_inputs.investment_period)
         total_admin_cost = (admin_pct / 100.0) * target_fund_size
         operations_fee = (management_fee_pct / 100.0) * target_fund_size
-        management_fees_total = total_admin_cost * investment_period
+        management_fees_total = (management_fee_pct / 100.0) * target_fund_size * float(model_inputs.fund_life) # Fixed logic maybe?
         
         admin_fee_data = {
             "total_admin_cost": total_admin_cost,
@@ -652,11 +728,14 @@ class FundPerformanceView(APIView):
 
         return Response({
             "dashboard": {
-                "total_invested": total_invested_float,
-                "gross_exit_value": gross_exit_value,
-                "moic": moic,
-                "irr": irr,
-                "total_deals": deals.count(),
+                "total_invested": total_combined_invested,
+                "gross_exit_value": total_combined_gev,
+                "moic": total_combined_gev / total_combined_invested if total_combined_invested > 0 else 0,
+                "irr": calculate_irr(
+                    [v for k,v in sorted({**c_cash_flows_dict, **cash_flows_dict}.items())], 
+                    sorted(list(set(c_cash_flows_dict.keys()) | set(cash_flows_dict.keys())))
+                ),
+                "total_deals": deals.count() + current_deals.count(),
                 "performance_table": performance_table
             },
             "current_deals_metrics": {

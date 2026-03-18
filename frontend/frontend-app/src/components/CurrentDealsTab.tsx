@@ -52,12 +52,14 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
   const [isAdding, setIsAdding] = useState(false);
   const [editingDeal, setEditingDeal] = useState<CurrentDeal | null>(null);
 
+  const currentYear = new Date().getFullYear();
+
   const emptyDeal = {
     company_name: "",
     company_type: "",
     industry: "",
-    entry_year: new Date().getFullYear(),
-    latest_valuation_year: new Date().getFullYear(),
+    entry_year: currentYear,
+    latest_valuation_year: currentYear,
     amount_invested: "1000000",
     entry_valuation: "10000000",
     latest_valuation: "12000000"
@@ -117,6 +119,20 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
    */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (formData.entry_year > currentYear) {
+      setError(`Entry year cannot be in the future (max ${currentYear}).`);
+      return;
+    }
+    if (formData.latest_valuation_year > currentYear) {
+      setError(`Latest valuation year cannot be in the future (max ${currentYear}).`);
+      return;
+    }
+    if (formData.latest_valuation_year < formData.entry_year) {
+      setError("Latest valuation year cannot be before entry year.");
+      return;
+    }
+
     try {
       if (editingDeal) {
         await fundsApi.updateCurrentDeal(fundId, editingDeal.id, formData);
@@ -126,9 +142,11 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
       setIsAdding(false);
       setEditingDeal(null);
       setFormData(emptyDeal);
+      setError(null);
       fetchDeals();
-    } catch (err) {
-      setError(`Failed to ${editingDeal ? "update" : "add"} deal.`);
+    } catch (err: any) {
+      const serverMsg = err.response?.data ? JSON.stringify(err.response.data) : "";
+      setError(`Failed to ${editingDeal ? "update" : "add"} deal. ${serverMsg}`);
     }
   };
 
@@ -208,11 +226,11 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
               </div>
               <div className="form-group">
                 <label>Entry Year</label>
-                <input type="number" value={formData.entry_year} onChange={e => setFormData({...formData, entry_year: parseInt(e.target.value)})} required />
+                <input type="number" value={formData.entry_year} max={currentYear} onChange={e => setFormData({...formData, entry_year: parseInt(e.target.value)})} required />
               </div>
               <div className="form-group">
                 <label>Latest Valuation Year</label>
-                <input type="number" value={formData.latest_valuation_year} onChange={e => setFormData({...formData, latest_valuation_year: parseInt(e.target.value)})} required />
+                <input type="number" value={formData.latest_valuation_year} max={currentYear} onChange={e => setFormData({...formData, latest_valuation_year: parseInt(e.target.value)})} required />
               </div>
               <div className="form-group">
                 <label>Amount Invested (USD)</label>

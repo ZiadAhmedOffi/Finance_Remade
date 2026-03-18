@@ -9,7 +9,8 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  ResponsiveContainer
+  ResponsiveContainer,
+  ReferenceLine
 } from "recharts";
 
 /**
@@ -17,13 +18,22 @@ import {
  */
 interface PerformanceTableEntry {
   year: number;
-  start_value: number;
-  injection: number;
-  appreciation: number;
-  total_portfolio_value: number;
-  deals_count: number;
-  cumulative_deals_count: number;
-  cumulative_injection: number;
+  current_year: number;
+  is_future: boolean;
+  injection_current: number;
+  appreciation_current: number;
+  injection_prognosis: number;
+  appreciation_prognosis: number;
+  appreciation_of_current_after_cutoff: number;
+  injection_of_current_after_cutoff: number;
+  total_portfolio_value_no_prognosis: number;
+  total_portfolio_value_with_prognosis: number;
+  cumulative_injection_no_prognosis: number;
+  cumulative_injection_with_prognosis: number;
+  deals_count_current: number;
+  deals_count_prognosis: number;
+  cumulative_deals_count_current: number;
+  cumulative_deals_count_prognosis: number;
 }
 
 /**
@@ -121,6 +131,8 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
     irr: c.irr * 100 
   }));
 
+  const currentYear = dashboard.performance_table[0]?.current_year || new Date().getFullYear();
+
   /**
    * Calculates data for the "Base Points" chart.
    * Treats total invested capital as 100 base points.
@@ -134,7 +146,7 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
     const { inception_year, fund_life, total_admin_cost, operations_fee, management_fees } = admin_fee;
     const years_arr = Array.from({ length: fund_life }, (_, i) => inception_year + i);
 
-    // Reconstruct G&A allocation logic (consistent with AdminFeeTab)
+    // ... (G&A logic remains same as it's based on fund constants)
     const estLicensingY1 = total_admin_cost * 0.05;
     const estLicensingLater = estLicensingY1 * 0.5;
     const row1Vals = years_arr.map((_, i) => i === 0 ? estLicensingY1 : estLicensingLater);
@@ -181,21 +193,27 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
     years_arr.forEach((year, i) => { gaMap[year] = totalGAVals[i]; });
 
     const totalInvested = dashboard.total_invested;
-    const irrBase = aggregated_exits.find(c => c.case === "Base Case")?.irr || 0;
-    const irrUpside = aggregated_exits.find(c => c.case === "Upside Case")?.irr || 0;
-    const irrHighGrowth = aggregated_exits.find(c => c.case === "High Growth Case")?.irr || 0;
+    
+    // Multipliers for cases
+    const multipliers: Record<string, number> = {
+        "Base Case": 1.0,
+        "Upside Case": 1.2,
+        "High Growth Case": 1.5
+    };
 
     let portfolioBase = 0;
     let portfolioUpside = 0;
     let portfolioHighGrowth = 0;
 
     return dashboard.performance_table.map((row) => {
-      const injection = row.injection;
+      const injection = row.injection_current + row.injection_prognosis + row.injection_of_current_after_cutoff;
+      const baseAppreciation = row.appreciation_current + row.appreciation_prognosis + row.appreciation_of_current_after_cutoff;
+      
       const gaYearly = gaMap[row.year] || 0;
 
-      portfolioBase = portfolioBase * (1 + irrBase) + injection;
-      portfolioUpside = portfolioUpside * (1 + irrUpside) + injection;
-      portfolioHighGrowth = portfolioHighGrowth * (1 + irrHighGrowth) + injection;
+      portfolioBase += injection + (baseAppreciation * multipliers["Base Case"]);
+      portfolioUpside += injection + (baseAppreciation * multipliers["Upside Case"]);
+      portfolioHighGrowth += injection + (baseAppreciation * multipliers["High Growth Case"]);
 
       const investedBP = totalInvested > 0 ? (injection / totalInvested) * 100 : 0;
       const lineBase = totalInvested > 0 ? ((portfolioBase - gaYearly) / totalInvested) * 100 : 0;
@@ -305,6 +323,7 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
               <YAxis label={{ value: 'Base Points', angle: -90, position: 'insideLeft' }} />
               <Tooltip formatter={(value: any) => Number(value).toFixed(2)} />
               <Legend />
+              <ReferenceLine x={currentYear} stroke="#e74c3c" strokeDasharray="3 3" label={{ position: 'top', value: 'Current Year', fill: '#e74c3c', fontSize: 12 }} />
               <Bar dataKey="investedBP" fill="#e67e22" name="Invested Capital (BP)" barSize={40} />
               <Line type="monotone" dataKey="Base Case" stroke="#2ecc71" strokeWidth={3} dot={{ r: 4 }} />
               <Line type="monotone" dataKey="Upside Case" stroke="#3498db" strokeWidth={3} dot={{ r: 4 }} />
