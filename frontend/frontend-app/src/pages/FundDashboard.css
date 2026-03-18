@@ -248,21 +248,21 @@
 .data-table tbody tr:hover { background-color: #f1f5f9; }
 
 /* Sticky column styling */
-.sticky-right {
+.sticky-left {
   position: sticky;
-  right: 0;
+  left: 0;
   background: white;
   z-index: 10;
-  box-shadow: -4px 0 8px rgba(0,0,0,0.05);
-  border-left: 1px solid var(--border-light);
+  box-shadow: 4px 0 8px rgba(0,0,0,0.05);
+  border-right: 1px solid var(--border-light);
 }
 
-.data-table th.sticky-right {
+.data-table th.sticky-left {
   background: #f8fafc;
   z-index: 20;
 }
 
-.data-table tr:hover td.sticky-right {
+.data-table tr:hover td.sticky-left {
   background-color: #f1f5f9;
 }
 
