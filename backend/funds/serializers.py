@@ -112,9 +112,10 @@ class InvestmentDealSerializer(serializers.ModelSerializer):
         return (obj.amount_invested / denominator) * 100
 
     def get_exit_valuation(self, obj):
-        """Calculated by multiplying the factor of the selected scenario by entry valuation."""
+        """Calculated by multiplying the factor of the selected scenario by the post-money valuation (entry valuation + amount invested)."""
         factor = getattr(obj, f"{obj.selected_scenario.lower()}_factor", 1.00)
-        return obj.entry_valuation * factor
+        post_money_valuation = obj.entry_valuation + obj.amount_invested
+        return post_money_valuation * factor
 
     def get_exit_value(self, obj):
         """Calculated by multiplying the ownership percentage by the exit valuation."""
@@ -183,10 +184,11 @@ class CurrentDealSerializer(serializers.ModelSerializer):
         return (obj.amount_invested / denominator) * 100
 
     def get_moic(self, obj):
-        """Formula: latest_valuation / entry_valuation."""
-        if obj.entry_valuation == 0:
+        """Formula: latest_valuation / post_money_valuation (entry_valuation + amount_invested)."""
+        post_money_valuation = obj.entry_valuation + obj.amount_invested
+        if post_money_valuation == 0:
             return 0
-        return obj.latest_valuation / obj.entry_valuation
+        return obj.latest_valuation / post_money_valuation
 
     def get_final_exit_amount(self, obj):
         """Formula: post_money_ownership % * latest_valuation."""

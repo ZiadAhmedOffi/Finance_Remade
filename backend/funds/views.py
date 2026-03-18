@@ -455,10 +455,15 @@ def calculate_irr(cash_flows, years, guess=0.1, max_iter=1000, tolerance=1e-6):
             break
             
         new_r = r - f_val / f_prime
+        
+        # Prevent new_r from becoming too small or too large
+        if new_r <= -1.0:
+            new_r = (r - 1.0) / 2.0
+        
         if abs(new_r - r) < tolerance:
             return new_r
         r = new_r
-        
+
         if abs(r) > 100: # Sanity check
             break
             
@@ -485,7 +490,7 @@ class FundPerformanceView(APIView):
         if not model_inputs:
             return Response({"error": "Model inputs not found for this fund."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 1. Deal Prognosis Metrics
+        # 1. Deal Prognosis Metrics (Future Only)
         total_invested = sum(deal.amount_invested for deal in deals)
         deal_serializer = InvestmentDealSerializer(deals, many=True)
         deals_data = deal_serializer.data
@@ -507,7 +512,7 @@ class FundPerformanceView(APIView):
         cash_flows_list = [cash_flows_dict[y] for y in years_sorted]
         irr = calculate_irr(cash_flows_list, years_sorted)
 
-        # 2. Current Deals Metrics
+        # 2. Current Deals Metrics (Past Only)
         c_total_invested = sum(d.amount_invested for d in current_deals)
         c_deal_serializer = CurrentDealSerializer(current_deals, many=True)
         c_deals_data = c_deal_serializer.data
@@ -529,7 +534,7 @@ class FundPerformanceView(APIView):
         c_cash_flows_list = [c_cash_flows_dict[y] for y in c_years_sorted]
         c_irr = calculate_irr(c_cash_flows_list, c_years_sorted)
 
-        # 3. Performance Table
+        # 3. Performance Table (Combined for charts)
         from datetime import datetime
         current_year = datetime.now().year
         start_year = int(model_inputs.inception_year)
@@ -648,8 +653,7 @@ class FundPerformanceView(APIView):
         total_combined_gev = float(gross_exit_value + c_gross_exit_value)
         
         for case in cases:
-            # Case GEV applies multiplier to prognosis but keep current deals as is (or apply partially?)
-            # Usually prognosis is what varies. Let's apply it to both for "Aggregated Exits" narrative.
+            # Case GEV applies multiplier to prognosis but keep current deals as is
             case_gev = total_combined_gev * case["multiplier"]
             profit_before_carry = case_gev - total_combined_invested
             case_moic = case_gev / total_combined_invested if total_combined_invested > 0 else 0
@@ -715,7 +719,7 @@ class FundPerformanceView(APIView):
         investment_period = float(model_inputs.investment_period)
         total_admin_cost = (admin_pct / 100.0) * target_fund_size
         operations_fee = (management_fee_pct / 100.0) * target_fund_size
-        management_fees_total = (management_fee_pct / 100.0) * target_fund_size * float(model_inputs.fund_life) # Fixed logic maybe?
+        management_fees_total = (management_fee_pct / 100.0) * target_fund_size * float(model_inputs.fund_life)
         
         admin_fee_data = {
             "total_admin_cost": total_admin_cost,
@@ -728,14 +732,11 @@ class FundPerformanceView(APIView):
 
         return Response({
             "dashboard": {
-                "total_invested": total_combined_invested,
-                "gross_exit_value": total_combined_gev,
-                "moic": total_combined_gev / total_combined_invested if total_combined_invested > 0 else 0,
-                "irr": calculate_irr(
-                    [v for k,v in sorted({**c_cash_flows_dict, **cash_flows_dict}.items())], 
-                    sorted(list(set(c_cash_flows_dict.keys()) | set(cash_flows_dict.keys())))
-                ),
-                "total_deals": deals.count() + current_deals.count(),
+                "total_invested": total_invested_float,
+                "gross_exit_value": gross_exit_value,
+                "moic": moic,
+                "irr": irr,
+                "total_deals": deals.count(),
                 "performance_table": performance_table
             },
             "current_deals_metrics": {

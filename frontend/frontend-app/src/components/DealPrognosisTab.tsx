@@ -295,7 +295,6 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Company Name</th>
                   <th>Type</th>
                   <th>Industry</th>
                   <th>Entry Year</th>
@@ -308,12 +307,12 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
                   <th>Exit Val</th>
                   <th>Exit Value</th>
                   {canEdit && <th>Actions</th>}
+                  <th className="sticky-right">Company Name</th>
                 </tr>
               </thead>
               <tbody>
                 {deals.map(deal => (
                   <tr key={deal.id}>
-                    <td><strong>{deal.company_name}</strong></td>
                     <td>{deal.company_type}</td>
                     <td>{deal.industry}</td>
                     <td>{deal.entry_year}</td>
@@ -337,6 +336,7 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
                         </div>
                       </td>
                     )}
+                    <td className="sticky-right"><strong>{deal.company_name}</strong></td>
                   </tr>
                 ))}
               </tbody>

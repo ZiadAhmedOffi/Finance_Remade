@@ -267,7 +267,6 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Company Name</th>
                   <th>Type</th>
                   <th>Industry</th>
                   <th>Entry Year</th>
@@ -280,12 +279,12 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
                   <th>Ownership %</th>
                   <th>Current Value</th>
                   {canEdit && <th>Actions</th>}
+                  <th className="sticky-right">Company Name</th>
                 </tr>
               </thead>
               <tbody>
                 {deals.map(deal => (
                   <tr key={deal.id}>
-                    <td><strong>{deal.company_name}</strong></td>
                     <td>{deal.company_type}</td>
                     <td>{deal.industry}</td>
                     <td>{deal.entry_year}</td>
@@ -305,6 +304,7 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
                         </div>
                       </td>
                     )}
+                    <td className="sticky-right"><strong>{deal.company_name}</strong></td>
                   </tr>
                 ))}
               </tbody>
