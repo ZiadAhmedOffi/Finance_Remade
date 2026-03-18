@@ -639,7 +639,7 @@ class FundPerformanceView(APIView):
                 "cumulative_deals_count_prognosis": cumulative_deals_count_current + cumulative_deals_count_prognosis,
             })
 
-        # 4. Aggregated Exits (using both Current and Deal Prognosis)
+        # 4. Aggregated Exits (using only Current Deals)
         cases = [
             {"name": "Base Case", "multiplier": 1.0},
             {"name": "Upside Case", "multiplier": 1.2},
@@ -648,12 +648,12 @@ class FundPerformanceView(APIView):
         aggregated_exits = []
         management_fee_pct = float(model_inputs.management_fee)
         
-        # Combined base totals
-        total_combined_invested = float(total_invested + c_total_invested)
-        total_combined_gev = float(gross_exit_value + c_gross_exit_value)
+        # Use only Current Deals for Aggregated Exits as requested
+        total_combined_invested = float(c_total_invested)
+        total_combined_gev = float(c_gross_exit_value)
         
         for case in cases:
-            # Case GEV applies multiplier to prognosis but keep current deals as is
+            # Case GEV applies multiplier to current deals valuation
             case_gev = total_combined_gev * case["multiplier"]
             profit_before_carry = case_gev - total_combined_invested
             case_moic = case_gev / total_combined_invested if total_combined_invested > 0 else 0
@@ -674,9 +674,9 @@ class FundPerformanceView(APIView):
             net_to_investors = case_gev - (total_fees + carry_amount)
             real_moic = net_to_investors / total_combined_invested if total_combined_invested > 0 else 0
             
-            # IRR calculation for combined cash flows
+            # IRR calculation for Current Deals cash flows only
             case_cf_dict = {}
-            # Current deals
+            # Current deals only
             for d in c_deals_data:
                 entry_yr = d["entry_year"]
                 val_yr = d["latest_valuation_year"]
@@ -685,16 +685,6 @@ class FundPerformanceView(APIView):
                 case_exit_val = orig_exit_val * case["multiplier"]
                 case_cf_dict[entry_yr] = case_cf_dict.get(entry_yr, 0) - amount
                 case_cf_dict[val_yr] = case_cf_dict.get(val_yr, 0) + case_exit_val
-            
-            # Prognosis deals
-            for d in deals_data:
-                entry_yr = d["entry_year"]
-                exit_yr = d["exit_year"]
-                amount = float(d["amount_invested"])
-                orig_exit_val = float(d["exit_value"])
-                case_exit_val = orig_exit_val * case["multiplier"]
-                case_cf_dict[entry_yr] = case_cf_dict.get(entry_yr, 0) - amount
-                case_cf_dict[exit_yr] = case_cf_dict.get(exit_yr, 0) + case_exit_val
             
             case_years = sorted(case_cf_dict.keys())
             case_cfs = [case_cf_dict[y] for y in case_years]

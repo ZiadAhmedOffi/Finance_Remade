@@ -97,10 +97,17 @@ const FundCard: React.FC<FundCardProps> = ({ fund }) => {
   const { dashboard, current_deals_metrics, aggregated_exits, admin_fee } = performanceData || {};
   
   // Prepare waterfall chart data
-  const waterfallData = dashboard?.performance_table?.map((entry: any) => ({
-    ...entry,
-    end_value: entry.total_portfolio_value
-  })) || [];
+  const waterfallData = dashboard?.performance_table?.map((entry: any, index: number) => {
+    const prevEntry = index > 0 ? dashboard.performance_table[index - 1] : null;
+    const start_value = prevEntry ? prevEntry.total_portfolio_value_with_prognosis : 0;
+    return {
+      ...entry,
+      start_value: start_value,
+      // Combined for simple display if needed, but we prefer stacked
+      injection: entry.injection_current + entry.injection_prognosis + entry.injection_of_current_after_cutoff,
+      appreciation: entry.appreciation_current + entry.appreciation_prognosis + entry.appreciation_of_current_after_cutoff
+    };
+  }) || [];
 
   // Calculate base points (Portfolio Value - G&A) / Total Invested
   const calculateBasePointsData = () => {
@@ -155,17 +162,18 @@ const FundCard: React.FC<FundCardProps> = ({ fund }) => {
     const gaMap: Record<number, number> = {};
     years_arr.forEach((year, i) => { gaMap[year] = totalGAVals[i]; });
 
+    // For BP calculations, we use combined prognosis metrics
     const totalInvested = dashboard.total_invested;
-    const irrBase = aggregated_exits.find((c: any) => c.case === "Base Case")?.irr || 0;
-    const irrUpside = aggregated_exits.find((c: any) => c.case === "Upside Case")?.irr || 0;
-    const irrHighGrowth = aggregated_exits.find((c: any) => c.case === "High Growth Case")?.irr || 0;
+    const irrBase = aggregated_exits?.find((c: any) => c.case === "Base Case")?.irr || 0;
+    const irrUpside = aggregated_exits?.find((c: any) => c.case === "Upside Case")?.irr || 0;
+    const irrHighGrowth = aggregated_exits?.find((c: any) => c.case === "High Growth Case")?.irr || 0;
 
     let portfolioBase = 0;
     let portfolioUpside = 0;
     let portfolioHighGrowth = 0;
 
     return dashboard.performance_table.map((row: any) => {
-      const injection = row.injection;
+      const injection = row.injection_current + row.injection_prognosis + row.injection_of_current_after_cutoff;
       const gaYearly = gaMap[row.year] || 0;
 
       portfolioBase = portfolioBase * (1 + irrBase) + injection;
@@ -230,7 +238,7 @@ const FundCard: React.FC<FundCardProps> = ({ fund }) => {
                 <Bar dataKey="start_value" stackId="a" fill="transparent" />
                 <Bar dataKey="injection" stackId="a" fill="#3498db" name="Injection" />
                 <Bar dataKey="appreciation" stackId="a" fill="#2ecc71" name="Appreciation" />
-                <Line type="stepAfter" dataKey="total_portfolio_value" stroke="#7f8c8d" dot={false} strokeWidth={2} />
+                <Line type="stepAfter" dataKey="total_portfolio_value_with_prognosis" stroke="#7f8c8d" dot={false} strokeWidth={2} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
