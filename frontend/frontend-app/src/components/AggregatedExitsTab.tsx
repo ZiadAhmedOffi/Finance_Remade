@@ -60,6 +60,13 @@ interface PerformanceData {
     total_invested: number;
     performance_table: PerformanceTableEntry[];
   };
+  current_deals_metrics: {
+    total_invested: number;
+    gross_exit_value: number;
+    moic: number;
+    irr: number;
+    total_deals: number;
+  };
   aggregated_exits: CaseData[];
   admin_fee: {
     total_admin_cost: number;
@@ -110,7 +117,7 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
   if (error) return <div className="error-state">{error}</div>;
   if (!data) return null;
 
-  const { dashboard, aggregated_exits, admin_fee } = data;
+  const { dashboard, current_deals_metrics, aggregated_exits, admin_fee } = data;
 
   // Formatting Utilities
   const formatCurrency = (val: number) => 
@@ -126,7 +133,7 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
   // Data mapping for Recharts
   const chartData = aggregated_exits.map(c => ({
     name: c.case,
-    invested: dashboard.total_invested,
+    invested: current_deals_metrics.total_invested,
     gev: c.gev,
     irr: c.irr * 100 
   }));
@@ -192,7 +199,7 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
     const gaMap: Record<number, number> = {};
     years_arr.forEach((year, i) => { gaMap[year] = totalGAVals[i]; });
 
-    const totalInvested = dashboard.total_invested;
+    const totalInvested = current_deals_metrics.total_invested;
     
     // Multipliers for cases
     const multipliers: Record<string, number> = {
@@ -206,8 +213,9 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
     let portfolioHighGrowth = 0;
 
     return dashboard.performance_table.map((row) => {
-      const injection = row.injection_current + row.injection_prognosis + row.injection_of_current_after_cutoff;
-      const baseAppreciation = row.appreciation_current + row.appreciation_prognosis + row.appreciation_of_current_after_cutoff;
+      // Logic adaptation: Use only Current Deals (injection_current and injection_after_cutoff)
+      const injection = row.injection_current + row.injection_of_current_after_cutoff;
+      const baseAppreciation = row.appreciation_current + row.appreciation_of_current_after_cutoff;
       
       const gaYearly = gaMap[row.year] || 0;
 
@@ -251,9 +259,9 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
       <div className="content-card" style={{background: '#f0f7ff', borderColor: '#007bff', marginBottom: '3rem'}}>
         <div style={{display: 'flex', justifyContent: 'center', textAlign: 'center'}}>
           <div className="summary-item">
-            <label style={{color: '#0056b3', fontSize: '1rem', fontWeight: '600', textTransform: 'uppercase'}}>Total Invested Capital</label>
+            <label style={{color: '#0056b3', fontSize: '1rem', fontWeight: '600', textTransform: 'uppercase'}}>Total Invested Capital (Current Deals)</label>
             <div className="summary-value" style={{fontSize: '2.5rem', fontWeight: '800', color: '#007bff'}}>
-              {formatCurrency(dashboard.total_invested)}
+              {formatCurrency(current_deals_metrics.total_invested)}
             </div>
           </div>
         </div>
