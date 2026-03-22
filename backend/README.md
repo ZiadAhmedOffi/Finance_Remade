@@ -21,7 +21,8 @@ The backend is built with Django and Django Rest Framework, providing a secure a
 ## 🧪 Calculations
 
 ### Internal Rate of Return (IRR)
-The system uses a Newton-Raphson numerical method to calculate IRR based on annual cash flows (investments as negative, exits as positive).
+The system calculates IRR as a geometric mean based on the Real MOIC to Investors and the Fund's Exit Horizon:
+`IRR = [(Real MOIC to Investors) ^ (1 / Exit Horizon)] - 1`
 
 ### Multiples (MOIC)
 - **Gross MOIC:** Gross Exit Value / Total Invested.

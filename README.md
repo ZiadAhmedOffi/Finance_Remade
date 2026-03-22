@@ -18,7 +18,7 @@ FinanceRemade is a robust, enterprise-grade web application designed for private
 - **API:** Django Rest Framework (DRF)
 - **Database:** PostgreSQL (recommended) / SQLite (development)
 - **Authentication:** JWT (JSON Web Tokens)
-- **Calculations:** NumPy-inspired IRR and MOIC algorithms
+- **Calculations:** Performance metrics (IRR, MOIC) based on Real MOIC to Investors and Fund Exit Horizon.
 
 ### Frontend
 - **Framework:** React 19 (TypeScript)

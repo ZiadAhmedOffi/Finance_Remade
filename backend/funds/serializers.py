@@ -208,7 +208,7 @@ class FundSerializer(serializers.ModelSerializer):
             "created_by",
             "created_by_email",
             "created_at",
-            "is_active",
+            "status",
             "steering_committee",
         ]
         read_only_fields = ["created_by", "created_at"]

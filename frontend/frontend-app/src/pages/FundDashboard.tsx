@@ -14,7 +14,7 @@ interface Fund {
   name: string;
   description: string;
   steering_committee: string[];
-  is_active: boolean;
+  status: "ESTABLISHED" | "FUTURE" | "DEACTIVATED";
 }
 
 interface FundLog {
@@ -50,7 +50,7 @@ const FundDashboard: React.FC = () => {
         const roles = payload.roles || [];
         
         const superAdmin = roles.some((r: any) => r.role === "SUPER_ADMIN");
-        const scMember = roles.some((r: any) => r.role === "STEERING_COMMITTEE" && r.fund === fundData.name);
+        const scMember = roles.some((r: any) => r.role === "STEERING_COMMITTEE" && r.fund === fundData.id);
         
         setIsSuperAdmin(superAdmin);
         setIsSCMember(scMember);
@@ -173,8 +173,8 @@ const FundDashboard: React.FC = () => {
         <header className="content-header">
           <div className="header-title">
             <h1>{fund.name}</h1>
-            <span className={`status-badge ${fund.is_active ? "active" : "inactive"}`}>
-              {fund.is_active ? "Active" : "Inactive"}
+            <span className={`status-badge ${fund.status === "DEACTIVATED" ? "inactive" : "active"}`}>
+              {fund.status === "DEACTIVATED" ? "Inactive" : "Active"}
             </span>
           </div>
           <div className="header-actions">

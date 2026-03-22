@@ -5,8 +5,14 @@ from django.conf import settings
 class Fund(models.Model):
     """
     Represents a private equity or venture capital fund.
-    Tracks core identification, creator, and active status.
+    Tracks core identification, creator, and status.
     """
+    STATUS_CHOICES = [
+        ("ESTABLISHED", "Active (Established)"),
+        ("FUTURE", "Active (Future)"),
+        ("DEACTIVATED", "Deactivated"),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255, unique=True, db_index=True)
     description = models.TextField(blank=True)
@@ -18,13 +24,18 @@ class Fund(models.Model):
         related_name="funds_created"
     )
     created_at = models.DateTimeField(auto_now_add=True)
-    is_active = models.BooleanField(default=True, db_index=True)
+    status = models.CharField(
+        max_length=20, 
+        choices=STATUS_CHOICES, 
+        default="FUTURE", 
+        db_index=True
+    )
 
     class Meta:
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["name"]),
-            models.Index(fields=["is_active"]),
+            models.Index(fields=["status"]),
         ]
 
     def __str__(self):
@@ -37,7 +48,7 @@ class FundLog(models.Model):
     """
     ACTION_CHOICES = [
         ("FUND_CREATED", "Fund Created"),
-        ("FUND_DEACTIVATED", "Fund Deactivated"),
+        ("FUND_STATUS_UPDATED", "Fund Status Updated"),
         ("FUND_INFO_UPDATED", "Fund Information Updated"),
         ("FUND_INFO_UPDATE_FAILED", "Fund Information Update Failed"),
         ("MODEL_INPUTS_UPDATED", "Model Inputs Updated"),

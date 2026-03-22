@@ -8,6 +8,7 @@ interface Fund {
   id: string;
   name: string;
   description: string;
+  status: "ESTABLISHED" | "FUTURE" | "DEACTIVATED";
 }
 
 /**
@@ -69,6 +70,9 @@ const Dashboard: React.FC = () => {
     navigate("/login");
   };
 
+  const establishedFunds = funds.filter(f => f.status === "ESTABLISHED");
+  const futureFunds = funds.filter(f => f.status === "FUTURE");
+
   return (
     <div className="dashboard-container-revamp">
       <header className="main-header">
@@ -81,25 +85,41 @@ const Dashboard: React.FC = () => {
       </header>
       
       <main className="dashboard-content">
-        <section className="funds-section">
-          <h2 className="section-title">Available Funds</h2>
-          
-          {loading ? (
-            <div className="loading-spinner">Loading funds...</div>
-          ) : (
-            <div className="funds-grid-revamp">
-              {funds.length > 0 ? (
-                funds.map(fund => (
-                  <FundCard key={fund.id} fund={fund} />
-                ))
-              ) : (
-                <div className="empty-state">
-                  <p>You are not assigned to any funds yet.</p>
-                </div>
-              )}
-            </div>
-          )}
-        </section>
+        {loading ? (
+          <div className="loading-spinner" style={{textAlign: 'center', padding: '4rem'}}>Loading funds...</div>
+        ) : (
+          <>
+            <section className="funds-section" style={{marginBottom: '4rem'}}>
+              <h2 className="section-title">Established Funds</h2>
+              <div className="funds-grid-revamp">
+                {establishedFunds.length > 0 ? (
+                  establishedFunds.map(fund => (
+                    <FundCard key={fund.id} fund={fund} />
+                  ))
+                ) : (
+                  <div className="empty-state">
+                    <p>No established funds found.</p>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="funds-section">
+              <h2 className="section-title">Future Funds</h2>
+              <div className="funds-grid-revamp">
+                {futureFunds.length > 0 ? (
+                  futureFunds.map(fund => (
+                    <FundCard key={fund.id} fund={fund} />
+                  ))
+                ) : (
+                  <div className="empty-state">
+                    <p>No future funds found.</p>
+                  </div>
+                )}
+              </div>
+            </section>
+          </>
+        )}
       </main>
     </div>
   );

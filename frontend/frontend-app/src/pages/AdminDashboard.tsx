@@ -15,7 +15,7 @@ interface Fund {
   description: string;
   created_by_email: string;
   steering_committee: string[];
-  is_active: boolean;
+  status: "ESTABLISHED" | "FUTURE" | "DEACTIVATED";
 }
 
 interface UserRole {
@@ -34,7 +34,6 @@ interface User {
   last_name: string;
   company: string;
   status: string;
-  is_active: boolean;
   is_staff: boolean;
   roles: UserRole[];
 }
@@ -83,23 +82,22 @@ const AdminDashboard: React.FC = () => {
   const [newFundName, setNewFundName] = useState("");
   const [newFundDescription, setNewFundDescription] = useState("");
 
-  const [userRoles, setUserRoles] = useState<string[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [privilegeError, setPrivilegeError] = useState<{title: string, message: string} | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    if (token) {
+    const fetchProfile = async () => {
       try {
-        const payload = JSON.parse(atob(token.split(".")[1]));
-        const rNames = (payload.roles || []).map((r: any) => r.role);
-        setUserRoles(rNames);
+        const response = await api.get("/users/me/");
+        setCurrentUser(response.data);
       } catch (e) {
-        console.error("Error decoding token", e);
+        console.error("Error fetching profile", e);
       }
-    }
+    };
+    fetchProfile();
   }, []);
 
-  const isSuperAdmin = userRoles.includes("SUPER_ADMIN");
+  const isSuperAdmin = currentUser?.roles.some(r => r.role.name === "SUPER_ADMIN");
 
   const fetchPendingUsers = useCallback(async () => {
     try {
@@ -229,20 +227,33 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleDeactivateFund = async (fundId: string) => {
-    if (!isSuperAdmin) {
+    const fund = funds.find(f => f.id === fundId);
+    const canEditStatus = isSuperAdmin || currentUser?.roles.some(r => r.fund === fundId && r.role.name === "STEERING_COMMITTEE");
+
+    if (!canEditStatus) {
       setPrivilegeError({
         title: "Privilege Error",
-        message: "Only Super Administrators are authorized to deactivate funds."
+        message: "You are not authorized to deactivate this fund."
       });
       return;
     }
     if (!window.confirm("Are you sure you want to deactivate this fund?")) return;
     try {
-      await api.delete(`/funds/${fundId}/`);
+      await api.put(`/funds/${fundId}/`, { status: "DEACTIVATED" });
       setMessage("Fund deactivated successfully.");
       fetchFunds();
     } catch (err) {
       setError("Failed to deactivate fund.");
+    }
+  };
+
+  const handleChangeFundStatus = async (fundId: string, newStatus: string) => {
+    try {
+      await api.put(`/funds/${fundId}/`, { status: newStatus });
+      setMessage(`Fund status updated to ${newStatus}.`);
+      fetchFunds();
+    } catch (err) {
+      setError("Failed to update fund status.");
     }
   };
 
@@ -450,30 +461,49 @@ const AdminDashboard: React.FC = () => {
                 <thead>
                   <tr>
                     <th>Fund Name</th>
+                    <th>Status</th>
                     <th>Created By</th>
                     <th>SC Members</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {funds.map((fund) => (
-                    <tr key={fund.id}>
-                      <td>{fund.name}</td>
-                      <td>{fund.created_by_email}</td>
-                      <td>
-                        <div className="sc-members-list">
-                          {fund.steering_committee.length > 0 
-                            ? fund.steering_committee.join(", ") 
-                            : "No SC Members"}
-                        </div>
-                      </td>
-                      <td className="actions">
-                        {isSuperAdmin && (
-                          <button onClick={() => handleDeactivateFund(fund.id)} className="btn btn-deactivate">Deactivate</button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {funds.map((fund) => {
+                    const canEditStatus = isSuperAdmin || currentUser?.roles.some(r => r.fund === fund.id && r.role.name === "STEERING_COMMITTEE");
+                    return (
+                      <tr key={fund.id}>
+                        <td>{fund.name}</td>
+                        <td>
+                          {canEditStatus ? (
+                            <select 
+                              value={fund.status} 
+                              onChange={(e) => handleChangeFundStatus(fund.id, e.target.value)}
+                              style={{padding: '0.2rem', borderRadius: '4px'}}
+                            >
+                              <option value="ESTABLISHED">Established</option>
+                              <option value="FUTURE">Future</option>
+                              <option value="DEACTIVATED">Deactivated</option>
+                            </select>
+                          ) : (
+                            <span className={`status-tag ${fund.status.toLowerCase()}`}>{fund.status}</span>
+                          )}
+                        </td>
+                        <td>{fund.created_by_email}</td>
+                        <td>
+                          <div className="sc-members-list">
+                            {fund.steering_committee.length > 0 
+                              ? fund.steering_committee.join(", ") 
+                              : "No SC Members"}
+                          </div>
+                        </td>
+                        <td className="actions">
+                          {canEditStatus && fund.status !== "DEACTIVATED" && (
+                            <button onClick={() => handleDeactivateFund(fund.id)} className="btn btn-deactivate">Deactivate</button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             ) : <p className="empty-state">No funds found.</p>}
