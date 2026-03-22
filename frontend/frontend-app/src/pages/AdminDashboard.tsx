@@ -227,7 +227,6 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleDeactivateFund = async (fundId: string) => {
-    const fund = funds.find(f => f.id === fundId);
     const canEditStatus = isSuperAdmin || currentUser?.roles.some(r => r.fund === fundId && r.role.name === "STEERING_COMMITTEE");
 
     if (!canEditStatus) {
