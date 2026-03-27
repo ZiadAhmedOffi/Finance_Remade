@@ -74,6 +74,8 @@ class InvestmentDealSerializer(serializers.ModelSerializer):
             "downside_factor",
             "upside_factor",
             "selected_scenario",
+            "is_pro_rata",
+            "parent_deal",
             "holding_period",
             "post_money_ownership",
             "exit_valuation",
@@ -86,10 +88,14 @@ class InvestmentDealSerializer(serializers.ModelSerializer):
     def validate(self, data):
         """
         Check that entry_year and exit_year are at least the current year.
+        Also validate pro rata logic.
         """
         current_year = datetime.now().year
         entry_year = data.get("entry_year")
         exit_year = data.get("exit_year")
+        is_pro_rata = data.get("is_pro_rata", False)
+        parent_deal = data.get("parent_deal")
+        company_name = data.get("company_name")
 
         if entry_year and entry_year < current_year:
             raise serializers.ValidationError({"entry_year": f"Entry year must be at least {current_year}."})
@@ -97,6 +103,14 @@ class InvestmentDealSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"exit_year": f"Exit year must be at least {current_year}."})
         if entry_year and exit_year and exit_year < entry_year:
             raise serializers.ValidationError({"exit_year": "Exit year cannot be before entry year."})
+        
+        if is_pro_rata:
+            if not parent_deal:
+                raise serializers.ValidationError({"parent_deal": "A parent deal must be selected for pro rata deals."})
+            if parent_deal.company_name != company_name:
+                raise serializers.ValidationError({"parent_deal": "Parent deal must belong to the same company."})
+            if parent_deal.is_pro_rata:
+                raise serializers.ValidationError({"parent_deal": "Parent deal cannot be a pro rata deal itself."})
         
         return data
 
@@ -146,6 +160,8 @@ class CurrentDealSerializer(serializers.ModelSerializer):
             "amount_invested",
             "entry_valuation",
             "latest_valuation",
+            "is_pro_rata",
+            "parent_deal",
             "holding_period",
             "post_money_ownership",
             "moic",
@@ -158,10 +174,14 @@ class CurrentDealSerializer(serializers.ModelSerializer):
     def validate(self, data):
         """
         Check that entry_year and latest_valuation_year are not in the future.
+        Also validate pro rata logic.
         """
         current_year = datetime.now().year
         entry_year = data.get("entry_year")
         val_year = data.get("latest_valuation_year")
+        is_pro_rata = data.get("is_pro_rata", False)
+        parent_deal = data.get("parent_deal")
+        company_name = data.get("company_name")
 
         if entry_year and entry_year > current_year:
             raise serializers.ValidationError({"entry_year": f"Entry year cannot be in the future (max {current_year})."})
@@ -169,6 +189,14 @@ class CurrentDealSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"latest_valuation_year": f"Latest valuation year cannot be in the future (max {current_year})."})
         if entry_year and val_year and val_year < entry_year:
             raise serializers.ValidationError({"latest_valuation_year": "Latest valuation year cannot be before entry year."})
+        
+        if is_pro_rata:
+            if not parent_deal:
+                raise serializers.ValidationError({"parent_deal": "A parent deal must be selected for pro rata deals."})
+            if parent_deal.company_name != company_name:
+                raise serializers.ValidationError({"parent_deal": "Parent deal must belong to the same company."})
+            if parent_deal.is_pro_rata:
+                raise serializers.ValidationError({"parent_deal": "Parent deal cannot be a pro rata deal itself."})
         
         return data
 

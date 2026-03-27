@@ -171,6 +171,16 @@ class InvestmentDeal(models.Model):
         default="BASE"
     )
     
+    # Pro Rata Logic
+    is_pro_rata = models.BooleanField(default=False)
+    parent_deal = models.ForeignKey(
+        'self', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='pro_rata_deals'
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -200,6 +210,16 @@ class CurrentDeal(models.Model):
     amount_invested = models.DecimalField(max_digits=20, decimal_places=2)
     entry_valuation = models.DecimalField(max_digits=20, decimal_places=2)
     latest_valuation = models.DecimalField(max_digits=20, decimal_places=2)
+    
+    # Pro Rata Logic
+    is_pro_rata = models.BooleanField(default=False)
+    parent_deal = models.ForeignKey(
+        'self', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='pro_rata_deals'
+    )
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

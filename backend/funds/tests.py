@@ -102,3 +102,55 @@ class FundCalculationTest(TestCase):
         # Prognosis only: total_invested should be 500,000, not 1,500,000
         self.assertEqual(float(dashboard["total_invested"]), 500000.0)
         self.assertEqual(dashboard["total_deals"], 1) # Only 1 prognosis deal
+
+class ProRataValidationTest(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="pro_rata@example.com", password="password", is_active=True)
+        self.fund = Fund.objects.create(name="Pro Rata Fund", created_by=self.user)
+        self.parent_deal = InvestmentDeal.objects.create(
+            fund=self.fund,
+            company_name="Tech Co",
+            amount_invested=Decimal("1000000"),
+            entry_valuation=Decimal("4000000")
+        )
+
+    def test_pro_rata_validation_same_company(self):
+        """Verify that pro-rata deal must belong to the same company."""
+        from .serializers import InvestmentDealSerializer
+        data = {
+            "fund": self.fund.id,
+            "company_name": "Other Co",
+            "company_type": "SaaS",
+            "industry": "Tech",
+            "entry_year": 2026,
+            "exit_year": 2031,
+            "amount_invested": "500000",
+            "entry_valuation": "10000000",
+            "is_pro_rata": True,
+            "parent_deal": self.parent_deal.id
+        }
+        serializer = InvestmentDealSerializer(data=data)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("parent_deal", serializer.errors)
+        self.assertEqual(serializer.errors["parent_deal"][0], "Parent deal must belong to the same company.")
+
+    def test_pro_rata_validation_success(self):
+        """Verify successful pro-rata deal creation."""
+        from .serializers import InvestmentDealSerializer
+        data = {
+            "fund": self.fund.id,
+            "company_name": "Tech Co",
+            "company_type": "SaaS",
+            "industry": "Tech",
+            "entry_year": 2026,
+            "exit_year": 2031,
+            "amount_invested": "200000",
+            "entry_valuation": "15000000",
+            "is_pro_rata": True,
+            "parent_deal": self.parent_deal.id
+        }
+        serializer = InvestmentDealSerializer(data=data)
+        self.assertTrue(serializer.is_valid())
+        deal = serializer.save(fund=self.fund)
+        self.assertEqual(deal.parent_deal, self.parent_deal)
+        self.assertTrue(deal.is_pro_rata)

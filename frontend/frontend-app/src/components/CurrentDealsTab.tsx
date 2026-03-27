@@ -36,6 +36,8 @@ interface CurrentDeal {
   post_money_ownership: number;
   moic: number;
   final_exit_amount: number;
+  is_pro_rata: boolean;
+  parent_deal: string | null;
 }
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"];
@@ -51,6 +53,7 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [editingDeal, setEditingDeal] = useState<CurrentDeal | null>(null);
+  const [expandedDeals, setExpandedDeals] = useState<Record<string, boolean>>({});
 
   const currentYear = new Date().getFullYear();
 
@@ -62,7 +65,9 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
     latest_valuation_year: currentYear,
     amount_invested: "1000000",
     entry_valuation: "10000000",
-    latest_valuation: "12000000"
+    latest_valuation: "12000000",
+    is_pro_rata: false,
+    parent_deal: null as string | null
   };
 
   const [formData, setFormData] = useState(emptyDeal);
@@ -84,6 +89,22 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
   useEffect(() => {
     fetchDeals();
   }, [fundId]);
+
+  const toggleExpand = (dealId: string) => {
+    setExpandedDeals(prev => ({
+      ...prev,
+      [dealId]: !prev[dealId]
+    }));
+  };
+
+  // Helper to get parent options
+  const getParentOptions = () => {
+    return deals.filter(d => 
+      !d.is_pro_rata && 
+      d.company_name.toLowerCase() === formData.company_name.toLowerCase() &&
+      d.id !== editingDeal?.id
+    );
+  };
 
   /* --- Data Processing for Analytics --- */
 
@@ -133,6 +154,11 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
       return;
     }
 
+    if (formData.is_pro_rata && !formData.parent_deal) {
+      setError("A parent deal must be selected for pro rata deals.");
+      return;
+    }
+
     try {
       if (editingDeal) {
         await fundsApi.updateCurrentDeal(fundId, editingDeal.id, formData);
@@ -163,7 +189,9 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
       latest_valuation_year: deal.latest_valuation_year,
       amount_invested: deal.amount_invested,
       entry_valuation: deal.entry_valuation,
-      latest_valuation: deal.latest_valuation
+      latest_valuation: deal.latest_valuation,
+      is_pro_rata: deal.is_pro_rata,
+      parent_deal: deal.parent_deal
     });
     setIsAdding(true);
   };
@@ -197,6 +225,46 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
 
   const formatMOIC = (val: number) => {
     return `${val.toFixed(2)}x`;
+  };
+
+  // Process deals for display: Group pro-rata deals under their parents
+  const getDisplayDeals = () => {
+    const parentDeals = deals.filter(d => !d.is_pro_rata);
+    const proRataDeals = deals.filter(d => d.is_pro_rata);
+    
+    const displayList: { deal: CurrentDeal, isVisible: boolean, isProRata: boolean, hasChildren: boolean }[] = [];
+    
+    parentDeals.forEach(parent => {
+      const associatedProRata = proRataDeals.filter(pr => pr.parent_deal === parent.id);
+      displayList.push({ 
+        deal: parent, 
+        isVisible: true, 
+        isProRata: false, 
+        hasChildren: associatedProRata.length > 0 
+      });
+      
+      associatedProRata.forEach(child => {
+        displayList.push({ 
+          deal: child, 
+          isVisible: expandedDeals[parent.id] || false, 
+          isProRata: true, 
+          hasChildren: false 
+        });
+      });
+    });
+
+    // Also include pro-rata deals whose parents are missing (fallback)
+    const orphans = proRataDeals.filter(pr => !parentDeals.find(p => p.id === pr.parent_deal));
+    orphans.forEach(orphan => {
+      displayList.push({ 
+        deal: orphan, 
+        isVisible: true, 
+        isProRata: true, 
+        hasChildren: false 
+      });
+    });
+
+    return displayList;
   };
 
   if (loading) return <div>Loading current deals...</div>;
@@ -244,6 +312,44 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
                 <label>Latest Valuation (USD)</label>
                 <input type="number" value={formData.latest_valuation} onChange={e => setFormData({...formData, latest_valuation: e.target.value})} required step="any" />
               </div>
+              <div className="form-group" style={{display: 'flex', alignItems: 'center', gap: '0.5rem', height: '100%', paddingTop: '1.5rem'}}>
+                <input 
+                  type="checkbox" 
+                  id="is_pro_rata"
+                  checked={formData.is_pro_rata} 
+                  onChange={e => {
+                    const isChecked = e.target.checked;
+                    setFormData({
+                      ...formData, 
+                      is_pro_rata: isChecked,
+                      parent_deal: isChecked ? formData.parent_deal : null
+                    });
+                  }} 
+                />
+                <label htmlFor="is_pro_rata" style={{margin: 0}}>Is Pro Rata Deal?</label>
+              </div>
+              {formData.is_pro_rata && (
+                <div className="form-group">
+                  <label>Parent Deal</label>
+                  <select 
+                    value={formData.parent_deal || ""} 
+                    onChange={e => setFormData({...formData, parent_deal: e.target.value || null})}
+                    required
+                  >
+                    <option value="">Select Parent Deal</option>
+                    {getParentOptions().map(option => (
+                      <option key={option.id} value={option.id}>
+                        {option.company_name} ({option.entry_year}) - {formatCurrency(option.amount_invested)}
+                      </option>
+                    ))}
+                  </select>
+                  {getParentOptions().length === 0 && (
+                    <small style={{color: '#dc3545', display: 'block', marginTop: '0.25rem'}}>
+                      No existing deals for this company found.
+                    </small>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="form-actions" style={{marginTop: '1.5rem'}}>
@@ -283,29 +389,61 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
                 </tr>
               </thead>
               <tbody>
-                {deals.map(deal => (
-                  <tr key={deal.id}>
-                    <td className="sticky-left"><strong>{deal.company_name}</strong></td>
-                    <td>{deal.company_type}</td>
-                    <td>{deal.industry}</td>
-                    <td>{deal.entry_year}</td>
-                    <td>{formatCurrency(deal.amount_invested)}</td>
-                    <td>{formatCurrency(deal.entry_valuation)}</td>
-                    <td>{formatCurrency(deal.latest_valuation)}</td>
-                    <td>{deal.latest_valuation_year}</td>
-                    <td>{formatMOIC(deal.moic)}</td>
-                    <td>{deal.holding_period} yrs</td>
-                    <td>{formatPercentage(deal.post_money_ownership)}</td>
-                    <td>{formatCurrency(deal.final_exit_amount)}</td>
-                    {canEdit && (
-                      <td>
-                        <div style={{display: 'flex', gap: '0.5rem'}}>
-                          <button onClick={() => handleEdit(deal)} style={{background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontWeight: '600'}}>Edit</button>
-                          <button onClick={() => handleDeleteDeal(deal.id)} style={{background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', fontWeight: '600'}}>Delete</button>
+                {getDisplayDeals().map(({ deal, isVisible, isProRata, hasChildren }) => (
+                  isVisible && (
+                    <tr 
+                      key={deal.id} 
+                      className={isProRata ? "pro-rata-row" : ""}
+                      style={{ 
+                        borderLeft: isProRata ? '4px solid #2563eb' : 'none'
+                      }}
+                    >
+                      <td className="sticky-left" style={{ backgroundColor: 'white' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          {isProRata && <span style={{ color: '#2563eb', fontWeight: 'bold', marginLeft: '1rem' }}>↳</span>}
+                          <strong>{deal.company_name}</strong>
+                          {hasChildren && (
+                            <button 
+                              onClick={() => toggleExpand(deal.id)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '2px 5px',
+                                fontSize: '0.8rem',
+                                color: '#64748b',
+                                display: 'inline-flex',
+                                alignItems: 'center'
+                              }}
+                              title={expandedDeals[deal.id] ? "Hide Pro Rata" : "Show Pro Rata"}
+                            >
+                              {expandedDeals[deal.id] ? '▼' : '▶'}
+                            </button>
+                          )}
+                          {isProRata && <small style={{ color: '#2563eb', fontStyle: 'italic', marginLeft: 'auto' }}>Pro Rata</small>}
                         </div>
                       </td>
-                    )}
-                  </tr>
+                      <td>{deal.company_type}</td>
+                      <td>{deal.industry}</td>
+                      <td>{deal.entry_year}</td>
+                      <td>{formatCurrency(deal.amount_invested)}</td>
+                      <td>{formatCurrency(deal.entry_valuation)}</td>
+                      <td>{formatCurrency(deal.latest_valuation)}</td>
+                      <td>{deal.latest_valuation_year}</td>
+                      <td>{formatMOIC(deal.moic)}</td>
+                      <td>{deal.holding_period} yrs</td>
+                      <td>{formatPercentage(deal.post_money_ownership)}</td>
+                      <td>{formatCurrency(deal.final_exit_amount)}</td>
+                      {canEdit && (
+                        <td>
+                          <div style={{display: 'flex', gap: '0.5rem'}}>
+                            <button onClick={() => handleEdit(deal)} style={{background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontWeight: '600'}}>Edit</button>
+                            <button onClick={() => handleDeleteDeal(deal.id)} style={{background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', fontWeight: '600'}}>Delete</button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  )
                 ))}
               </tbody>
             </table>
