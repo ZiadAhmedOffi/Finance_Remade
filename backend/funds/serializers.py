@@ -1,6 +1,6 @@
 import math
 from rest_framework import serializers
-from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal
+from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -48,6 +48,26 @@ class ModelInputSerializer(serializers.ModelSerializer):
 
 from datetime import datetime
 
+class InvestmentRoundSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InvestmentRound
+        fields = [
+            "id",
+            "fund",
+            "company_name",
+            "year",
+            "pre_money_valuation",
+            "new_money_raised",
+            "target_valuation",
+            "exercise_pro_rata",
+            "amount_invested",
+            "associated_deal",
+            "new_ownership_percentage",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "fund", "created_at", "updated_at"]
+
 class InvestmentDealSerializer(serializers.ModelSerializer):
     """
     Serializer for InvestmentDeal including calculated financial metrics.
@@ -75,6 +95,7 @@ class InvestmentDealSerializer(serializers.ModelSerializer):
             "upside_factor",
             "selected_scenario",
             "is_pro_rata",
+            "pro_rata_rights",
             "parent_deal",
             "holding_period",
             "post_money_ownership",
@@ -146,6 +167,7 @@ class CurrentDealSerializer(serializers.ModelSerializer):
     post_money_ownership = serializers.SerializerMethodField()
     moic = serializers.SerializerMethodField()
     final_exit_amount = serializers.SerializerMethodField()
+    ownership_after_dilution = serializers.SerializerMethodField()
 
     class Meta:
         model = CurrentDeal
@@ -161,9 +183,11 @@ class CurrentDealSerializer(serializers.ModelSerializer):
             "entry_valuation",
             "latest_valuation",
             "is_pro_rata",
+            "pro_rata_rights",
             "parent_deal",
             "holding_period",
             "post_money_ownership",
+            "ownership_after_dilution",
             "moic",
             "final_exit_amount",
             "created_at",
@@ -205,11 +229,32 @@ class CurrentDealSerializer(serializers.ModelSerializer):
         return obj.latest_valuation_year - obj.entry_year
 
     def get_post_money_ownership(self, obj):
-        """Formula: amount_invested / (amount_invested + entry_valuation)."""
+        """
+        Formula: amount_invested / (amount_invested + entry_valuation).
+        For pro-rata deals, returns the ownership percentage from the associated investment round.
+        """
+        if obj.is_pro_rata:
+            try:
+                # InvestmentRound has a OneToOneField to CurrentDeal with related_name 'investment_round'
+                return float(obj.investment_round.new_ownership_percentage)
+            except:
+                pass
+
         denominator = obj.amount_invested + obj.entry_valuation
         if denominator == 0:
             return 0
         return (obj.amount_invested / denominator) * 100
+
+    def get_ownership_after_dilution(self, obj):
+        """Returns the ownership percentage from the latest investment round, or original ownership if no rounds."""
+        latest_round = InvestmentRound.objects.filter(
+            fund=obj.fund, 
+            company_name=obj.company_name
+        ).order_by('-year', '-created_at').first()
+        
+        if latest_round:
+            return float(latest_round.new_ownership_percentage)
+        return self.get_post_money_ownership(obj)
 
     def get_moic(self, obj):
         """Formula: latest_valuation / post_money_valuation (entry_valuation + amount_invested)."""
@@ -219,8 +264,8 @@ class CurrentDealSerializer(serializers.ModelSerializer):
         return obj.latest_valuation / post_money_valuation
 
     def get_final_exit_amount(self, obj):
-        """Formula: post_money_ownership % * latest_valuation."""
-        ownership_decimal = self.get_post_money_ownership(obj) / 100
+        """Formula: ownership_after_dilution % * latest_valuation."""
+        ownership_decimal = self.get_ownership_after_dilution(obj) / 100
         return float(ownership_decimal) * float(obj.latest_valuation)
 
 class FundSerializer(serializers.ModelSerializer):

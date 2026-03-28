@@ -173,6 +173,7 @@ class InvestmentDeal(models.Model):
     
     # Pro Rata Logic
     is_pro_rata = models.BooleanField(default=False)
+    pro_rata_rights = models.BooleanField(default=False)
     parent_deal = models.ForeignKey(
         'self', 
         on_delete=models.SET_NULL, 
@@ -213,6 +214,7 @@ class CurrentDeal(models.Model):
     
     # Pro Rata Logic
     is_pro_rata = models.BooleanField(default=False)
+    pro_rata_rights = models.BooleanField(default=False)
     parent_deal = models.ForeignKey(
         'self', 
         on_delete=models.SET_NULL, 
@@ -229,3 +231,39 @@ class CurrentDeal(models.Model):
 
     def __str__(self):
         return f"{self.company_name} (Current) - {self.fund.name}"
+
+class InvestmentRound(models.Model):
+    """
+    Represents an investment round for a company in a fund.
+    Used to track dilution and pro rata exercises.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    fund = models.ForeignKey(Fund, on_delete=models.CASCADE, related_name="investment_rounds")
+    company_name = models.CharField(max_length=255)
+    
+    year = models.PositiveIntegerField()
+    pre_money_valuation = models.DecimalField(max_digits=20, decimal_places=2)
+    new_money_raised = models.DecimalField(max_digits=20, decimal_places=2)
+    target_valuation = models.DecimalField(max_digits=20, decimal_places=2) # Post-round (pre + new_money)
+    
+    exercise_pro_rata = models.BooleanField(default=False)
+    amount_invested = models.DecimalField(max_digits=20, decimal_places=2, default=0.00)
+    
+    associated_deal = models.OneToOneField(
+        'CurrentDeal', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='investment_round'
+    )
+    
+    new_ownership_percentage = models.DecimalField(max_digits=10, decimal_places=4)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["year", "created_at"]
+
+    def __str__(self):
+        return f"Round {self.year} for {self.company_name} ({self.fund.name})"

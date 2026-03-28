@@ -3,13 +3,14 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
-from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal
+from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound
 from .serializers import (
     FundSerializer, 
     FundLogSerializer, 
     ModelInputSerializer, 
     InvestmentDealSerializer,
-    CurrentDealSerializer
+    CurrentDealSerializer,
+    InvestmentRoundSerializer
 )
 from users.services.permission_service import PermissionService
 from users.services.audit_service import AuditService
@@ -308,6 +309,185 @@ class CurrentDealDetailView(APIView):
             ip=request.META.get("REMOTE_ADDR")
         )
         return Response({"message": "Current deal deleted."}, status=status.HTTP_200_OK)
+
+
+class InvestmentRoundListView(APIView):
+    """
+    Handles listing and creating investment rounds for a company.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, fund_id):
+        fund = get_object_or_404(Fund, id=fund_id)
+        if not PermissionService.can_view_fund(request.user, fund):
+            return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        company_name = request.query_params.get("company_name")
+        if not company_name:
+            # If no company name provided, return all rounds for the fund
+            rounds = fund.investment_rounds.all()
+        else:
+            rounds = fund.investment_rounds.filter(company_name=company_name)
+        
+        serializer = InvestmentRoundSerializer(rounds, many=True)
+        return Response(serializer.data)
+
+    def post(self, request, fund_id):
+        fund = get_object_or_404(Fund, id=fund_id)
+        if not PermissionService.can_edit_fund(request.user, fund):
+            return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = InvestmentRoundSerializer(data=request.data)
+        if serializer.is_valid():
+            company_name = serializer.validated_data["company_name"]
+            exercise_pro_rata = serializer.validated_data.get("exercise_pro_rata", False)
+            amount_invested = serializer.validated_data.get("amount_invested", 0)
+            target_valuation = serializer.validated_data["target_valuation"]
+            year = serializer.validated_data["year"]
+            
+            # Find the "main" deal to use as parent if exercising pro rata
+            main_deal = fund.current_deals.filter(company_name=company_name, is_pro_rata=False).first()
+            
+            # Temporary save round to get data for CurrentDeal
+            round_obj = serializer.save(fund=fund)
+            
+            associated_deal = None
+            # If pro rata exercised, create a new CurrentDeal
+            if exercise_pro_rata and amount_invested > 0:
+                associated_deal = CurrentDeal.objects.create(
+                    fund=fund,
+                    company_name=company_name,
+                    company_type=main_deal.company_type if main_deal else "",
+                    industry=main_deal.industry if main_deal else "",
+                    entry_year=year,
+                    latest_valuation_year=year,
+                    amount_invested=amount_invested,
+                    entry_valuation=target_valuation, # Use target valuation as entry valuation for pro-rata
+                    latest_valuation=target_valuation,
+                    is_pro_rata=True,
+                    parent_deal=main_deal
+                )
+            
+            # Update latest valuation of ALL deals for this company
+            fund.current_deals.filter(company_name=company_name).update(
+                latest_valuation=target_valuation,
+                latest_valuation_year=year
+            )
+            
+            # Re-save round with associated_deal link
+            if associated_deal:
+                round_obj.associated_deal = associated_deal
+                round_obj.save()
+            
+            # Log the change
+            FundLog.objects.create(
+                actor=request.user,
+                target_fund=fund,
+                action="CURRENT_DEAL_UPDATED",
+                metadata={"company_name": company_name, "round_id": str(round_obj.id)}
+            )
+            
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class InvestmentRoundDetailView(APIView):
+    """
+    Handles updating and deleting specific investment rounds.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, fund_id, round_id):
+        fund = get_object_or_404(Fund, id=fund_id)
+        if not PermissionService.can_edit_fund(request.user, fund):
+            return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        round_obj = get_object_or_404(InvestmentRound, id=round_id, fund=fund)
+        serializer = InvestmentRoundSerializer(round_obj, data=request.data, partial=True)
+        if serializer.is_valid():
+            company_name = round_obj.company_name
+            exercise_pro_rata = serializer.validated_data.get("exercise_pro_rata", round_obj.exercise_pro_rata)
+            amount_invested = serializer.validated_data.get("amount_invested", round_obj.amount_invested)
+            target_valuation = serializer.validated_data.get("target_valuation", round_obj.target_valuation)
+            year = serializer.validated_data.get("year", round_obj.year)
+            
+            # Update or Create associated deal
+            if exercise_pro_rata and amount_invested > 0:
+                main_deal = fund.current_deals.filter(company_name=company_name, is_pro_rata=False).first()
+                if round_obj.associated_deal:
+                    # Update existing deal
+                    deal = round_obj.associated_deal
+                    deal.amount_invested = amount_invested
+                    deal.entry_year = year
+                    deal.latest_valuation_year = year
+                    deal.entry_valuation = target_valuation
+                    deal.latest_valuation = target_valuation
+                    deal.save()
+                else:
+                    # Create new deal
+                    new_deal = CurrentDeal.objects.create(
+                        fund=fund,
+                        company_name=company_name,
+                        company_type=main_deal.company_type if main_deal else "",
+                        industry=main_deal.industry if main_deal else "",
+                        entry_year=year,
+                        latest_valuation_year=year,
+                        amount_invested=amount_invested,
+                        entry_valuation=target_valuation,
+                        latest_valuation=target_valuation,
+                        is_pro_rata=True,
+                        parent_deal=main_deal
+                    )
+                    round_obj.associated_deal = new_deal
+            elif round_obj.associated_deal:
+                # User unchecked pro rata or amount is 0, delete the deal
+                round_obj.associated_deal.delete()
+                round_obj.associated_deal = None
+            
+            # Save round
+            round_obj = serializer.save()
+
+            # Always update latest valuation for all deals to reflect the potentially updated target_valuation of the round
+            fund.current_deals.filter(company_name=company_name).update(
+                latest_valuation=target_valuation,
+                latest_valuation_year=year
+            )
+            
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, fund_id, round_id):
+        fund = get_object_or_404(Fund, id=fund_id)
+        if not PermissionService.can_edit_fund(request.user, fund):
+            return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        round_obj = get_object_or_404(InvestmentRound, id=round_id, fund=fund)
+        company_name = round_obj.company_name
+        
+        # Delete associated deal if exists
+        if round_obj.associated_deal:
+            round_obj.associated_deal.delete()
+            
+        round_obj.delete()
+
+        # Recalculate latest valuation from the remaining rounds
+        remaining_rounds = fund.investment_rounds.filter(company_name=company_name).order_by('-year', '-created_at')
+        if remaining_rounds.exists():
+            latest = remaining_rounds.first()
+            fund.current_deals.filter(company_name=company_name).update(
+                latest_valuation=latest.target_valuation,
+                latest_valuation_year=latest.year
+            )
+        else:
+            # Revert to original deal entry valuation if possible
+            main_deal = fund.current_deals.filter(company_name=company_name, is_pro_rata=False).first()
+            if main_deal:
+                fund.current_deals.filter(company_name=company_name).update(
+                    latest_valuation=main_deal.entry_valuation + main_deal.amount_invested,
+                    latest_valuation_year=main_deal.entry_year
+                )
+
+        return Response({"message": "Round deleted."}, status=status.HTTP_200_OK)
 
 
 class FundListView(APIView):

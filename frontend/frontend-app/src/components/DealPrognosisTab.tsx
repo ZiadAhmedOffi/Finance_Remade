@@ -40,6 +40,7 @@ interface Deal {
   exit_valuation: number;
   exit_value: number;
   is_pro_rata: boolean;
+  pro_rata_rights: boolean;
   parent_deal: string | null;
 }
 
@@ -80,6 +81,7 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
     upside_factor: "3.50",
     selected_scenario: "BASE" as "BASE" | "DOWNSIDE" | "UPSIDE",
     is_pro_rata: false,
+    pro_rata_rights: false,
     parent_deal: null as string | null
   };
 
@@ -207,6 +209,7 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
       upside_factor: deal.upside_factor,
       selected_scenario: deal.selected_scenario,
       is_pro_rata: deal.is_pro_rata,
+      pro_rata_rights: deal.pro_rata_rights || false,
       parent_deal: deal.parent_deal
     });
     setIsAdding(true);
@@ -343,41 +346,12 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
               <div className="form-group" style={{display: 'flex', alignItems: 'center', gap: '0.5rem', height: '100%', paddingTop: '1.5rem'}}>
                 <input 
                   type="checkbox" 
-                  id="is_pro_rata"
-                  checked={formData.is_pro_rata} 
-                  onChange={e => {
-                    const isChecked = e.target.checked;
-                    setFormData({
-                      ...formData, 
-                      is_pro_rata: isChecked,
-                      parent_deal: isChecked ? formData.parent_deal : null
-                    });
-                  }} 
+                  id="pro_rata_rights"
+                  checked={formData.pro_rata_rights} 
+                  onChange={e => setFormData({...formData, pro_rata_rights: e.target.checked})} 
                 />
-                <label htmlFor="is_pro_rata" style={{margin: 0}}>Is Pro Rata Deal?</label>
+                <label htmlFor="pro_rata_rights" style={{margin: 0}}>Pro Rata Rights?</label>
               </div>
-              {formData.is_pro_rata && (
-                <div className="form-group">
-                  <label>Parent Deal</label>
-                  <select 
-                    value={formData.parent_deal || ""} 
-                    onChange={e => setFormData({...formData, parent_deal: e.target.value || null})}
-                    required
-                  >
-                    <option value="">Select Parent Deal</option>
-                    {getParentOptions().map(option => (
-                      <option key={option.id} value={option.id}>
-                        {option.company_name} ({option.entry_year}) - {formatCurrency(option.amount_invested)}
-                      </option>
-                    ))}
-                  </select>
-                  {getParentOptions().length === 0 && (
-                    <small style={{color: '#dc3545', display: 'block', marginTop: '0.25rem'}}>
-                      No existing deals for this company found.
-                    </small>
-                  )}
-                </div>
-              )}
             </div>
 
             <div className="form-actions" style={{marginTop: '1.5rem'}}>

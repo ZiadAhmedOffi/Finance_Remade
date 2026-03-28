@@ -41,6 +41,14 @@ export const fundsApi = {
   createCurrentDeal: (fundId: string, data: any) => api.post(`/funds/${fundId}/current-deals/`, data),
   updateCurrentDeal: (fundId: string, dealId: string, data: any) => api.put(`/funds/${fundId}/current-deals/${dealId}/`, data),
   deleteCurrentDeal: (fundId: string, dealId: string) => api.delete(`/funds/${fundId}/current-deals/${dealId}/`),
+
+  getInvestmentRounds: (fundId: string, companyName?: string) => {
+    const params = companyName ? { company_name: companyName } : {};
+    return api.get(`/funds/${fundId}/investment-rounds/`, { params });
+  },
+  createInvestmentRound: (fundId: string, data: any) => api.post(`/funds/${fundId}/investment-rounds/`, data),
+  updateInvestmentRound: (fundId: string, roundId: string, data: any) => api.put(`/funds/${fundId}/investment-rounds/${roundId}/`, data),
+  deleteInvestmentRound: (fundId: string, roundId: string) => api.delete(`/funds/${fundId}/investment-rounds/${roundId}/`),
 };
 
 export { api };
