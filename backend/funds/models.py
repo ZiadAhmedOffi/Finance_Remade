@@ -171,6 +171,8 @@ class InvestmentDeal(models.Model):
         default="BASE"
     )
     
+    expected_number_of_rounds = models.PositiveIntegerField(default=0)
+    
     # Pro Rata Logic
     is_pro_rata = models.BooleanField(default=False)
     pro_rata_rights = models.BooleanField(default=False)

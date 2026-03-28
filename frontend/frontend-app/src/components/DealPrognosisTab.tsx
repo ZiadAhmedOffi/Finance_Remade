@@ -35,6 +35,9 @@ interface Deal {
   downside_factor: string;
   upside_factor: string;
   selected_scenario: "BASE" | "DOWNSIDE" | "UPSIDE";
+  expected_number_of_rounds: number;
+  expected_ownership_after_dilution: number;
+  expected_pro_rata_investments: number;
   holding_period: number;
   post_money_ownership: number;
   exit_valuation: number;
@@ -80,6 +83,7 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
     downside_factor: "1.00",
     upside_factor: "3.50",
     selected_scenario: "BASE" as "BASE" | "DOWNSIDE" | "UPSIDE",
+    expected_number_of_rounds: 0,
     is_pro_rata: false,
     pro_rata_rights: false,
     parent_deal: null as string | null
@@ -208,6 +212,7 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
       downside_factor: deal.downside_factor,
       upside_factor: deal.upside_factor,
       selected_scenario: deal.selected_scenario,
+      expected_number_of_rounds: deal.expected_number_of_rounds || 0,
       is_pro_rata: deal.is_pro_rata,
       pro_rata_rights: deal.pro_rata_rights || false,
       parent_deal: deal.parent_deal
@@ -343,6 +348,10 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
                   <option value="UPSIDE">Upside</option>
                 </select>
               </div>
+              <div className="form-group">
+                <label>Expected Number of Rounds</label>
+                <input type="number" value={formData.expected_number_of_rounds} onChange={e => setFormData({...formData, expected_number_of_rounds: parseInt(e.target.value) || 0})} required min="0" />
+              </div>
               <div className="form-group" style={{display: 'flex', alignItems: 'center', gap: '0.5rem', height: '100%', paddingTop: '1.5rem'}}>
                 <input 
                   type="checkbox" 
@@ -381,10 +390,14 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
                   <th>Entry Year</th>
                   <th>Amt Invested</th>
                   <th>Entry Val</th>
+                  <th>Pro Rata Rights</th>
+                  <th>Expected Rounds</th>
                   <th>Exit Year</th>
                   <th>Scenario</th>
                   <th>Holding Period</th>
                   <th>Ownership %</th>
+                  <th>Expected Ownership After Dilution</th>
+                  <th>Expected Pro Rata Investments</th>
                   <th>Exit Val</th>
                   <th>Exit Value</th>
                   {canEdit && <th>Actions</th>}
@@ -430,6 +443,14 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
                       <td>{deal.entry_year}</td>
                       <td>{formatCurrency(deal.amount_invested)}</td>
                       <td>{formatCurrency(deal.entry_valuation)}</td>
+                      <td>
+                        {isProRata ? "-" : (
+                          <span style={{ color: deal.pro_rata_rights ? '#10b981' : '#ef4444', fontWeight: 'bold' }}>
+                            {deal.pro_rata_rights ? "Yes" : "No"}
+                          </span>
+                        )}
+                      </td>
+                      <td>{isProRata ? "-" : deal.expected_number_of_rounds}</td>
                       <td>{deal.exit_year}</td>
                       <td>
                         <span className={`status-badge scenario-${deal.selected_scenario.toLowerCase()}`}>
@@ -438,6 +459,8 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
                       </td>
                       <td>{deal.holding_period} yrs</td>
                       <td>{formatPercentage(deal.post_money_ownership)}</td>
+                      <td>{isProRata ? "-" : formatPercentage(deal.expected_ownership_after_dilution)}</td>
+                      <td>{isProRata ? "-" : formatCurrency(deal.expected_pro_rata_investments)}</td>
                       <td>{formatCurrency(deal.exit_valuation)}</td>
                       <td>{formatCurrency(deal.exit_value)}</td>
                       {canEdit && (

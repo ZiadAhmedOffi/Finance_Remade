@@ -77,6 +77,8 @@ class InvestmentDealSerializer(serializers.ModelSerializer):
     post_money_ownership = serializers.SerializerMethodField()
     exit_valuation = serializers.SerializerMethodField()
     exit_value = serializers.SerializerMethodField()
+    expected_ownership_after_dilution = serializers.SerializerMethodField()
+    expected_pro_rata_investments = serializers.SerializerMethodField()
 
     class Meta:
         model = InvestmentDeal
@@ -94,6 +96,9 @@ class InvestmentDealSerializer(serializers.ModelSerializer):
             "downside_factor",
             "upside_factor",
             "selected_scenario",
+            "expected_number_of_rounds",
+            "expected_ownership_after_dilution",
+            "expected_pro_rata_investments",
             "is_pro_rata",
             "pro_rata_rights",
             "parent_deal",
@@ -141,10 +146,45 @@ class InvestmentDealSerializer(serializers.ModelSerializer):
 
     def get_post_money_ownership(self, obj):
         """Formula: amount_invested / (amount_invested + entry_valuation)."""
-        denominator = obj.amount_invested + obj.entry_valuation
+        denominator = float(obj.amount_invested) + float(obj.entry_valuation)
         if denominator == 0:
             return 0
-        return (obj.amount_invested / denominator) * 100
+        return (float(obj.amount_invested) / denominator) * 100
+
+    def get_expected_ownership_after_dilution(self, obj):
+        """
+        Calculates expected ownership after dilution based on pro-rata rights.
+        With pro-rata: original ownership * (0.9)^(number of rounds)
+        Without pro-rata: original ownership * (0.8)^(number of rounds)
+        """
+        original_ownership = float(self.get_post_money_ownership(obj))
+        rounds = int(obj.expected_number_of_rounds)
+        
+        factor = 0.9 if obj.pro_rata_rights else 0.8
+        return original_ownership * (factor ** rounds)
+
+    def get_expected_pro_rata_investments(self, obj):
+        """
+        Calculates expected pro rata investments (USD).
+        Summation from i=1 to rounds [0.1 * original ownership * entry valuation * scenario factor * (0.9 * scenario factor)^(i-1)]
+        Only if pro_rata_rights is True.
+        """
+        if not obj.pro_rata_rights:
+            return 0
+        
+        original_ownership_decimal = float(self.get_post_money_ownership(obj)) / 100
+        scenario_factor = float(getattr(obj, f"{obj.selected_scenario.lower()}_factor", 1.00))
+        entry_valuation = float(obj.entry_valuation)
+        rounds = int(obj.expected_number_of_rounds)
+        
+        total = 0
+        base_val = 0.1 * original_ownership_decimal * entry_valuation * scenario_factor
+        growth_factor = 0.9 * scenario_factor
+        
+        for i in range(1, rounds + 1):
+            total += base_val * (growth_factor ** (i - 1))
+            
+        return total
 
     def get_exit_valuation(self, obj):
         """Calculated by multiplying the factor of the selected scenario by the post-money valuation (entry valuation + amount invested)."""
@@ -153,8 +193,8 @@ class InvestmentDealSerializer(serializers.ModelSerializer):
         return post_money_valuation * factor
 
     def get_exit_value(self, obj):
-        """Calculated by multiplying the ownership percentage by the exit valuation."""
-        ownership_decimal = self.get_post_money_ownership(obj) / 100
+        """Calculated by multiplying the expected ownership percentage after dilution by the exit valuation."""
+        ownership_decimal = self.get_expected_ownership_after_dilution(obj) / 100
         exit_val = self.get_exit_valuation(obj)
         return float(ownership_decimal) * float(exit_val)
 
@@ -240,10 +280,10 @@ class CurrentDealSerializer(serializers.ModelSerializer):
             except:
                 pass
 
-        denominator = obj.amount_invested + obj.entry_valuation
+        denominator = float(obj.amount_invested) + float(obj.entry_valuation)
         if denominator == 0:
             return 0
-        return (obj.amount_invested / denominator) * 100
+        return (float(obj.amount_invested) / denominator) * 100
 
     def get_ownership_after_dilution(self, obj):
         """Returns the ownership percentage from the latest investment round, or original ownership if no rounds."""
@@ -258,15 +298,15 @@ class CurrentDealSerializer(serializers.ModelSerializer):
 
     def get_moic(self, obj):
         """Formula: latest_valuation / post_money_valuation (entry_valuation + amount_invested)."""
-        post_money_valuation = obj.entry_valuation + obj.amount_invested
+        post_money_valuation = float(obj.entry_valuation) + float(obj.amount_invested)
         if post_money_valuation == 0:
             return 0
-        return obj.latest_valuation / post_money_valuation
+        return float(obj.latest_valuation) / post_money_valuation
 
     def get_final_exit_amount(self, obj):
         """Formula: ownership_after_dilution % * latest_valuation."""
-        ownership_decimal = self.get_ownership_after_dilution(obj) / 100
-        return float(ownership_decimal) * float(obj.latest_valuation)
+        ownership_decimal = float(self.get_ownership_after_dilution(obj)) / 100
+        return ownership_decimal * float(obj.latest_valuation)
 
 class FundSerializer(serializers.ModelSerializer):
     created_by_email = serializers.EmailField(source="created_by.email", read_only=True)

@@ -470,6 +470,7 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
                   <th>Entry Year</th>
                   <th>Amt Invested</th>
                   <th>Entry Val</th>
+                  <th>Pro Rata Rights</th>
                   <th>Latest Val</th>
                   <th>Val Year</th>
                   <th>MOIC</th>
@@ -529,6 +530,13 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
                       <td>{deal.entry_year}</td>
                       <td>{formatCurrency(deal.amount_invested)}</td>
                       <td>{formatCurrency(deal.entry_valuation)}</td>
+                      <td>
+                        {isProRata ? "-" : (
+                          <span style={{ color: deal.pro_rata_rights ? '#10b981' : '#ef4444', fontWeight: 'bold' }}>
+                            {deal.pro_rata_rights ? "Yes" : "No"}
+                          </span>
+                        )}
+                      </td>
                       <td>{isProRata ? "-" : formatCurrency(deal.latest_valuation)}</td>
                       <td>{isProRata ? "-" : deal.latest_valuation_year}</td>
                       <td>{isProRata ? "-" : formatMOIC(deal.moic)}</td>
