@@ -402,23 +402,23 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
             <div className="form-grid" style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1.5rem'}}>
               <div className="form-group">
                 <label>Company Name</label>
-                <input type="text" value={formData.company_name} onChange={e => setFormData({...formData, company_name: e.target.value})} required />
+                <input type="text" value={formData.company_name} onChange={e => setFormData({...formData, company_name: e.target.value})} required disabled={formData.is_pro_rata} />
               </div>
               <div className="form-group">
                 <label>Company Type</label>
-                <input type="text" value={formData.company_type} onChange={e => setFormData({...formData, company_type: e.target.value})} required />
+                <input type="text" value={formData.company_type} onChange={e => setFormData({...formData, company_type: e.target.value})} required disabled={formData.is_pro_rata} />
               </div>
               <div className="form-group">
                 <label>Industry</label>
-                <input type="text" value={formData.industry} onChange={e => setFormData({...formData, industry: e.target.value})} required />
+                <input type="text" value={formData.industry} onChange={e => setFormData({...formData, industry: e.target.value})} required disabled={formData.is_pro_rata} />
               </div>
               <div className="form-group">
                 <label>Entry Year</label>
-                <input type="number" value={formData.entry_year} max={currentYear} onChange={e => setFormData({...formData, entry_year: parseInt(e.target.value)})} required />
+                <input type="number" value={formData.entry_year} max={currentYear} onChange={e => setFormData({...formData, entry_year: parseInt(e.target.value)})} required disabled={formData.is_pro_rata} />
               </div>
               <div className="form-group">
                 <label>Latest Valuation Year</label>
-                <input type="number" value={formData.latest_valuation_year} max={currentYear} onChange={e => setFormData({...formData, latest_valuation_year: parseInt(e.target.value)})} required />
+                <input type="number" value={formData.latest_valuation_year} max={currentYear} onChange={e => setFormData({...formData, latest_valuation_year: parseInt(e.target.value)})} required disabled={formData.is_pro_rata} />
               </div>
               <div className="form-group">
                 <label>Amount Invested (USD)</label>
@@ -426,11 +426,11 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
               </div>
               <div className="form-group">
                 <label>Entry Valuation (USD)</label>
-                <input type="number" value={formData.entry_valuation} onChange={e => setFormData({...formData, entry_valuation: e.target.value})} required step="any" />
+                <input type="number" value={formData.entry_valuation} onChange={e => setFormData({...formData, entry_valuation: e.target.value})} required step="any" disabled={formData.is_pro_rata} />
               </div>
               <div className="form-group">
                 <label>Latest Valuation (USD)</label>
-                <input type="number" value={formData.latest_valuation} onChange={e => setFormData({...formData, latest_valuation: e.target.value})} required step="any" />
+                <input type="number" value={formData.latest_valuation} onChange={e => setFormData({...formData, latest_valuation: e.target.value})} required step="any" disabled={formData.is_pro_rata} />
               </div>
               <div className="form-group" style={{display: 'flex', alignItems: 'center', gap: '0.5rem', height: '100%', paddingTop: '1.5rem'}}>
                 <input 
@@ -438,10 +438,12 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
                   id="pro_rata_rights"
                   checked={formData.pro_rata_rights} 
                   onChange={e => setFormData({...formData, pro_rata_rights: e.target.checked})} 
+                  disabled={formData.is_pro_rata}
                 />
                 <label htmlFor="pro_rata_rights" style={{margin: 0}}>Pro Rata Rights?</label>
               </div>
             </div>
+
 
             <div className="form-actions" style={{marginTop: '1.5rem'}}>
               <button type="button" className="btn" onClick={() => { setIsAdding(false); setEditingDeal(null); }}>Cancel</button>
@@ -531,22 +533,21 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
                       <td>{formatCurrency(deal.amount_invested)}</td>
                       <td>{formatCurrency(deal.entry_valuation)}</td>
                       <td>
-                        {isProRata ? "-" : (
-                          <span style={{ color: deal.pro_rata_rights ? '#10b981' : '#ef4444', fontWeight: 'bold' }}>
-                            {deal.pro_rata_rights ? "Yes" : "No"}
-                          </span>
-                        )}
+                        <span style={{ color: deal.pro_rata_rights ? '#10b981' : '#ef4444', fontWeight: 'bold' }}>
+                          {deal.pro_rata_rights ? "Yes" : "No"}
+                        </span>
                       </td>
-                      <td>{isProRata ? "-" : formatCurrency(deal.latest_valuation)}</td>
-                      <td>{isProRata ? "-" : deal.latest_valuation_year}</td>
-                      <td>{isProRata ? "-" : formatMOIC(deal.moic)}</td>
-                      <td>{isProRata ? "-" : `${deal.holding_period} yrs`}</td>
+                      <td>{formatCurrency(deal.latest_valuation)}</td>
+                      <td>{deal.latest_valuation_year}</td>
+                      <td>{formatMOIC(deal.moic)}</td>
+                      <td>{`${deal.holding_period} yrs`}</td>
                       <td>{formatPercentage(deal.post_money_ownership)}</td>
                       <td style={{ color: isDiluted ? '#dc3545' : 'inherit' }}>
-                        {isProRata ? "-" : formatPercentage(deal.ownership_after_dilution)}
-                        {!isProRata && isDiluted && <span style={{ marginLeft: '4px' }}>↓</span>}
+                        {formatPercentage(deal.ownership_after_dilution)}
+                        {isDiluted && <span style={{ marginLeft: '4px' }}>↓</span>}
                       </td>
-                      <td>{isProRata ? "-" : formatCurrency(deal.final_exit_amount)}</td>
+                      <td>{formatCurrency(deal.final_exit_amount)}</td>
+
                       {canEdit && (
                         <td>
                           <div style={{display: 'flex', gap: '0.5rem'}}>

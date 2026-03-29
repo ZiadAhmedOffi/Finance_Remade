@@ -291,15 +291,13 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
               
               <Bar dataKey="startValue" stackId="a" fill="transparent" legendType="none" />
               
-              {/* Current Deals bars */}
+              {/* Injections grouped */}
               <Bar dataKey="injection_current" stackId="a" fill="#3498db" name="Capital Injection (Current)" />
-              <Bar dataKey="appreciation_current" stackId="a" fill="#2ecc71" name="Capital Appreciation (Current)" />
-              
-              {/* Current Deals appreciation after cutoff */}
-              <Bar dataKey="appreciation_of_current_after_cutoff" stackId="a" fill="#2ecc71" name="Appreciation of Current Deals" />
-              
-              {/* Prognosis deals bars (hashed) */}
               <Bar dataKey="injection_prognosis" stackId="a" fill="url(#hash-injection)" name="Capital Injection (Prognosis)" />
+              
+              {/* Appreciations grouped */}
+              <Bar dataKey="appreciation_current" stackId="a" fill="#2ecc71" name="Capital Appreciation (Current)" />
+              <Bar dataKey="appreciation_of_current_after_cutoff" stackId="a" fill="#2ecc71" name="Appreciation of Current Deals" />
               <Bar dataKey="appreciation_prognosis" stackId="a" fill="url(#hash-appreciation)" name="Capital Appreciation (Prognosis)" />
               
               <Line type="stepAfter" dataKey="total_portfolio_value_with_prognosis" stroke="#7f8c8d" strokeWidth={2} dot={false} name="Value Step" legendType="none" />
@@ -356,7 +354,7 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
               <YAxis tickFormatter={formatCurrency} />
               <Tooltip formatter={(v: any) => formatCurrencyLong(Number(v))} />
               <Legend />
-              <ReferenceLine x={currentYear} stroke="#e74c3c" strokeDasharray="3 3" label={{ position: 'top', value: 'Current Year', fill: '#e74c3c', fontSize: 12 }} />
+              <ReferenceLine x={currentYear - 1} stroke="#e74c3c" strokeDasharray="3 3" label={{ position: 'top', value: 'Last Closed Year', fill: '#e74c3c', fontSize: 12 }} />
               
               {/* No Future Deals Scenario (Solid) */}
               <Line type="monotone" dataKey="cumulative_injection_no_prognosis" stroke="#34495e" name="Invested (No Future Deals)" strokeWidth={2} dot={false} />

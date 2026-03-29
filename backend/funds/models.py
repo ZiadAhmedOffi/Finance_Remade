@@ -269,3 +269,38 @@ class InvestmentRound(models.Model):
 
     def __str__(self):
         return f"Round {self.year} for {self.company_name} ({self.fund.name})"
+
+    @staticmethod
+    def recalculate_for_company(fund, company_name):
+        """
+        Recalculates new_ownership_percentage for all rounds of a company sequentially.
+        Updates based on the main deal's initial ownership and subsequent rounds.
+        """
+        rounds = InvestmentRound.objects.filter(fund=fund, company_name=company_name).order_by('year', 'created_at')
+        main_deal = CurrentDeal.objects.filter(fund=fund, company_name=company_name, is_pro_rata=False).first()
+        if not main_deal:
+            return
+            
+        # Initial ownership from main deal
+        denom = float(main_deal.amount_invested) + float(main_deal.entry_valuation)
+        if denom == 0:
+            current_ownership = 0.0
+        else:
+            current_ownership = (float(main_deal.amount_invested) / denom) * 100.0
+        
+        for round_obj in rounds:
+            pre_money = float(round_obj.pre_money_valuation)
+            new_money = float(round_obj.new_money_raised)
+            post_money = pre_money + new_money
+            if post_money == 0:
+                continue
+            
+            # Amount invested in this round by our fund (pro-rata exercise)
+            amt_invested = float(round_obj.amount_invested)
+            
+            # Formula: ((currentOwnership/100 * preMoney) + amt_invested) / postMoney * 100
+            current_ownership = ((current_ownership / 100.0 * pre_money) + amt_invested) / post_money * 100.0
+            
+            # Use update to avoid triggering signals recursively if any
+            InvestmentRound.objects.filter(id=round_obj.id).update(new_ownership_percentage=current_ownership)
+

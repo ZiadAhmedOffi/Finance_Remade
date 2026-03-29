@@ -166,20 +166,37 @@ class InvestmentDealSerializer(serializers.ModelSerializer):
     def get_expected_pro_rata_investments(self, obj):
         """
         Calculates expected pro rata investments (USD).
-        Summation from i=1 to rounds [0.1 * original ownership * entry valuation * scenario factor * (0.9 * scenario factor)^(i-1)]
+        Summation from i=1 to rounds [0.1 * original ownership * entry valuation * scenario factor ^ (1/holding_period) * ((0.9 * scenario factor ^ (1/holding_period))^(i-1))]
         Only if pro_rata_rights is True.
         """
         if not obj.pro_rata_rights:
             return 0
         
         original_ownership_decimal = float(self.get_post_money_ownership(obj)) / 100
-        scenario_factor = float(getattr(obj, f"{obj.selected_scenario.lower()}_factor", 1.00))
+        
+        # Get holding period
+        holding_period = obj.exit_year - obj.entry_year
+        # Handle cases where holding period might be 0 or negative to avoid division by zero or invalid exponents
+        if holding_period <= 0:
+            holding_period = 1 # Default to 1 year if invalid
+
+        scenario_base_factor = float(getattr(obj, f"{obj.selected_scenario.lower()}_factor", 1.00))
+        # Apply the new requirement: scenario_factor ^ (1/holding_period)
+        dilution_adjusted_factor = scenario_base_factor ** (1 / holding_period)
+        
         entry_valuation = float(obj.entry_valuation)
         rounds = int(obj.expected_number_of_rounds)
         
         total = 0
-        base_val = 0.1 * original_ownership_decimal * entry_valuation * scenario_factor
-        growth_factor = 0.9 * scenario_factor
+        # Base value for the first round investment calculation
+        # The original formula had 0.1 * original_ownership * entry_valuation * scenario_factor
+        # We are replacing scenario_factor with dilution_adjusted_factor
+        base_val = 0.1 * original_ownership_decimal * entry_valuation * dilution_adjusted_factor
+        
+        # Growth factor for subsequent rounds, adjusted by the new rule
+        # Original: 0.9 * scenario_factor
+        # New: 0.9 * dilution_adjusted_factor
+        growth_factor = 0.9 * dilution_adjusted_factor
         
         for i in range(1, rounds + 1):
             total += base_val * (growth_factor ** (i - 1))
@@ -271,14 +288,12 @@ class CurrentDealSerializer(serializers.ModelSerializer):
     def get_post_money_ownership(self, obj):
         """
         Formula: amount_invested / (amount_invested + entry_valuation).
-        For pro-rata deals, returns the ownership percentage from the associated investment round.
+        For pro-rata deals, entry_valuation is already post-money (target_valuation).
         """
         if obj.is_pro_rata:
-            try:
-                # InvestmentRound has a OneToOneField to CurrentDeal with related_name 'investment_round'
-                return float(obj.investment_round.new_ownership_percentage)
-            except:
-                pass
+            if float(obj.entry_valuation) == 0:
+                return 0
+            return (float(obj.amount_invested) / float(obj.entry_valuation)) * 100
 
         denominator = float(obj.amount_invested) + float(obj.entry_valuation)
         if denominator == 0:
@@ -286,15 +301,43 @@ class CurrentDealSerializer(serializers.ModelSerializer):
         return (float(obj.amount_invested) / denominator) * 100
 
     def get_ownership_after_dilution(self, obj):
-        """Returns the ownership percentage from the latest investment round, or original ownership if no rounds."""
-        latest_round = InvestmentRound.objects.filter(
-            fund=obj.fund, 
-            company_name=obj.company_name
-        ).order_by('-year', '-created_at').first()
+        """Calculates the individual diluted ownership of this specific deal based on subsequent rounds."""
+        initial_ownership = self.get_post_money_ownership(obj)
         
-        if latest_round:
-            return float(latest_round.new_ownership_percentage)
-        return self.get_post_money_ownership(obj)
+        if obj.is_pro_rata:
+            # Find all rounds that happened AFTER the round that created this deal
+            try:
+                creation_round = obj.investment_round
+                subsequent_rounds = InvestmentRound.objects.filter(
+                    fund=obj.fund, 
+                    company_name=obj.company_name,
+                    created_at__gt=creation_round.created_at
+                ).order_by('year', 'created_at')
+            except:
+                # Fallback
+                subsequent_rounds = InvestmentRound.objects.filter(
+                    fund=obj.fund,
+                    company_name=obj.company_name,
+                    year__gt=obj.entry_year
+                ).order_by('year', 'created_at')
+        else:
+            # All rounds for this company dilute the main deal
+            subsequent_rounds = InvestmentRound.objects.filter(
+                fund=obj.fund, 
+                company_name=obj.company_name
+            ).order_by('year', 'created_at')
+
+        # Apply dilution from each subsequent round
+        current_ownership = float(initial_ownership)
+        for round_obj in subsequent_rounds:
+            pre_money = float(round_obj.pre_money_valuation)
+            post_money = float(round_obj.target_valuation)
+            if post_money > 0:
+                dilution_factor = pre_money / post_money
+                current_ownership *= dilution_factor
+        
+        return current_ownership
+
 
     def get_moic(self, obj):
         """Formula: latest_valuation / post_money_valuation (entry_valuation + amount_invested)."""

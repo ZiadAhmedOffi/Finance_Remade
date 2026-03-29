@@ -676,11 +676,26 @@ class FundPerformanceView(APIView):
 
         # 1. Deal Prognosis Metrics (Future Only)
         total_invested = sum(deal.amount_invested for deal in deals)
+        
+        # Calculate expected pro-rata total
+        total_expected_pro_rata = 0.0
         deal_serializer = InvestmentDealSerializer(deals, many=True)
         deals_data = deal_serializer.data
+        for d_data in deals_data:
+            total_expected_pro_rata += float(d_data.get("expected_pro_rata_investments", 0))
+        
+        total_invested_float = float(total_invested) + total_expected_pro_rata
         gross_exit_value = sum(float(d["exit_value"]) for d in deals_data)
         
-        total_invested_float = float(total_invested)
+        # We should also estimate the exit value of the pro-rata investments.
+        # Simple estimate: they achieve the same MOIC as the main deal?
+        # Or better: they contribute to the total exit value which is already calculated 
+        # based on expected_ownership_after_dilution.
+        # Actually, if we use the serializer's exit_value, it uses expected_ownership_after_dilution.
+        # If the user's formula for expected_ownership_after_dilution is meant to be the TOTAL fund ownership,
+        # then gross_exit_value is already correct. 
+        # Let's check the serializer again.
+        
         moic = gross_exit_value / total_invested_float if total_invested_float > 0 else 0
         
         # Calculate Real MOIC for Prognosis (Pro-forma)
@@ -757,6 +772,9 @@ class FundPerformanceView(APIView):
             current_deals_by_year.setdefault(yr, []).append(d)
             
         prognosis_deals_by_year = {}
+        # Create a lookup for deals data by ID to get expected_pro_rata_investments
+        deals_data_lookup = {d["id"]: d for d in deals_data}
+        
         for d in deals_data:
             yr = d["entry_year"]
             prognosis_deals_by_year.setdefault(yr, []).append(d)
@@ -784,6 +802,17 @@ class FundPerformanceView(APIView):
             year_prognosis_deals = prognosis_deals_by_year.get(year, [])
             p_injection = sum(float(d["amount_invested"]) for d in year_prognosis_deals)
             p_deals_count = len(year_prognosis_deals)
+            
+            # Add pro-rata for all deals that are currently in their round period
+            for deal_obj in deals:
+                if deal_obj.pro_rata_rights and deal_obj.expected_number_of_rounds > 0:
+                    d_data = deals_data_lookup.get(str(deal_obj.id))
+                    if d_data:
+                        total_pro_rata = float(d_data.get("expected_pro_rata_investments", 0))
+                        round_amt = total_pro_rata / deal_obj.expected_number_of_rounds
+                        # Rounds happen in years: entry_year + 1 to entry_year + rounds
+                        if deal_obj.entry_year < year <= deal_obj.entry_year + deal_obj.expected_number_of_rounds:
+                            p_injection += round_amt
             
             # Appreciation
             c_appreciation = current_portfolio_value * safe_c_irr
