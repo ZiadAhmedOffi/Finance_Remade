@@ -49,6 +49,18 @@ export const fundsApi = {
   createInvestmentRound: (fundId: string, data: any) => api.post(`/funds/${fundId}/investment-rounds/`, data),
   updateInvestmentRound: (fundId: string, roundId: string, data: any) => api.put(`/funds/${fundId}/investment-rounds/${roundId}/`, data),
   deleteInvestmentRound: (fundId: string, roundId: string) => api.delete(`/funds/${fundId}/investment-rounds/${roundId}/`),
+  getFundPerformance: (fundId: string) => api.get(`/funds/${fundId}/performance/`),
+
+  // Investor Dashboard & Actions
+  getInvestors: () => api.get("/funds/investors/"),
+  getInvestorActions: () => api.get("/funds/investor-actions/"),
+  createInvestorAction: (data: any) => api.post("/funds/investor-actions/", data),
+  updateInvestorAction: (actionId: string, data: any) => api.put(`/funds/investor-actions/${actionId}/`, data),
+  deleteInvestorAction: (actionId: string) => api.delete(`/funds/investor-actions/${actionId}/`),
+  getInvestorDashboard: (investorId?: string) => {
+    const params = investorId ? { investor_id: investorId } : {};
+    return api.get("/funds/investor-dashboard/", { params });
+  },
 };
 
 export { api };

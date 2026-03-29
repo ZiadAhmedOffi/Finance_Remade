@@ -394,3 +394,39 @@ class FundLogSerializer(serializers.ModelSerializer):
             "metadata",
             "timestamp",
         ]
+        read_only_fields = ["id", "actor", "actor_email", "target_fund", "target_fund_name", "timestamp"]
+
+from .models import InvestorAction
+
+class InvestorActionSerializer(serializers.ModelSerializer):
+    investor_email = serializers.EmailField(source="investor.email", read_only=True)
+    fund_name = serializers.CharField(source="fund.name", read_only=True)
+
+    class Meta:
+        model = InvestorAction
+        fields = [
+            "id",
+            "investor",
+            "investor_email",
+            "fund",
+            "fund_name",
+            "type",
+            "year",
+            "amount",
+            "original_value",
+            "exit_value",
+            "created_at",
+        ]
+        read_only_fields = ["id", "created_at"]
+
+    def validate(self, data):
+        action_type = data.get("type")
+        if action_type == "CAPITAL_INVESTMENT":
+            if data.get("amount") is None:
+                raise serializers.ValidationError({"amount": "Amount is required for capital investment."})
+        elif action_type == "SECONDARY_EXIT":
+            if data.get("original_value") is None:
+                raise serializers.ValidationError({"original_value": "Original value is required for secondary exit."})
+            if data.get("exit_value") is None:
+                raise serializers.ValidationError({"exit_value": "Exit value is required for secondary exit."})
+        return data

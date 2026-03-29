@@ -61,6 +61,9 @@ class FundLog(models.Model):
         ("SC_MEMBER_ASSIGNED", "SC Member Assigned"),
         ("INVESTOR_ASSIGNED", "Investor Assigned"),
         ("ROLE_REMOVED", "Role Removed"),
+        ("INVESTOR_ACTION_CREATED", "Investor Action Created"),
+        ("INVESTOR_ACTION_UPDATED", "Investor Action Updated"),
+        ("INVESTOR_ACTION_DELETED", "Investor Action Deleted"),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -303,4 +306,46 @@ class InvestmentRound(models.Model):
             
             # Use update to avoid triggering signals recursively if any
             InvestmentRound.objects.filter(id=round_obj.id).update(new_ownership_percentage=current_ownership)
+
+class InvestorAction(models.Model):
+    """
+    Represents an action associated with an investor (Capital Investment or Secondary Exit).
+    """
+    TYPE_CHOICES = [
+        ("CAPITAL_INVESTMENT", "Capital Investment"),
+        ("SECONDARY_EXIT", "Secondary Exit"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    investor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="investor_actions"
+    )
+    fund = models.ForeignKey(
+        Fund,
+        on_delete=models.CASCADE,
+        related_name="investor_actions"
+    )
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    year = models.PositiveIntegerField()
+    
+    # For Capital Investment
+    amount = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    
+    # For Secondary Exit
+    original_value = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    exit_value = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["year", "created_at"]
+        indexes = [
+            models.Index(fields=["investor", "fund"]),
+            models.Index(fields=["year"]),
+        ]
+
+    def __str__(self):
+        return f"{self.type} - {self.investor.email} - {self.fund.name} ({self.year})"
 

@@ -23,10 +23,11 @@ const Dashboard: React.FC = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [funds, setFunds] = useState<Fund[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isInvestor, setIsInvestor] = useState(false);
 
   /**
    * Initializes component state:
-   * 1. Checks JWT for admin privileges.
+   * 1. Checks JWT for admin privileges and investor role.
    * 2. Fetches the list of funds assigned to the user.
    */
   useEffect(() => {
@@ -42,9 +43,13 @@ const Dashboard: React.FC = () => {
           r.role === "SUPER_ADMIN" || r.role === "ACCESS_MANAGER"
         );
         setIsAdmin(hasAdminPrivilege);
+
+        const hasInvestorRole = roles.some((r: any) => r.role === "INVESTOR");
+        setIsInvestor(hasInvestorRole);
       } catch (e) {
         console.error("Error decoding token", e);
         setIsAdmin(false);
+        setIsInvestor(false);
       }
     }
 
@@ -79,6 +84,7 @@ const Dashboard: React.FC = () => {
         <div className="header-brand">FinanceRemade</div>
         <div className="header-nav">
           <Link to="/profile" className="nav-link">My Profile</Link>
+          {isInvestor && <Link to="/investor-dashboard" className="nav-link">Investor Dashboard</Link>}
           {isAdmin && <Link to="/admin" className="nav-link">Admin Console</Link>}
           <button className="btn-logout" onClick={handleLogout}>Logout</button>
         </div>

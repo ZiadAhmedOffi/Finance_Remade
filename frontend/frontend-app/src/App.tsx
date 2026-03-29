@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import AdminDashboard from "./pages/AdminDashboard";
 import FundDashboard from "./pages/FundDashboard";
+import InvestorDashboard from "./pages/InvestorDashboard";
 import PrivateRoute from "./components/PrivateRoute";
 import AdminRoute from "./components/AdminRoute";
 import NotFound from "./pages/NotFound";
@@ -119,6 +120,7 @@ function App() {
           <Route path="/admin" element={<AdminDashboard />} />
         </Route>
 
+        <Route path="/investor-dashboard" element={<InvestorDashboard />} />
         <Route path="/funds/:fundId" element={<FundDashboard />} />
       </Route>
       

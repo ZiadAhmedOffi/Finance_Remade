@@ -10,10 +10,321 @@ from .serializers import (
     ModelInputSerializer, 
     InvestmentDealSerializer,
     CurrentDealSerializer,
-    InvestmentRoundSerializer
+    InvestmentRoundSerializer,
+    InvestorActionSerializer
 )
+from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, InvestorAction
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+class InvestorListView(APIView):
+    """
+    Lists all users who have the INVESTOR role.
+    Used for the dropdown in Investor Action creation.
+    Only Super Admins can access this.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not PermissionService.is_super_admin(request.user):
+            return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        from users.models import UserRoleAssignment, Role
+        investor_role = Role.objects.get(name="INVESTOR")
+        investor_ids = UserRoleAssignment.objects.filter(role=investor_role).values_list("user_id", flat=True).distinct()
+        investors = User.objects.filter(id__in=investor_ids)
+        
+        data = [{"id": str(u.id), "email": u.email, "first_name": u.first_name, "last_name": u.last_name} for u in investors]
+        return Response(data)
+
+class InvestorActionListView(APIView):
+    """
+    Handles listing and creating investor actions.
+    Creation restricted to Super Admins.
+    Listing shows all for superadmins, or only own for investors.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if PermissionService.is_super_admin(request.user):
+            actions = InvestorAction.objects.all()
+        else:
+            actions = InvestorAction.objects.filter(investor=request.user)
+        
+        serializer = InvestorActionSerializer(actions, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        if not PermissionService.is_super_admin(request.user):
+            return Response({"error": "Only super admins can create investor actions."}, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = InvestorActionSerializer(data=request.data)
+        if serializer.is_valid():
+            action = serializer.save()
+            
+            # Log the change
+            FundLog.objects.create(
+                actor=request.user,
+                target_fund=action.fund,
+                action="INVESTOR_ACTION_CREATED",
+                metadata={"action_id": str(action.id), "type": action.type, "investor": action.investor.email}
+            )
+            AuditService.log(
+                actor=request.user,
+                action="INVESTOR_ACTION_CREATED",
+                fund=action.fund,
+                target_user=action.investor,
+                metadata={"action_id": str(action.id), "type": action.type},
+                ip=request.META.get("REMOTE_ADDR")
+            )
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class InvestorActionDetailView(APIView):
+    """
+    Handles updating and deleting specific investor actions.
+    Restricted to Super Admins.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, action_id):
+        if not PermissionService.is_super_admin(request.user):
+            return Response({"error": "Only super admins can update investor actions."}, status=status.HTTP_403_FORBIDDEN)
+        
+        action = get_object_or_404(InvestorAction, id=action_id)
+        serializer = InvestorActionSerializer(action, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            
+            # Log the change
+            FundLog.objects.create(
+                actor=request.user,
+                target_fund=action.fund,
+                action="INVESTOR_ACTION_UPDATED",
+                metadata={"action_id": str(action.id), "type": action.type, "investor": action.investor.email}
+            )
+            AuditService.log(
+                actor=request.user,
+                action="INVESTOR_ACTION_UPDATED",
+                fund=action.fund,
+                target_user=action.investor,
+                metadata={"action_id": str(action.id), "type": action.type},
+                ip=request.META.get("REMOTE_ADDR")
+            )
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, action_id):
+        if not PermissionService.is_super_admin(request.user):
+            return Response({"error": "Only super admins can delete investor actions."}, status=status.HTTP_403_FORBIDDEN)
+        
+        action = get_object_or_404(InvestorAction, id=action_id)
+        action_id_str = str(action.id)
+        action_type = action.type
+        investor_email = action.investor.email
+        fund = action.fund
+        target_user = action.investor
+        action.delete()
+        
+        # Log the change
+        FundLog.objects.create(
+            actor=request.user,
+            target_fund=fund,
+            action="INVESTOR_ACTION_DELETED",
+            metadata={"action_id": action_id_str, "type": action_type, "investor": investor_email}
+        )
+        AuditService.log(
+            actor=request.user,
+            action="INVESTOR_ACTION_DELETED",
+            fund=fund,
+            target_user=target_user,
+            metadata={"action_id": action_id_str, "type": action_type},
+            ip=request.META.get("REMOTE_ADDR")
+        )
+        return Response({"message": "Investor action deleted."}, status=status.HTTP_200_OK)
+
+class InvestorDashboardView(APIView):
+    """
+    Calculates metrics for the Investor Dashboard.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        investor = request.user
+        # In case a superadmin wants to see a specific investor's dashboard
+        target_investor_id = request.query_params.get("investor_id")
+        if target_investor_id and PermissionService.is_super_admin(investor):
+            investor = get_object_or_404(User, id=target_investor_id)
+
+        actions = InvestorAction.objects.filter(investor=investor).select_related('fund')
+        
+        # Group actions by fund
+        fund_data = {}
+        for action in actions:
+            fund_id = str(action.fund.id)
+            if fund_id not in fund_data:
+                fund_data[fund_id] = {
+                    "fund": action.fund,
+                    "investments": [],
+                    "exits": []
+                }
+            if action.type == "CAPITAL_INVESTMENT":
+                fund_data[fund_id]["investments"].append(action)
+            else:
+                fund_data[fund_id]["exits"].append(action)
+
+        total_capital_deployed = 0.0
+        total_realized_gains = 0.0
+        total_original_value_exited = 0.0
+        total_exit_value = 0.0
+        total_current_portfolio_value = 0.0
+        
+        portfolio_table = []
+        pie_chart_data = []
+
+        # We need fund performance to get IRRs and current values
+        for fund_id, data in fund_data.items():
+            fund = data["fund"]
+            investments = data["investments"]
+            exits = data["exits"]
+            
+            fund_invested = sum(float(i.amount) for i in investments)
+            fund_exits_original = sum(float(e.original_value) for e in exits)
+            fund_exits_value = sum(float(e.exit_value) for e in exits)
+            
+            net_fund_deployed = fund_invested - fund_exits_value
+            total_capital_deployed += net_fund_deployed
+            
+            fund_realized_gain = fund_exits_value - fund_exits_original
+            total_realized_gains += fund_realized_gain
+            total_original_value_exited += fund_exits_original
+            total_exit_value += fund_exits_value
+            
+            # Remaining cost basis for this investor in this fund
+            remaining_cost_basis = fund_invested - fund_exits_original
+            
+            # Calculate ownership in the fund
+            fund_total_invested = sum(d.amount_invested for d in fund.current_deals.all())
+            fund_total_current_val = 0.0
+            
+            c_deal_serializer = CurrentDealSerializer(fund.current_deals.all(), many=True)
+            for d in c_deal_serializer.data:
+                fund_total_current_val += float(d["final_exit_amount"])
+            
+            ownership_pct = 0.0
+            if fund_total_invested > 0:
+                ownership_pct = (remaining_cost_basis / float(fund_total_invested)) * 100.0
+            
+            current_val_in_fund = (ownership_pct / 100.0) * fund_total_current_val
+            total_current_portfolio_value += current_val_in_fund
+            
+            portfolio_table.append({
+                "fund_name": fund.name,
+                "ownership_pct": ownership_pct,
+                "current_value": current_val_in_fund,
+                "net_deployed": net_fund_deployed
+            })
+            
+            pie_chart_data.append({
+                "name": fund.name,
+                "value": current_val_in_fund
+            })
+
+        unrealized_gains = total_current_portfolio_value - total_capital_deployed
+        
+        realized_multiple = 0.0
+        if total_original_value_exited > 0:
+            realized_multiple = total_exit_value / total_original_value_exited
+            
+        unrealized_multiple = 0.0
+        if total_capital_deployed > 0:
+            unrealized_multiple = total_current_portfolio_value / total_capital_deployed
+
+        # Line Graph Logic & Historical Breakdown
+        years = sorted(list(set(a.year for a in actions)))
+        if not years:
+            line_graph_data = []
+        else:
+            start_year = min(years)
+            current_year = datetime.now().year
+            end_year = max(current_year, max(years))
+            
+            line_graph_data = []
+            
+            # For each year, we need to calculate the portfolio value
+            # by summing the investor's ownership value in each fund at that point.
+            # Pre-calculate fund performance tables
+            fund_performance_tables = {}
+            for fid, f_data in fund_data.items():
+                perf_table, _ = FundPerformanceView.get_performance_table(f_data["fund"])
+                if perf_table:
+                    # Map by year for easy access
+                    fund_performance_tables[fid] = {row["year"]: row for row in perf_table}
+
+            for yr in range(start_year, end_year + 1):
+                yr_total_value = 0.0
+                yr_total_injection = 0.0
+                
+                for fid, f_data in fund_data.items():
+                    fund = f_data["fund"]
+                    # 1. Total capital invested by investor in this fund UP TO yr (cost basis)
+                    f_invested_up_to_yr = sum(float(i.amount) for i in f_data["investments"] if i.year <= yr)
+                    f_exits_orig_up_to_yr = sum(float(e.original_value) for e in f_data["exits"] if e.year <= yr)
+                    
+                    remaining_basis = f_invested_up_to_yr - f_exits_orig_up_to_yr
+                    if remaining_basis < 0: remaining_basis = 0
+                    
+                    # 2. Fund state at yr from pre-calculated performance table
+                    fund_perf = fund_performance_tables.get(fid, {}).get(yr)
+                    if fund_perf:
+                        fund_total_val_at_yr = float(fund_perf["total_portfolio_value_with_prognosis"])
+                        
+                        # Calculate total fund invested (cost basis) up to that year to determine ownership
+                        # We need to sum up all injections in the fund performance table up to that year
+                        fund_perf_table = fund_performance_tables.get(fid, {})
+                        fund_total_invested_at_yr = sum(
+                            float(fund_perf_table[y]["injection_current"] + fund_perf_table[y]["injection_prognosis"])
+                            for y in range(min(fund_perf_table.keys()), yr + 1)
+                        )
+                        
+                        f_ownership_pct_at_yr = 0.0
+                        if fund_total_invested_at_yr > 0:
+                            f_ownership_pct_at_yr = (remaining_basis / fund_total_invested_at_yr) * 100.0
+                        
+                        yr_total_value += (f_ownership_pct_at_yr / 100.0) * fund_total_val_at_yr
+                    
+                    # Tracking injections for this year specifically for the table
+                    yr_total_injection += sum(float(i.amount) for i in f_data["investments"] if i.year == yr)
+                    yr_total_injection -= sum(float(e.exit_value) for e in f_data["exits"] if e.year == yr)
+
+                prev_val = line_graph_data[-1]["value"] if line_graph_data else 0
+                yoy_gain = 0.0
+                if prev_val > 0:
+                    yoy_gain = ((yr_total_value / prev_val) - 1) * 100
+
+                line_graph_data.append({
+                    "year": yr,
+                    "value": yr_total_value,
+                    "injection": yr_total_injection,
+                    "yoy_gain": yoy_gain if line_graph_data else None # N/A for first year
+                })
+
+        return Response({
+            "metrics": {
+                "total_capital_deployed": total_capital_deployed,
+                "realized_gains": total_realized_gains,
+                "unrealized_gains": unrealized_gains,
+                "realized_multiple": realized_multiple,
+                "unrealized_multiple": unrealized_multiple,
+            },
+            "portfolio": portfolio_table,
+            "pie_chart": pie_chart_data,
+            "line_graph": line_graph_data
+        })
 from users.services.permission_service import PermissionService
 from users.services.audit_service import AuditService
+from datetime import datetime
 
 
 import json
@@ -659,17 +970,14 @@ class FundPerformanceView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, fund_id):
-        fund = get_object_or_404(Fund, id=fund_id)
-        if not PermissionService.can_view_fund(request.user, fund):
-            return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
-        
+    @staticmethod
+    def get_performance_table(fund):
         deals = fund.deals.all()
         current_deals = fund.current_deals.all()
         model_inputs = getattr(fund, "model_inputs", None)
         
         if not model_inputs:
-            return Response({"error": "Model inputs not found for this fund."}, status=status.HTTP_400_BAD_REQUEST)
+            return None, None
 
         exit_horizon = float(model_inputs.exit_horizon)
         management_fee_pct = float(model_inputs.management_fee)
@@ -687,22 +995,11 @@ class FundPerformanceView(APIView):
         total_invested_float = float(total_invested) + total_expected_pro_rata
         gross_exit_value = sum(float(d["exit_value"]) for d in deals_data)
         
-        # We should also estimate the exit value of the pro-rata investments.
-        # Simple estimate: they achieve the same MOIC as the main deal?
-        # Or better: they contribute to the total exit value which is already calculated 
-        # based on expected_ownership_after_dilution.
-        # Actually, if we use the serializer's exit_value, it uses expected_ownership_after_dilution.
-        # If the user's formula for expected_ownership_after_dilution is meant to be the TOTAL fund ownership,
-        # then gross_exit_value is already correct. 
-        # Let's check the serializer again.
-        
         moic = gross_exit_value / total_invested_float if total_invested_float > 0 else 0
         
-        # Calculate Real MOIC for Prognosis (Pro-forma)
-        p_profit = gross_exit_value - total_invested_float
-        p_carry_pct = 0.0
         p_tier1_moic = float(model_inputs.least_expected_moic_tier_1)
         p_tier2_moic = float(model_inputs.least_expected_moic_tier_2)
+        
         if moic < p_tier1_moic:
             p_carry_pct = 0.0
         elif moic < p_tier2_moic:
@@ -710,12 +1007,12 @@ class FundPerformanceView(APIView):
         else:
             p_carry_pct = float(model_inputs.tier_2_carry)
         
+        p_profit = gross_exit_value - total_invested_float
         p_carry_amount = p_profit * (p_carry_pct / 100.0) if p_profit > 0 else 0
         p_total_fees = total_invested_float * (management_fee_pct / 100.0)
         p_net_to_investors = gross_exit_value - (p_total_fees + p_carry_amount)
         p_real_moic = p_net_to_investors / total_invested_float if total_invested_float > 0 else 0
         
-        # Use new IRR formula
         irr = calculate_irr(p_real_moic, exit_horizon)
 
         # 2. Current Deals Metrics (Past Only)
@@ -727,9 +1024,6 @@ class FundPerformanceView(APIView):
         c_total_invested_float = float(c_total_invested)
         c_moic = c_gross_exit_value / c_total_invested_float if c_total_invested_float > 0 else 0
         
-        # Calculate Real MOIC for Current Deals
-        c_profit = c_gross_exit_value - c_total_invested_float
-        c_carry_pct = 0.0
         if c_moic < p_tier1_moic:
             c_carry_pct = 0.0
         elif c_moic < p_tier2_moic:
@@ -737,23 +1031,20 @@ class FundPerformanceView(APIView):
         else:
             c_carry_pct = float(model_inputs.tier_2_carry)
         
+        c_profit = c_gross_exit_value - c_total_invested_float
         c_carry_amount = c_profit * (c_carry_pct / 100.0) if c_profit > 0 else 0
         c_total_fees = c_total_invested_float * (management_fee_pct / 100.0)
         c_net_to_investors = c_gross_exit_value - (c_total_fees + c_carry_amount)
         c_real_moic = c_net_to_investors / c_total_invested_float if c_total_invested_float > 0 else 0
         
-        # Use new IRR formula
         c_irr = calculate_irr(c_real_moic, exit_horizon)
 
-
-        # 3. Performance Table (Combined for charts)
-        from datetime import datetime
+        # 3. Performance Table
         current_year = datetime.now().year
         start_year = int(model_inputs.inception_year)
         fund_life = int(model_inputs.fund_life)
         end_year = start_year + fund_life - 1
         
-        # Adjust start/end years based on deals
         all_entry_years = [d["entry_year"] for d in deals_data] + [d["entry_year"] for d in c_deals_data]
         all_exit_years = [d["exit_year"] for d in deals_data] + [d["latest_valuation_year"] for d in c_deals_data]
         
@@ -762,17 +1053,12 @@ class FundPerformanceView(APIView):
         if all_exit_years:
             end_year = max(end_year, max(all_exit_years))
 
-        if end_year - start_year > 100:
-            end_year = start_year + 100
-
-        # Group deals by year
         current_deals_by_year = {}
         for d in c_deals_data:
             yr = d["entry_year"]
             current_deals_by_year.setdefault(yr, []).append(d)
             
         prognosis_deals_by_year = {}
-        # Create a lookup for deals data by ID to get expected_pro_rata_investments
         deals_data_lookup = {d["id"]: d for d in deals_data}
         
         for d in deals_data:
@@ -783,87 +1069,141 @@ class FundPerformanceView(APIView):
         current_portfolio_value = 0.0
         prognosis_portfolio_value = 0.0
         
-        cumulative_injection_no_prognosis = 0.0
-        cumulative_injection_with_prognosis = 0.0
-        
-        cumulative_deals_count_current = 0
-        cumulative_deals_count_prognosis = 0
-        
         safe_c_irr = c_irr if c_irr and c_irr > -1 else 0.0
         safe_p_irr = irr if irr and irr > -1 else 0.0
         
         for year in range(start_year, end_year + 1):
-            # 1. Current deals data for this year
             year_current_deals = current_deals_by_year.get(year, [])
             c_injection = sum(float(d["amount_invested"]) for d in year_current_deals)
-            c_deals_count = len(year_current_deals)
             
-            # 2. Prognosis deals data for this year
             year_prognosis_deals = prognosis_deals_by_year.get(year, [])
             p_injection = sum(float(d["amount_invested"]) for d in year_prognosis_deals)
-            p_deals_count = len(year_prognosis_deals)
             
-            # Add pro-rata for all deals that are currently in their round period
             for deal_obj in deals:
                 if deal_obj.pro_rata_rights and deal_obj.expected_number_of_rounds > 0:
                     d_data = deals_data_lookup.get(str(deal_obj.id))
                     if d_data:
                         total_pro_rata = float(d_data.get("expected_pro_rata_investments", 0))
                         round_amt = total_pro_rata / deal_obj.expected_number_of_rounds
-                        # Rounds happen in years: entry_year + 1 to entry_year + rounds
                         if deal_obj.entry_year < year <= deal_obj.entry_year + deal_obj.expected_number_of_rounds:
                             p_injection += round_amt
             
-            # Appreciation
             c_appreciation = current_portfolio_value * safe_c_irr
             p_appreciation = prognosis_portfolio_value * safe_p_irr
             
-            # Start values for the record
-            c_start_val = current_portfolio_value
-            p_start_val = prognosis_portfolio_value
-            
-            # Update portfolio values
             current_portfolio_value += c_injection + c_appreciation
             prognosis_portfolio_value += p_injection + p_appreciation
             
-            # Cumulative injections
-            cumulative_injection_no_prognosis += c_injection
-            cumulative_injection_with_prognosis += c_injection + p_injection
-            
-            # Cumulative deals
-            cumulative_deals_count_current += c_deals_count
-            cumulative_deals_count_prognosis += p_deals_count
-            
-            # Totals
             total_portfolio_value_with_prognosis = current_portfolio_value + prognosis_portfolio_value
             
             performance_table.append({
                 "year": year,
+                "total_portfolio_value_with_prognosis": total_portfolio_value_with_prognosis,
+                "injection_current": c_injection,
+                "injection_prognosis": p_injection,
+                "appreciation_current": c_appreciation,
+                "appreciation_prognosis": p_appreciation
+            })
+        
+        return performance_table, {
+            "p_real_moic": p_real_moic, "irr": irr, "moic": moic, "total_invested": total_invested_float, "gross_exit_value": gross_exit_value,
+            "c_real_moic": c_real_moic, "c_irr": c_irr, "c_moic": c_moic, "c_total_invested": c_total_invested_float, "c_gross_exit_value": c_gross_exit_value
+        }
+
+    def get(self, request, fund_id):
+        fund = get_object_or_404(Fund, id=fund_id)
+        if not PermissionService.can_view_fund(request.user, fund):
+            return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        performance_table_raw, metrics = self.get_performance_table(fund)
+        if performance_table_raw is None:
+            return Response({"error": "Model inputs not found for this fund."}, status=status.HTTP_400_BAD_REQUEST)
+
+        model_inputs = fund.model_inputs
+        current_year = datetime.now().year
+        
+        # Build the full performance table for the response
+        performance_table = []
+        cum_inj_no_p = 0.0
+        cum_inj_with_p = 0.0
+        
+        for row in performance_table_raw:
+            year = row["year"]
+            c_inj = row["injection_current"]
+            p_inj = row["injection_prognosis"]
+            
+            cum_inj_no_p += c_inj if year <= current_year else 0
+            cum_inj_with_p += c_inj + p_inj
+            
+            performance_table.append({
+                **row,
                 "current_year": current_year,
                 "is_future": year > current_year,
-                
-                # For Graph 1 (Annual Portfolio Value Expansion - Bars)
-                "injection_current": c_injection if year <= current_year else 0,
-                "appreciation_current": c_appreciation if year <= current_year else 0,
-                
-                "injection_prognosis": p_injection if year >= current_year else 0, 
-                "appreciation_prognosis": p_appreciation if year >= current_year else 0,
-                
-                "appreciation_of_current_after_cutoff": c_appreciation if year > current_year else 0,
-                "injection_of_current_after_cutoff": c_injection if year > current_year else 0,
-                
-                # For Graph 2 (Capital Appreciation - Lines)
-                "total_portfolio_value_no_prognosis": current_portfolio_value,
-                "total_portfolio_value_with_prognosis": total_portfolio_value_with_prognosis,
-                "cumulative_injection_no_prognosis": cumulative_injection_no_prognosis,
-                "cumulative_injection_with_prognosis": cumulative_injection_with_prognosis,
-
-                # For Investment Velocity Graphs
-                "deals_count_current": c_deals_count,
-                "deals_count_prognosis": p_deals_count,
-                "cumulative_deals_count_current": cumulative_deals_count_current,
-                "cumulative_deals_count_prognosis": cumulative_deals_count_current + cumulative_deals_count_prognosis,
+                "injection_of_current_after_cutoff": c_inj if year > current_year else 0,
+                "appreciation_of_current_after_cutoff": row["appreciation_current"] if year > current_year else 0,
+                "cumulative_injection_no_prognosis": cum_inj_no_p,
+                "cumulative_injection_with_prognosis": cum_inj_with_p,
+                "total_portfolio_value_no_prognosis": row["total_portfolio_value_with_prognosis"] # Approximation
             })
+
+        # Exits Cases
+        cases = [
+            {"name": "Base Case", "multiplier": 1.0},
+            {"name": "Upside Case", "multiplier": 1.2},
+            {"name": "High Growth Case", "multiplier": 1.5},
+        ]
+        aggregated_exits = []
+        p_tier1_moic = float(model_inputs.least_expected_moic_tier_1)
+        p_tier2_moic = float(model_inputs.least_expected_moic_tier_2)
+        management_fee_pct = float(model_inputs.management_fee)
+
+        for case in cases:
+            case_gev = metrics["c_gross_exit_value"] * case["multiplier"]
+            profit = case_gev - metrics["c_total_invested"]
+            case_moic = case_gev / metrics["c_total_invested"] if metrics["c_total_invested"] > 0 else 0
+            
+            if case_moic < p_tier1_moic:
+                carry_pct = 0.0
+            elif case_moic < p_tier2_moic:
+                carry_pct = float(model_inputs.tier_1_carry)
+            else:
+                carry_pct = float(model_inputs.tier_2_carry)
+            
+            carry_amt = profit * (carry_pct / 100.0) if profit > 0 else 0
+            fees = metrics["c_total_invested"] * (management_fee_pct / 100.0)
+            net = case_gev - (fees + carry_amt)
+            real_moic = net / metrics["c_total_invested"] if metrics["c_total_invested"] > 0 else 0
+            
+            aggregated_exits.append({
+                "case": case["name"], "gev": case_gev, "profit_before_carry": profit, "gross_moic": case_moic,
+                "carry_pct": carry_pct, "carry_amount": carry_amt, "total_fees": fees, "net_to_investors": net,
+                "real_moic": real_moic, "irr": calculate_irr(real_moic, float(model_inputs.exit_horizon))
+            })
+
+        admin_fee_data = {
+            "total_admin_cost": (float(model_inputs.admin_cost) / 100.0) * float(model_inputs.target_fund_size),
+            "operations_fee": (management_fee_pct / 100.0) * float(model_inputs.target_fund_size),
+            "management_fees": (management_fee_pct / 100.0) * float(model_inputs.target_fund_size) * float(model_inputs.fund_life),
+            "total_costs": 0, # sum above
+            "inception_year": int(model_inputs.inception_year),
+            "fund_life": int(model_inputs.fund_life)
+        }
+        admin_fee_data["total_costs"] = admin_fee_data["total_admin_cost"] + admin_fee_data["operations_fee"] + admin_fee_data["management_fees"]
+
+        return Response({
+            "dashboard": {
+                "total_invested": metrics["total_invested"], "gross_exit_value": metrics["gross_exit_value"],
+                "moic": metrics["moic"], "irr": metrics["irr"], "real_moic": metrics["p_real_moic"],
+                "total_deals": fund.deals.count(), "performance_table": performance_table
+            },
+            "current_deals_metrics": {
+                "total_invested": metrics["c_total_invested"], "gross_exit_value": metrics["c_gross_exit_value"],
+                "moic": metrics["c_moic"], "irr": metrics["c_irr"], "real_moic": metrics["c_real_moic"],
+                "total_deals": fund.current_deals.count()
+            },
+            "aggregated_exits": aggregated_exits,
+            "admin_fee": admin_fee_data
+        })
 
         # 4. Aggregated Exits (using only Current Deals)
         cases = [
