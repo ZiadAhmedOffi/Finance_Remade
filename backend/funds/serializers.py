@@ -282,8 +282,9 @@ class CurrentDealSerializer(serializers.ModelSerializer):
         return data
 
     def get_holding_period(self, obj):
-        """Calculated by subtracting entry year from latest valuation year."""
-        return obj.latest_valuation_year - obj.entry_year
+        """Calculated by subtracting entry year from current year."""
+        current_year = datetime.now().year
+        return current_year - obj.entry_year
 
     def get_post_money_ownership(self, obj):
         """
