@@ -1187,7 +1187,7 @@ class FundPerformanceView(APIView):
                 "current_year": current_year,
                 "is_future": year > current_year,
                 "injection_of_current_after_cutoff": c_inj if year > current_year else 0,
-                "appreciation_of_current_after_cutoff": row["appreciation_current"] if year > current_year else 0,
+                # "appreciation_of_current_after_cutoff": row["appreciation_current"] if year > current_year else 0, # Removed as per user request
                 "cumulative_injection_no_prognosis": cum_inj_no_p,
                 "cumulative_injection_with_prognosis": cum_inj_with_p,
                 "total_portfolio_value_no_prognosis": row["total_portfolio_value_with_prognosis"] # Approximation

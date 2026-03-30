@@ -297,7 +297,7 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
               
               {/* Appreciations grouped */}
               <Bar dataKey="appreciation_current" stackId="a" fill="#2ecc71" name="Capital Appreciation (Current)" />
-              <Bar dataKey="appreciation_of_current_after_cutoff" stackId="a" fill="#2ecc71" name="Appreciation of Current Deals" />
+              {/* <Bar dataKey="appreciation_of_current_after_cutoff" stackId="a" fill="#2ecc71" name="Appreciation of Current Deals" /> */}
               <Bar dataKey="appreciation_prognosis" stackId="a" fill="url(#hash-appreciation)" name="Capital Appreciation (Prognosis)" />
               
               <Line type="stepAfter" dataKey="total_portfolio_value_with_prognosis" stroke="#7f8c8d" strokeWidth={2} dot={false} name="Value Step" legendType="none" />
