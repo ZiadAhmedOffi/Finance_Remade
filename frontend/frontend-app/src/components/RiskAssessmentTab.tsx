@@ -239,9 +239,9 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
               <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
               
               {/* Background Color Zones */}
-              <ReferenceArea x1={0} x2={2} y1={0} y2={2} fill="#ff000015" />
-              <ReferenceArea x1={2} x2={8} y1={2} y2={8} fill="#f5f5dc80" />
-              <ReferenceArea x1={8} x2={10} y1={8} y2={10} fill="#00ff0015" />
+              <ReferenceArea x1={0} x2={2} y1={0} y2={2} fill="#FF0000" fillOpacity={0.15} />
+              <ReferenceArea x1={2} x2={8} y1={2} y2={8} fill="#F5F5DC" fillOpacity={0.45} />
+              <ReferenceArea x1={8} x2={10} y1={8} y2={10} fill="#00FF00" fillOpacity={0.15} />
 
               {/* Grid Lines */}
               <ReferenceLine x={2} stroke="#ccc" strokeDasharray="5 5" />
@@ -335,7 +335,7 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
                   <Scatter 
                     key={`scatter-${index}`}
                     data={[entry]} 
-                    shape={(props: any) => <CustomArrow {...props} company_type={entry.company_type} />}
+                    shape={(props: any) => <CustomArrow {...props} company_type={entry.company_type} fill={getStatusColor(entry.status)} />}
                   />
                 ))}
               </Scatter>

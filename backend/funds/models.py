@@ -253,8 +253,8 @@ class RiskAssessment(models.Model):
     fund = models.ForeignKey(Fund, on_delete=models.CASCADE, related_name="risk_assessments")
     company_name = models.CharField(max_length=255)
     
-    execution_capacity_score = models.DecimalField(max_digits=4, decimal_places=2, default=5.00)
-    market_validation_score = models.DecimalField(max_digits=4, decimal_places=2, default=5.00)
+    execution_capacity_score = models.DecimalField(max_digits=4, decimal_places=2, default=0.00)
+    market_validation_score = models.DecimalField(max_digits=4, decimal_places=2, default=0.00)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ON_TRACK')
     
     created_at = models.DateTimeField(auto_now_add=True)
