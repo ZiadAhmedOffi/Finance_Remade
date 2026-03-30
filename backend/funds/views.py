@@ -1190,7 +1190,7 @@ class FundPerformanceView(APIView):
                 # "appreciation_of_current_after_cutoff": row["appreciation_current"] if year > current_year else 0, # Removed as per user request
                 "cumulative_injection_no_prognosis": cum_inj_no_p,
                 "cumulative_injection_with_prognosis": cum_inj_with_p,
-                "total_portfolio_value_no_prognosis": row["total_portfolio_value_with_prognosis"] # Approximation
+                "total_portfolio_value_no_prognosis": row["total_portfolio_value_with_prognosis"] - row["injection_prognosis"] - row["appreciation_prognosis"], # Portfolio Value (No Future Deals) calculation
             })
 
         # Exits Cases

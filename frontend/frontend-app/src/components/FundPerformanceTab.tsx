@@ -264,8 +264,8 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
               {dashboard.performance_table.map((row) => (
                 <tr key={row.year} style={row.year === currentYear ? {backgroundColor: '#f1f5f9', fontWeight: 'bold'} : {}}>
                   <td>{row.year} {row.year === currentYear && "(Current)"}</td>
-                  <td>{formatCurrencyLong(row.injection_current + row.injection_of_current_after_cutoff)}</td>
-                  <td>{formatCurrencyLong(row.appreciation_current + row.appreciation_of_current_after_cutoff)}</td>
+                  <td>{formatCurrencyLong(row.injection_current)}</td>
+                  <td>{formatCurrencyLong(row.appreciation_current)}</td>
                   <td>{formatCurrencyLong(row.injection_prognosis)}</td>
                   <td>{formatCurrencyLong(row.appreciation_prognosis)}</td>
                   <td>{formatCurrencyLong(row.total_portfolio_value_with_prognosis)}</td>
