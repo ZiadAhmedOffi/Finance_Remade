@@ -12,7 +12,8 @@ import {
   ReferenceArea,
   ReferenceLine,
   Label,
-  Cell
+  Cell,
+  LabelList
 } from 'recharts';
 import { fundsApi } from '../api/api';
 
@@ -40,6 +41,29 @@ const STATUS_OPTIONS = [
 const getStatusColor = (status: string) => {
   const option = STATUS_OPTIONS.find(o => o.value === status);
   return option ? option.color : '#6c757d';
+};
+
+// Custom Label component for company names
+const CustomLabel = (props: any) => {
+  const { x, y, value } = props;
+  return (
+    <text
+      x={x}
+      y={y}
+      dy={-15}
+      textAnchor="middle"
+      fill="#000"
+      style={{ 
+        fontSize: '11px', 
+        fontWeight: '700',
+        paintOrder: 'stroke',
+        stroke: '#ffffff',
+        strokeWidth: '4px',
+      }}
+    >
+      {value}
+    </text>
+  );
 };
 
 // Custom Arrow Icons based on Company Type
@@ -235,7 +259,7 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
         
         <div style={{ width: '100%', height: 600, position: 'relative' }}>
           <ResponsiveContainer>
-            <ScatterChart margin={{ top: 20, right: 30, bottom: 60, left: 60 }}>
+            <ScatterChart margin={{ top: 40, right: 30, bottom: 60, left: 60 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
               
               {/* Background Color Zones */}
@@ -320,24 +344,27 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
                 }}
               />
               
-              <Scatter name="Portfolio Companies" data={assessments}>
+              <Scatter 
+                name="Portfolio Companies" 
+                data={assessments}
+                shape={(props: any) => (
+                  <CustomArrow 
+                    {...props} 
+                    company_type={props.payload.company_type} 
+                    fill={getStatusColor(props.payload.status)} 
+                  />
+                )}
+              >
                 {assessments.map((entry, index) => (
                   <Cell 
                     key={`cell-${index}`} 
                     fill={getStatusColor(entry.status)} 
                   />
                 ))}
-                {/* 
-                  Passing custom components to Scatter is tricky with Recharts if we want dynamic shape.
-                  We use shape property which can be a function or component.
-                */}
-                {assessments.map((entry, index) => (
-                  <Scatter 
-                    key={`scatter-${index}`}
-                    data={[entry]} 
-                    shape={(props: any) => <CustomArrow {...props} company_type={entry.company_type} fill={getStatusColor(entry.status)} />}
-                  />
-                ))}
+                <LabelList 
+                  dataKey="company_name" 
+                  content={<CustomLabel />}
+                />
               </Scatter>
             </ScatterChart>
           </ResponsiveContainer>
