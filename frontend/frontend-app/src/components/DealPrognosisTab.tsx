@@ -116,15 +116,6 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
     }));
   };
 
-  // Helper to get parent options
-  const getParentOptions = () => {
-    return deals.filter(d => 
-      !d.is_pro_rata && 
-      d.company_name.toLowerCase() === formData.company_name.toLowerCase() &&
-      d.id !== editingDeal?.id
-    );
-  };
-
   /* --- Data Processing for Analytics --- */
 
   // 1. Group deals by company type for Pie Chart
