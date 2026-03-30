@@ -12,9 +12,11 @@ from .serializers import (
     CurrentDealSerializer,
     InvestmentRoundSerializer,
     InvestorActionSerializer,
-    RiskAssessmentSerializer,
-    InvestorActionSerializer
+    RiskAssessmentSerializer
 )
+import math # Import math module
+from django.contrib.auth import get_user_model
+
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -1135,11 +1137,11 @@ class FundPerformanceView(APIView):
                         if deal_obj.entry_year < year <= deal_obj.entry_year + deal_obj.expected_number_of_rounds:
                             p_injection += round_amt
             
-            c_appreciation = current_portfolio_value * safe_c_irr
-            p_appreciation = prognosis_portfolio_value * safe_p_irr
+            c_appreciation = (current_portfolio_value or 0.0) * safe_c_irr
+            p_appreciation = (prognosis_portfolio_value or 0.0) * safe_p_irr
             
-            current_portfolio_value += c_injection + c_appreciation
-            prognosis_portfolio_value += p_injection + p_appreciation
+            current_portfolio_value = max(0.0, current_portfolio_value) + (c_injection or 0.0) + (c_appreciation or 0.0)
+            prognosis_portfolio_value = max(0.0, prognosis_portfolio_value) + (p_injection or 0.0) + (p_appreciation or 0.0)
             
             total_portfolio_value_with_prognosis = current_portfolio_value + prognosis_portfolio_value
             

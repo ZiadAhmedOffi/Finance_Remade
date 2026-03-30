@@ -243,11 +243,6 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
               <ReferenceArea x1={2} x2={8} y1={2} y2={8} fill="#F5DEB3" fillOpacity={0.8} />
               <ReferenceArea x1={8} x2={10} y1={8} y2={10} fill="#90EE90" fillOpacity={0.6} />
 
-              {/* Area Titles */}
-              <Text x={1} y={1} fill="#880000" textAnchor="middle" dominantBaseline="middle" style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>Sunset</Text>
-              <Text x={5} y={5} fill="#885500" textAnchor="middle" dominantBaseline="middle" style={{ fontSize: '1rem', fontWeight: 'bold' }}>High Potential Growth</Text>
-              <Text x={9} y={9} fill="#008800" textAnchor="middle" dominantBaseline="middle" style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>Champions - Exit Track</Text>
-
               {/* Grid Lines */}
               <ReferenceLine x={2} stroke="#ccc" strokeDasharray="5 5" />
               <ReferenceLine x={8} stroke="#ccc" strokeDasharray="5 5" />
