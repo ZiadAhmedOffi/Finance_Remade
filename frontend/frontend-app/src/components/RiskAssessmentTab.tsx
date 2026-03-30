@@ -263,9 +263,24 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
               <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
               
               {/* Background Color Zones */}
-              <ReferenceArea x1={0} x2={2} y1={0} y2={2} fill="#FF6666" fillOpacity={0.6} />
-              <ReferenceArea x1={2} x2={8} y1={2} y2={8} fill="#F5DEB3" fillOpacity={0.8} />
-              <ReferenceArea x1={8} x2={10} y1={8} y2={10} fill="#90EE90" fillOpacity={0.6} />
+              <ReferenceArea 
+                x1={0} x2={2} y1={0} y2={2} 
+                fill="#FF6666" 
+                fillOpacity={0.6} 
+                label={{ value: 'Sunset', position: 'insideTopRight', fill: '#333', fontSize: 14, fontWeight: 'bold', dx: -10, dy: 10 }}
+              />
+              <ReferenceArea 
+                x1={2} x2={8} y1={2} y2={8} 
+                fill="#F5DEB3" 
+                fillOpacity={0.8} 
+                label={{ value: 'High-Growth Potential', position: 'insideTopRight', fill: '#333', fontSize: 14, fontWeight: 'bold', dx: -10, dy: 10 }}
+              />
+              <ReferenceArea 
+                x1={8} x2={10} y1={8} y2={10} 
+                fill="#90EE90" 
+                fillOpacity={0.6} 
+                label={{ value: 'Champions - Exit Track', position: 'insideTopRight', fill: '#333', fontSize: 14, fontWeight: 'bold', dx: -10, dy: 10 }}
+              />
 
               {/* Grid Lines */}
               <ReferenceLine x={2} stroke="#ccc" strokeDasharray="5 5" />
