@@ -105,7 +105,7 @@ const FundCard: React.FC<FundCardProps> = ({ fund }) => {
       start_value: start_value,
       // Combined for simple display if needed, but we prefer stacked
       injection: entry.injection_current + entry.injection_prognosis + entry.injection_of_current_after_cutoff,
-      appreciation: entry.appreciation_current + entry.appreciation_prognosis + entry.appreciation_of_current_after_cutoff
+      appreciation: (entry.appreciation_current ?? 0) + (entry.appreciation_prognosis ?? 0) + (entry.appreciation_of_current_after_cutoff ?? 0)
     };
   }) || [];
 
