@@ -349,6 +349,50 @@
 .alert-mini.success { background: var(--success-bg); color: var(--success); }
 .alert-mini.error { background: var(--error-bg); color: var(--error); }
 
+/* Risk Assessment Tab Styles */
+.risk-assessment-tab .form-input-sm {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1.5px solid var(--border-light);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  outline: none;
+}
+
+.risk-assessment-tab .form-input-sm:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.risk-assessment-tab .tab-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #1e293b;
+  margin-bottom: 1.5rem;
+  border: none;
+  padding: 0;
+}
+
+.risk-assessment-tab .data-table td {
+  padding: 0.75rem 1rem;
+}
+
+.risk-assessment-tab .custom-tooltip {
+  transition: all 0.3s ease;
+}
+
+.risk-assessment-tab select.form-input-sm {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23475569'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 1rem;
+  padding-right: 2rem;
+}
+
 @media (max-width: 1200px) {
   .charts-grid { grid-template-columns: 1fr; }
   .chart-container.wide { grid-column: span 1; }

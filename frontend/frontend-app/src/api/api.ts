@@ -51,6 +51,9 @@ export const fundsApi = {
   deleteInvestmentRound: (fundId: string, roundId: string) => api.delete(`/funds/${fundId}/investment-rounds/${roundId}/`),
   getFundPerformance: (fundId: string) => api.get(`/funds/${fundId}/performance/`),
 
+  getRiskAssessments: (fundId: string) => api.get(`/funds/${fundId}/risk-assessments/`),
+  saveRiskAssessments: (fundId: string, data: any[]) => api.post(`/funds/${fundId}/risk-assessments/`, data),
+
   // Investor Dashboard & Actions
   getInvestors: () => api.get("/funds/investors/"),
   getInvestorActions: () => api.get("/funds/investor-actions/"),

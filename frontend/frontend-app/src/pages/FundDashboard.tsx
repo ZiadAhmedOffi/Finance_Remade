@@ -8,6 +8,7 @@ import DealPrognosisTab from "../components/DealPrognosisTab";
 import FundPerformanceTab from "../components/FundPerformanceTab";
 import AggregatedExitsTab from "../components/AggregatedExitsTab";
 import AdminFeeTab from "../components/AdminFeeTab";
+import RiskAssessmentTab from "../components/RiskAssessmentTab";
 
 interface Fund {
   id: string;
@@ -30,7 +31,7 @@ const FundDashboard: React.FC = () => {
   const { fundId } = useParams<{ fundId: string }>();
   const navigate = useNavigate();
   
-  const [activeTab, setActiveTab] = useState<"model-inputs" | "deals" | "dashboard" | "aggregated-exits" | "admin-fee" | "basic-info" | "logs">("dashboard");
+  const [activeTab, setActiveTab] = useState<"model-inputs" | "deals" | "dashboard" | "aggregated-exits" | "risk" | "admin-fee" | "basic-info" | "logs">("dashboard");
   const [fund, setFund] = useState<Fund | null>(null);
   const [logs, setLogs] = useState<FundLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -130,6 +131,7 @@ const FundDashboard: React.FC = () => {
     { id: "deals", label: "Investment Deals", icon: "🤝" },
     { id: "model-inputs", label: "Model Inputs", icon: "⚙️" },
     { id: "aggregated-exits", label: "Aggregated Exits", icon: "📈" },
+    { id: "risk", label: "Risk Assessment", icon: "⚖️" },
     { id: "admin-fee", label: "Admin Fee", icon: "💰" },
     { id: "basic-info", label: "Basic Info", icon: "ℹ️" },
     ...(canEdit ? [{ id: "logs", label: "Action Logs", icon: "📝" }] : []),
@@ -208,6 +210,10 @@ const FundDashboard: React.FC = () => {
 
           {activeTab === "aggregated-exits" && fundId && (
             <AggregatedExitsTab fundId={fundId} />
+          )}
+
+          {activeTab === "risk" && fundId && (
+            <RiskAssessmentTab fundId={fundId} canEdit={canEdit} />
           )}
 
           {activeTab === "admin-fee" && fundId && (

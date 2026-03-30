@@ -237,6 +237,37 @@ class CurrentDeal(models.Model):
     def __str__(self):
         return f"{self.company_name} (Current) - {self.fund.name}"
 
+class RiskAssessment(models.Model):
+    """
+    Stores risk assessment metrics for a portfolio company within a fund.
+    Used for the Risk Assessment Tab.
+    """
+    STATUS_CHOICES = [
+        ('MONETIZE', 'Monetize'),
+        ('ON_TRACK', 'On-Track'),
+        ('RESTRUCTURE', 'Restructure'),
+        ('SHUTDOWN', 'Shutdown'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    fund = models.ForeignKey(Fund, on_delete=models.CASCADE, related_name="risk_assessments")
+    company_name = models.CharField(max_length=255)
+    
+    execution_capacity_score = models.DecimalField(max_digits=4, decimal_places=2, default=5.00)
+    market_validation_score = models.DecimalField(max_digits=4, decimal_places=2, default=5.00)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ON_TRACK')
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('fund', 'company_name')
+        verbose_name = "Risk Assessment"
+        verbose_name_plural = "Risk Assessments"
+
+    def __str__(self):
+        return f"Risk Assessment: {self.company_name} ({self.fund.name})"
+
 class InvestmentRound(models.Model):
     """
     Represents an investment round for a company in a fund.

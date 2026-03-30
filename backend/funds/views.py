@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
-from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound
+from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, InvestorAction, RiskAssessment
 from .serializers import (
     FundSerializer, 
     FundLogSerializer, 
@@ -11,9 +11,10 @@ from .serializers import (
     InvestmentDealSerializer,
     CurrentDealSerializer,
     InvestmentRoundSerializer,
+    InvestorActionSerializer,
+    RiskAssessmentSerializer,
     InvestorActionSerializer
 )
-from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, InvestorAction
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -801,7 +802,53 @@ class InvestmentRoundDetailView(APIView):
         return Response({"message": "Round deleted."}, status=status.HTTP_200_OK)
 
 
+class RiskAssessmentListView(APIView):
+    """
+    Handles listing and upserting risk assessments for a specific fund.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, fund_id):
+        fund = get_object_or_404(Fund, id=fund_id)
+        if not PermissionService.can_view_fund(request.user, fund):
+            return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+
+        assessments = fund.risk_assessments.all()
+        serializer = RiskAssessmentSerializer(assessments, many=True)
+        return Response(serializer.data)
+
+    def post(self, request, fund_id):
+        fund = get_object_or_404(Fund, id=fund_id)
+        if not PermissionService.can_edit_fund(request.user, fund):
+            return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+
+        data = request.data
+        if not isinstance(data, list):
+            data = [data]
+
+        results = []
+        for item in data:
+            company_name = item.get("company_name")
+            if not company_name:
+                continue
+
+            assessment, created = RiskAssessment.objects.update_or_create(
+                fund=fund,
+                company_name=company_name,
+                defaults={
+                    "execution_capacity_score": item.get("execution_capacity_score", 5.0),
+                    "market_validation_score": item.get("market_validation_score", 5.0),
+                    "status": item.get("status", "ON_TRACK")
+                }
+            )
+            serializer = RiskAssessmentSerializer(assessment)
+            results.append(serializer.data)
+
+        return Response(results, status=status.HTTP_200_OK)
+
+
 class FundListView(APIView):
+
     """
     Lists funds accessible to the user or creates new funds (Super Admin only).
     """

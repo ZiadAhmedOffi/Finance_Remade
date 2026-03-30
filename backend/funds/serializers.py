@@ -1,6 +1,6 @@
 import math
 from rest_framework import serializers
-from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound
+from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, RiskAssessment
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -398,6 +398,21 @@ class FundLogSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "actor", "actor_email", "target_fund", "target_fund_name", "timestamp"]
 
 from .models import InvestorAction
+
+class RiskAssessmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RiskAssessment
+        fields = [
+            "id",
+            "fund",
+            "company_name",
+            "execution_capacity_score",
+            "market_validation_score",
+            "status",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "fund", "created_at", "updated_at"]
 
 class InvestorActionSerializer(serializers.ModelSerializer):
     investor_email = serializers.EmailField(source="investor.email", read_only=True)

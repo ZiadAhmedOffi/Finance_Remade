@@ -14,7 +14,8 @@ from .views import (
     InvestorListView,
     InvestorActionListView,
     InvestorActionDetailView,
-    InvestorDashboardView
+    InvestorDashboardView,
+    RiskAssessmentListView
 )
 
 urlpatterns = [
@@ -25,7 +26,9 @@ urlpatterns = [
     path("<uuid:fund_id>/deals/", InvestmentDealListView.as_view(), name="fund-deals"),
     path("<uuid:fund_id>/deals/<uuid:deal_id>/", InvestmentDealDetailView.as_view(), name="fund-deal-detail"),
     path("<uuid:fund_id>/current-deals/", CurrentDealListView.as_view(), name="fund-current-deals"),
-    path("<uuid:fund_id>/current-deals/<uuid:deal_id>/", CurrentDealDetailView.as_view(), name="fund-current-deal-detail"),
+    path("<uuid:fund_id>/current-deals/<uuid:deal_id>/", CurrentDealDetailView.as_view(), name="current-deal-detail"),
+    path("<uuid:fund_id>/risk-assessments/", RiskAssessmentListView.as_view(), name="risk-assessment-list"),
+
     path("<uuid:fund_id>/investment-rounds/", InvestmentRoundListView.as_view(), name="fund-investment-rounds"),
     path("<uuid:fund_id>/investment-rounds/<uuid:round_id>/", InvestmentRoundDetailView.as_view(), name="fund-investment-round-detail"),
     path("<uuid:fund_id>/performance/", FundPerformanceView.as_view(), name="fund-performance"),
