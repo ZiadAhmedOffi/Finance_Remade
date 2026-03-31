@@ -9,6 +9,7 @@ import FundPerformanceTab from "../components/FundPerformanceTab";
 import AggregatedExitsTab from "../components/AggregatedExitsTab";
 import AdminFeeTab from "../components/AdminFeeTab";
 import RiskAssessmentTab from "../components/RiskAssessmentTab";
+import InvestorLogTab from "../components/InvestorLogTab";
 
 interface Fund {
   id: string;
@@ -31,7 +32,7 @@ const FundDashboard: React.FC = () => {
   const { fundId } = useParams<{ fundId: string }>();
   const navigate = useNavigate();
   
-  const [activeTab, setActiveTab] = useState<"model-inputs" | "deals" | "dashboard" | "aggregated-exits" | "risk" | "admin-fee" | "basic-info" | "logs">("dashboard");
+  const [activeTab, setActiveTab] = useState<"model-inputs" | "deals" | "dashboard" | "aggregated-exits" | "risk" | "admin-fee" | "basic-info" | "logs" | "investor-log">("dashboard");
   const [fund, setFund] = useState<Fund | null>(null);
   const [logs, setLogs] = useState<FundLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -132,6 +133,7 @@ const FundDashboard: React.FC = () => {
     { id: "model-inputs", label: "Model Inputs", icon: "⚙️" },
     { id: "aggregated-exits", label: "Aggregated Exits", icon: "📈" },
     { id: "risk", label: "Risk Assessment", icon: "⚖️" },
+    ...(canEdit ? [{ id: "investor-log", label: "Investor Log", icon: "📋" }] : []),
     { id: "admin-fee", label: "Admin Fee", icon: "💰" },
     { id: "basic-info", label: "Basic Info", icon: "ℹ️" },
     ...(canEdit ? [{ id: "logs", label: "Action Logs", icon: "📝" }] : []),
@@ -215,11 +217,12 @@ const FundDashboard: React.FC = () => {
           {activeTab === "risk" && fundId && (
             <RiskAssessmentTab fundId={fundId} canEdit={canEdit} />
           )}
-
+          {activeTab === "investor-log" && canEdit && fundId && (
+            <InvestorLogTab fundId={fundId} />
+          )}
           {activeTab === "admin-fee" && fundId && (
             <AdminFeeTab fundId={fundId} />
           )}
-
           {activeTab === "basic-info" && (
             <section className="basic-info-tab">
               <div className="content-card">
@@ -261,7 +264,7 @@ const FundDashboard: React.FC = () => {
                   </div>
                 )}
               </div>
-              
+
               <div className="content-card">
                 <div className="sc-display">
                   <h3>Steering Committee</h3>
@@ -279,6 +282,7 @@ const FundDashboard: React.FC = () => {
               </div>
             </section>
           )}
+
 
           {activeTab === "logs" && canEdit && (
             <section className="logs-section content-card">

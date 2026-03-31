@@ -53,6 +53,7 @@ export const fundsApi = {
 
   getRiskAssessments: (fundId: string) => api.get(`/funds/${fundId}/risk-assessments/`),
   saveRiskAssessments: (fundId: string, data: any[]) => api.post(`/funds/${fundId}/risk-assessments/`, data),
+  getInvestorLog: (fundId: string) => api.get(`/funds/${fundId}/investor-log/`),
 
   // Investor Dashboard & Actions
   getInvestors: () => api.get("/funds/investors/"),
