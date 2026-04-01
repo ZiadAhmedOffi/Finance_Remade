@@ -366,9 +366,10 @@ class FundSerializer(serializers.ModelSerializer):
             "created_by_email",
             "created_at",
             "status",
+            "total_units",
             "steering_committee",
         ]
-        read_only_fields = ["created_by", "created_at"]
+        read_only_fields = ["created_by", "created_at", "total_units"]
 
     def get_steering_committee(self, obj):
         from users.models import UserRoleAssignment
@@ -417,6 +418,8 @@ class RiskAssessmentSerializer(serializers.ModelSerializer):
 class InvestorActionSerializer(serializers.ModelSerializer):
     investor_email = serializers.EmailField(source="investor.email", read_only=True)
     fund_name = serializers.CharField(source="fund.name", read_only=True)
+    investor_selling_email = serializers.EmailField(source="investor_selling.email", read_only=True)
+    investor_sold_to_email = serializers.EmailField(source="investor_sold_to.email", read_only=True)
 
     class Meta:
         model = InvestorAction
@@ -429,20 +432,27 @@ class InvestorActionSerializer(serializers.ModelSerializer):
             "type",
             "year",
             "amount",
+            "percentage_sold",
+            "discount_percentage",
+            "investor_selling",
+            "investor_selling_email",
+            "investor_sold_to",
+            "investor_sold_to_email",
+            "units",
             "original_value",
             "exit_value",
             "created_at",
         ]
-        read_only_fields = ["id", "created_at"]
+        read_only_fields = ["id", "created_at", "units"]
 
     def validate(self, data):
         action_type = data.get("type")
-        if action_type == "CAPITAL_INVESTMENT":
+        if action_type in ["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT"]:
             if data.get("amount") is None:
-                raise serializers.ValidationError({"amount": "Amount is required for capital investment."})
+                raise serializers.ValidationError({"amount": "Amount is required for investment."})
         elif action_type == "SECONDARY_EXIT":
-            if data.get("original_value") is None:
-                raise serializers.ValidationError({"original_value": "Original value is required for secondary exit."})
-            if data.get("exit_value") is None:
-                raise serializers.ValidationError({"exit_value": "Exit value is required for secondary exit."})
+            if data.get("percentage_sold") is None:
+                raise serializers.ValidationError({"percentage_sold": "Percentage sold is required for secondary exit."})
+            if data.get("investor_selling") is None:
+                raise serializers.ValidationError({"investor_selling": "Investor selling is required for secondary exit."})
         return data

@@ -3,6 +3,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
+from django.db import transaction
+from .logic import get_total_fund_portfolio, get_total_units_at_year
 from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, InvestorAction, RiskAssessment
 from .serializers import (
     FundSerializer, 
@@ -62,27 +64,100 @@ class InvestorActionListView(APIView):
         if not PermissionService.is_super_admin(request.user):
             return Response({"error": "Only super admins can create investor actions."}, status=status.HTTP_403_FORBIDDEN)
         
-        serializer = InvestorActionSerializer(data=request.data)
-        if serializer.is_valid():
-            action = serializer.save()
-            
-            # Log the change
-            FundLog.objects.create(
-                actor=request.user,
-                target_fund=action.fund,
-                action="INVESTOR_ACTION_CREATED",
-                metadata={"action_id": str(action.id), "type": action.type, "investor": action.investor.email}
-            )
-            AuditService.log(
-                actor=request.user,
-                action="INVESTOR_ACTION_CREATED",
-                fund=action.fund,
-                target_user=action.investor,
-                metadata={"action_id": str(action.id), "type": action.type},
-                ip=request.META.get("REMOTE_ADDR")
-            )
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            serializer = InvestorActionSerializer(data=request.data)
+            if serializer.is_valid():
+                fund = serializer.validated_data["fund"]
+                action_type = serializer.validated_data["type"]
+                year = serializer.validated_data["year"]
+                amount = float(serializer.validated_data.get("amount", 0.0) or 0.0)
+                
+                if action_type == "PRIMARY_INVESTMENT":
+                    # Check if this is the first primary investment for this fund
+                    is_first = not InvestorAction.objects.filter(fund=fund, type="PRIMARY_INVESTMENT").exists()
+                    if is_first:
+                        units = amount
+                    else:
+                        # end of previous year
+                        prev_year_portfolio = get_total_fund_portfolio(fund, year - 1)
+                        prev_year_units = get_total_units_at_year(fund, year - 1)
+                        if prev_year_units > 0 and prev_year_portfolio > 0:
+                            units = amount / (prev_year_portfolio / prev_year_units)
+                        else:
+                            # Fallback if no units/portfolio exist (shouldn't happen if is_first is False, but good for safety)
+                            units = amount 
+                    
+                    action = serializer.save(units=units)
+                    # Update fund total units
+                    fund.total_units = float(fund.total_units) + units
+                    fund.save()
+
+                elif action_type == "SECONDARY_EXIT":
+                    seller = serializer.validated_data["investor_selling"]
+                    buyer = serializer.validated_data["investor_sold_to"]
+                    pct_sold = float(serializer.validated_data["percentage_sold"])
+                    discount = float(serializer.validated_data.get("discount_percentage", 0.0) or 0.0)
+                    
+                    # Calculate seller's current units to verify ownership
+                    seller_actions = InvestorAction.objects.filter(fund=fund, investor=seller)
+                    seller_units = 0.0
+                    for a in seller_actions:
+                        if a.type in ["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT"]:
+                            seller_units += float(a.units)
+                        elif a.type == "SECONDARY_EXIT":
+                            seller_units -= float(a.units)
+                    
+                    total_units_at_exit_year = get_total_units_at_year(fund, year)
+                    if total_units_at_exit_year == 0:
+                         total_units_at_exit_year = float(fund.total_units)
+
+                    # Calculate units transferred
+                    units_transferred = (pct_sold / 100.0) * total_units_at_exit_year
+                    
+                    if units_transferred > seller_units + 0.0001: # Add small epsilon for float precision
+                         return Response({"error": f"Units to sell ({units_transferred:.4f}) exceed seller units ({seller_units:.4f})."}, status=status.HTTP_400_BAD_REQUEST)
+
+                    # Calculate price sold at
+                    portfolio_at_year = get_total_fund_portfolio(fund, year)
+                    price = (pct_sold / 100.0) * portfolio_at_year * (1 - (discount / 100.0))
+                    
+                    # Save the secondary exit action (seller)
+                    action = serializer.save(units=units_transferred, amount=price)
+                    
+                    # Also create a SECONDARY_INVESTMENT for the buyer (if buyer is specified)
+                    if buyer:
+                        InvestorAction.objects.create(
+                            investor=buyer,
+                            fund=fund,
+                            type="SECONDARY_INVESTMENT",
+                            year=year,
+                            amount=price,
+                            percentage_sold=pct_sold,
+                            discount_percentage=discount,
+                            investor_selling=seller,
+                            units=units_transferred
+                        )
+
+                else: # SECONDARY_INVESTMENT or others
+                    action = serializer.save()
+
+                # Log the change
+                FundLog.objects.create(
+                    actor=request.user,
+                    target_fund=action.fund,
+                    action="INVESTOR_ACTION_CREATED",
+                    metadata={"action_id": str(action.id), "type": action.type, "investor": action.investor.email}
+                )
+                AuditService.log(
+                    actor=request.user,
+                    action="INVESTOR_ACTION_CREATED",
+                    fund=action.fund,
+                    target_user=action.investor,
+                    metadata={"action_id": str(action.id), "type": action.type},
+                    ip=request.META.get("REMOTE_ADDR")
+                )
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class InvestorActionDetailView(APIView):
     """
@@ -128,6 +203,12 @@ class InvestorActionDetailView(APIView):
         investor_email = action.investor.email
         fund = action.fund
         target_user = action.investor
+        
+        # If primary investment, reduce fund total units
+        if action.type == "PRIMARY_INVESTMENT":
+            fund.total_units = float(fund.total_units) - float(action.units)
+            fund.save()
+            
         action.delete()
         
         # Log the change
@@ -170,63 +251,46 @@ class InvestorDashboardView(APIView):
                 fund_data[fund_id] = {
                     "fund": action.fund,
                     "investments": [],
-                    "exits": []
+                    "exits": [],
+                    "units": 0.0,
+                    "net_deployed": 0.0
                 }
-            if action.type == "CAPITAL_INVESTMENT":
+            if action.type in ["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT"]:
                 fund_data[fund_id]["investments"].append(action)
-            else:
+                fund_data[fund_id]["units"] += float(action.units)
+                fund_data[fund_id]["net_deployed"] += float(action.amount or 0)
+            elif action.type == "SECONDARY_EXIT":
                 fund_data[fund_id]["exits"].append(action)
+                fund_data[fund_id]["units"] -= float(action.units)
+                fund_data[fund_id]["net_deployed"] -= float(action.amount or 0)
 
         total_capital_deployed = 0.0
-        total_realized_gains = 0.0
-        total_original_value_exited = 0.0
-        total_exit_value = 0.0
         total_current_portfolio_value = 0.0
         
         portfolio_table = []
         pie_chart_data = []
 
-        # We need fund performance to get IRRs and current values
+        # We need fund performance to get current values
         for fund_id, data in fund_data.items():
             fund = data["fund"]
-            investments = data["investments"]
-            exits = data["exits"]
             
-            fund_invested = sum(float(i.amount) for i in investments)
-            fund_exits_original = sum(float(e.original_value) for e in exits)
-            fund_exits_value = sum(float(e.exit_value) for e in exits)
-            
-            net_fund_deployed = fund_invested - fund_exits_value
-            total_capital_deployed += net_fund_deployed
-            
-            fund_realized_gain = fund_exits_value - fund_exits_original
-            total_realized_gains += fund_realized_gain
-            total_original_value_exited += fund_exits_original
-            total_exit_value += fund_exits_value
-            
-            # Remaining cost basis for this investor in this fund
-            remaining_cost_basis = fund_invested - fund_exits_original
+            total_capital_deployed += data["net_deployed"]
             
             # Calculate ownership in the fund
-            fund_total_invested = sum(d.amount_invested for d in fund.current_deals.all())
-            fund_total_current_val = 0.0
+            total_fund_units = float(fund.total_units)
+            ownership_pct = (data["units"] / total_fund_units * 100.0) if total_fund_units > 0 else 0.0
             
-            c_deal_serializer = CurrentDealSerializer(fund.current_deals.all(), many=True)
-            for d in c_deal_serializer.data:
-                fund_total_current_val += float(d["final_exit_amount"])
+            # Get current fund portfolio value
+            current_fund_val = get_total_fund_portfolio(fund, datetime.now().year)
             
-            ownership_pct = 0.0
-            if fund_total_invested > 0:
-                ownership_pct = (remaining_cost_basis / float(fund_total_invested)) * 100.0
-            
-            current_val_in_fund = (ownership_pct / 100.0) * fund_total_current_val
+            current_val_in_fund = (ownership_pct / 100.0) * current_fund_val
             total_current_portfolio_value += current_val_in_fund
             
             portfolio_table.append({
                 "fund_name": fund.name,
                 "ownership_pct": ownership_pct,
                 "current_value": current_val_in_fund,
-                "net_deployed": net_fund_deployed
+                "net_deployed": data["net_deployed"]
             })
             
             pie_chart_data.append({
@@ -236,10 +300,6 @@ class InvestorDashboardView(APIView):
 
         unrealized_gains = total_current_portfolio_value - total_capital_deployed
         
-        realized_multiple = 0.0
-        if total_original_value_exited > 0:
-            realized_multiple = total_exit_value / total_original_value_exited
-            
         unrealized_multiple = 0.0
         if total_capital_deployed > 0:
             unrealized_multiple = total_current_portfolio_value / total_capital_deployed
@@ -255,51 +315,36 @@ class InvestorDashboardView(APIView):
             
             line_graph_data = []
             
-            # For each year, we need to calculate the portfolio value
-            # by summing the investor's ownership value in each fund at that point.
-            # Pre-calculate fund performance tables
-            fund_performance_tables = {}
-            for fid, f_data in fund_data.items():
-                perf_table, _ = FundPerformanceView.get_performance_table(f_data["fund"])
-                if perf_table:
-                    # Map by year for easy access
-                    fund_performance_tables[fid] = {row["year"]: row for row in perf_table}
-
             for yr in range(start_year, end_year + 1):
                 yr_total_value = 0.0
                 yr_total_injection = 0.0
                 
                 for fid, f_data in fund_data.items():
                     fund = f_data["fund"]
-                    # 1. Total capital invested by investor in this fund UP TO yr (cost basis)
-                    f_invested_up_to_yr = sum(float(i.amount) for i in f_data["investments"] if i.year <= yr)
-                    f_exits_orig_up_to_yr = sum(float(e.original_value) for e in f_data["exits"] if e.year <= yr)
                     
-                    remaining_basis = f_invested_up_to_yr - f_exits_orig_up_to_yr
-                    if remaining_basis < 0: remaining_basis = 0
+                    # Investor units in this fund at the end of yr
+                    actions_up_to_yr = InvestorAction.objects.filter(investor=investor, fund=fund, year__lte=yr)
+                    f_units_at_yr = 0.0
+                    for a in actions_up_to_yr:
+                        if a.type in ["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT"]:
+                            f_units_at_yr += float(a.units)
+                        elif a.type == "SECONDARY_EXIT":
+                            f_units_at_yr -= float(a.units)
                     
-                    # 2. Fund state at yr from pre-calculated performance table
-                    fund_perf = fund_performance_tables.get(fid, {}).get(yr)
-                    if fund_perf:
-                        fund_total_val_at_yr = float(fund_perf["total_portfolio_value_with_prognosis"])
-                        
-                        # Calculate total fund invested (cost basis) up to that year to determine ownership
-                        # We need to sum up all injections in the fund performance table up to that year
-                        fund_perf_table = fund_performance_tables.get(fid, {})
-                        fund_total_invested_at_yr = sum(
-                            float(fund_perf_table[y]["injection_current"] + fund_perf_table[y]["injection_prognosis"])
-                            for y in range(min(fund_perf_table.keys()), yr + 1)
-                        )
-                        
-                        f_ownership_pct_at_yr = 0.0
-                        if fund_total_invested_at_yr > 0:
-                            f_ownership_pct_at_yr = (remaining_basis / fund_total_invested_at_yr) * 100.0
-                        
-                        yr_total_value += (f_ownership_pct_at_yr / 100.0) * fund_total_val_at_yr
+                    total_fund_units_at_yr = get_total_units_at_year(fund, yr)
                     
-                    # Tracking injections for this year specifically for the table
-                    yr_total_injection += sum(float(i.amount) for i in f_data["investments"] if i.year == yr)
-                    yr_total_injection -= sum(float(e.exit_value) for e in f_data["exits"] if e.year == yr)
+                    f_ownership_pct_at_yr = (f_units_at_yr / total_fund_units_at_yr * 100.0) if total_fund_units_at_yr > 0 else 0.0
+                    
+                    fund_val_at_yr = get_total_fund_portfolio(fund, yr)
+                    yr_total_value += (f_ownership_pct_at_yr / 100.0) * fund_val_at_yr
+                    
+                    # Tracking injections for this year specifically
+                    actions_this_yr = InvestorAction.objects.filter(investor=investor, fund=fund, year=yr)
+                    for a in actions_this_yr:
+                        if a.type in ["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT"]:
+                            yr_total_injection += float(a.amount or 0)
+                        elif a.type == "SECONDARY_EXIT":
+                            yr_total_injection -= float(a.amount or 0)
 
                 prev_val = line_graph_data[-1]["value"] if line_graph_data else 0
                 yoy_gain = 0.0
@@ -310,15 +355,15 @@ class InvestorDashboardView(APIView):
                     "year": yr,
                     "value": yr_total_value,
                     "injection": yr_total_injection,
-                    "yoy_gain": yoy_gain if line_graph_data else None # N/A for first year
+                    "yoy_gain": yoy_gain if line_graph_data else None
                 })
 
         return Response({
             "metrics": {
                 "total_capital_deployed": total_capital_deployed,
-                "realized_gains": total_realized_gains,
+                "realized_gains": 0.0, # Simple dashboard for now
                 "unrealized_gains": unrealized_gains,
-                "realized_multiple": realized_multiple,
+                "realized_multiple": 0.0,
                 "unrealized_multiple": unrealized_multiple,
             },
             "portfolio": portfolio_table,
@@ -1094,7 +1139,7 @@ class FundPerformanceView(APIView):
         p_net_to_investors = gross_exit_value - (p_total_fees + p_carry_amount)
         p_real_moic = p_net_to_investors / total_invested_float if total_invested_float > 0 else 0
         
-        p_wait = calculate_wait_time(inception_year, current_year, total_invested_float, p_injections_by_year)
+        p_wait = calculate_wait_time(current_year, (current_year + int(model_inputs.fund_life)), total_invested_float, p_injections_by_year)
         irr = calculate_irr(moic, p_wait)
 
         # 2. Current Deals Metrics (Past Only)

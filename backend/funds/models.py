@@ -30,6 +30,7 @@ class Fund(models.Model):
         default="FUTURE", 
         db_index=True
     )
+    total_units = models.DecimalField(max_digits=30, decimal_places=4, default=0.0000)
 
     class Meta:
         ordering = ["-created_at"]
@@ -340,10 +341,11 @@ class InvestmentRound(models.Model):
 
 class InvestorAction(models.Model):
     """
-    Represents an action associated with an investor (Capital Investment or Secondary Exit).
+    Represents an action associated with an investor (Primary/Secondary Investment or Secondary Exit).
     """
     TYPE_CHOICES = [
-        ("CAPITAL_INVESTMENT", "Capital Investment"),
+        ("PRIMARY_INVESTMENT", "Primary Investment"),
+        ("SECONDARY_INVESTMENT", "Secondary Investment"),
         ("SECONDARY_EXIT", "Secondary Exit"),
     ]
 
@@ -358,15 +360,37 @@ class InvestorAction(models.Model):
         on_delete=models.CASCADE,
         related_name="investor_actions"
     )
-    type = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    type = models.CharField(max_length=30, choices=TYPE_CHOICES)
     year = models.PositiveIntegerField()
     
-    # For Capital Investment
-    amount = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    # Amount for Primary/Secondary Investment or Price Sold At for Secondary Exit
+    amount = models.DecimalField(max_digits=30, decimal_places=2, null=True, blank=True)
     
     # For Secondary Exit
-    original_value = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
-    exit_value = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    percentage_sold = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
+    discount_percentage = models.DecimalField(max_digits=10, decimal_places=4, default=0.0000)
+    
+    investor_selling = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="investor_sales"
+    )
+    investor_sold_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="investor_purchases"
+    )
+    
+    # Stores units involved in the action
+    units = models.DecimalField(max_digits=30, decimal_places=4, default=0.0000)
+    
+    # Kept for backward compatibility if needed, though replaced by 'amount' logic
+    original_value = models.DecimalField(max_digits=30, decimal_places=2, null=True, blank=True)
+    exit_value = models.DecimalField(max_digits=30, decimal_places=2, null=True, blank=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
 
