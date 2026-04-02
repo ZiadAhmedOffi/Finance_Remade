@@ -38,6 +38,7 @@ interface InvestorLogData {
     year: number;
     total_capital_invested: number;
     total_capital_required: number;
+    portfolio_value: number;
   }[];
   actions: InvestorAction[];
   total_units: number;
@@ -100,7 +101,7 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
     try {
       if (data?.graph_data) {
         const yearData = data.graph_data.find(d => d.year === year);
-        const portfolioVal = yearData ? yearData.total_capital_invested + yearData.total_capital_required : 0;
+        const portfolioVal = yearData ? (yearData.portfolio_value || 0) : 0;
         setFundPortfolioValue(portfolioVal);
       } else {
         setFundPortfolioValue(0);
@@ -117,12 +118,12 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
     fetchInvestors();
   }, [fundId]);
 
-  // Fetch portfolio value when data loads or year changes
+  // Fetch portfolio value when data loads or year changes (using year - 1 for calculations)
   useEffect(() => {
-    fetchFundPortfolioValue(formData.year);
+    fetchFundPortfolioValue(formData.year - 1);
   }, [data, formData.year, fetchFundPortfolioValue]);
 
-  // Update price when percentage or discount changes for SECONDARY_EXIT
+  // Update price when fundPortfolioValue changes (e.g. year change)
   useEffect(() => {
     if (formData.type === "SECONDARY_EXIT" && formData.percentage_sold && formData.discount_percentage) {
       const percentage = parseFloat(formData.percentage_sold);
@@ -130,10 +131,10 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
       
       if (!isNaN(percentage) && !isNaN(discount) && !isNaN(fundPortfolioValue)) {
         const calculatedPrice = calculatePriceSoldAt(percentage, fundPortfolioValue, discount);
-        setFormData(prev => ({ ...prev, amount: calculatedPrice.toString() }));
+        setFormData(prev => ({ ...prev, amount: calculatedPrice.toFixed(2) }));
       }
     }
-  }, [formData.type, formData.percentage_sold, formData.discount_percentage, fundPortfolioValue]);
+  }, [fundPortfolioValue]);
 
 
   if (loading) return <div className="p-4 text-gray-400">Loading investor log...</div>;
@@ -174,30 +175,45 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => {
+      const nextState = { ...prev, [name]: value };
+      
+      // Automatically update amount if percentage, discount OR year changes for SECONDARY_EXIT
+      if (nextState.type === "SECONDARY_EXIT" && (name === "percentage_sold" || name === "discount_percentage" || name === "year")) {
+        const percentage = parseFloat(nextState.percentage_sold);
+        const discount = parseFloat(nextState.discount_percentage);
+        
+        if (!isNaN(percentage) && !isNaN(discount) && !isNaN(fundPortfolioValue)) {
+          const calculatedPrice = calculatePriceSoldAt(percentage, fundPortfolioValue, discount);
+          nextState.amount = calculatedPrice.toFixed(2);
+        }
+      }
+      return nextState;
+    });
   };
 
   // Update discount when price sold at changes for SECONDARY_EXIT
   const handlePriceSoldAtChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newPriceStr = e.target.value;
-    setFormData(prev => ({ ...prev, amount: newPriceStr })); // Update amount field
-
     const newPrice = parseFloat(newPriceStr);
-    if (formData.type === "SECONDARY_EXIT" && formData.percentage_sold && !isNaN(newPrice) && !isNaN(fundPortfolioValue)) {
-      const percentage = parseFloat(formData.percentage_sold);
-      const portfolio = fundPortfolioValue;
+    
+    setFormData(prev => {
+      const nextState = { ...prev, amount: newPriceStr };
       
-      if (percentage > 0 && portfolio > 0) {
-        // Calculate discount: 1 - (price / (percentage * portfolio))
-        const calculatedDiscount = 1 - (newPrice / (percentage * portfolio));
-        // Ensure discount is not negative (e.g., if price exceeds expected)
-        const clampedDiscount = Math.max(0, calculatedDiscount); 
-        setFormData(prev => ({ ...prev, discount_percentage: (clampedDiscount * 100).toString() }));
-      } else {
-        // Reset discount if inputs are invalid
-        setFormData(prev => ({ ...prev, discount_percentage: "0" }));
+      if (nextState.type === "SECONDARY_EXIT" && nextState.percentage_sold && !isNaN(newPrice) && !isNaN(fundPortfolioValue)) {
+        const percentage = parseFloat(nextState.percentage_sold);
+        const portfolio = fundPortfolioValue;
+        
+        if (percentage > 0 && portfolio > 0) {
+          // Calculate discount: (1 - (price / (percentage/100 * portfolio))) * 100
+          const calculatedDiscountPct = (1 - (newPrice / (percentage / 100 * portfolio))) * 100;
+          
+          // Use 4 decimal places for consistency with DB
+          nextState.discount_percentage = calculatedDiscountPct.toFixed(4);
+        }
       }
-    }
+      return nextState;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -404,6 +420,7 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
                     <input 
                       type="number" 
                       name="amount" 
+                      step="0.01"
                       value={formData.amount} 
                       onChange={handleInputChange}
                       className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2 text-gray-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
@@ -471,6 +488,7 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
                       <input 
                         type="number" 
                         name="discount_percentage" 
+                        step="0.0001"
                         value={formData.discount_percentage} 
                         onChange={handleInputChange}
                         className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2 text-gray-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
@@ -481,10 +499,11 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
                       <input 
                         type="number" 
                         name="amount" 
+                        step="0.01"
                         value={formData.amount} 
                         onChange={handlePriceSoldAtChange} // Use dedicated handler for price calculation
-                        className="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-2 text-gray-900 outline-none cursor-not-allowed"
-                        readOnly // Make it read-only, calculated from percentage and discount
+                        className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2 text-gray-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                        required
                       />
                     </div>
                   </div>

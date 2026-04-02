@@ -107,22 +107,23 @@ class InvestorActionListView(APIView):
                         elif a.type == "SECONDARY_EXIT":
                             seller_units -= float(a.units)
                     
-                    total_units_at_exit_year = get_total_units_at_year(fund, year)
-                    if total_units_at_exit_year == 0:
-                         total_units_at_exit_year = float(fund.total_units)
+                    # Use units from year - 1 as basis for exit
+                    total_units_at_basis_year = get_total_units_at_year(fund, year - 1)
+                    if total_units_at_basis_year == 0:
+                         total_units_at_basis_year = float(fund.total_units)
 
                     # Calculate units transferred
-                    units_transferred = (pct_sold / 100.0) * total_units_at_exit_year
+                    units_transferred = (pct_sold / 100.0) * total_units_at_basis_year
                     
                     if units_transferred > seller_units + 0.0001: # Add small epsilon for float precision
                          return Response({"error": f"Units to sell ({units_transferred:.4f}) exceed seller units ({seller_units:.4f})."}, status=status.HTTP_400_BAD_REQUEST)
 
-                    # Calculate price sold at
-                    portfolio_at_year = get_total_fund_portfolio(fund, year)
-                    price = (pct_sold / 100.0) * portfolio_at_year * (1 - (discount / 100.0))
+                    # Use amount from request (which may be calculated or manually entered)
+                    # Amount is already in serializer.validated_data["amount"]
                     
                     # Save the secondary exit action (seller)
-                    action = serializer.save(units=units_transferred, amount=price)
+                    action = serializer.save(units=units_transferred)
+                    price = float(action.amount)
                     
                     # Also create a SECONDARY_INVESTMENT for the buyer (if buyer is specified)
                     if buyer:
@@ -1526,11 +1527,15 @@ class InvestorLogView(APIView):
         for yr in range(inception_year, end_year + 1):
             cumulative_invested += invested_by_year.get(yr, 0.0)
             cumulative_required += required_by_year.get(yr, 0.0)
+            
+            # Get actual portfolio value for this year
+            portfolio_val = get_total_fund_portfolio(fund, yr)
 
             graph_data.append({
                 "year": yr,
                 "total_capital_invested": cumulative_invested,
-                "total_capital_required": cumulative_required
+                "total_capital_required": cumulative_required,
+                "portfolio_value": portfolio_val
             })
 
         return Response({
