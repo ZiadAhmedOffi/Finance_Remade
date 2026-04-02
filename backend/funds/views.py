@@ -1452,9 +1452,9 @@ class InvestorLogView(APIView):
         # 1. Investor Table Data
         investor_actions = InvestorAction.objects.filter(fund=fund).select_related('investor')
         investor_data = {}
-        
-        total_fund_invested = 0.0
-        
+
+        total_fund_units = float(fund.total_units)
+
         for action in investor_actions:
             investor_id = str(action.investor.id)
             if investor_id not in investor_data:
@@ -1462,47 +1462,45 @@ class InvestorLogView(APIView):
                     "first_name": action.investor.first_name,
                     "last_name": action.investor.last_name,
                     "email": action.investor.email,
-                    "total_invested": 0.0
+                    "units": 0.0
                 }
-            
-            amount = float(action.amount) if action.type == "CAPITAL_INVESTMENT" and action.amount else 0.0
-            original_val = float(action.original_value) if action.type == "SECONDARY_EXIT" and action.original_value else 0.0
-            
-            net_action = amount - original_val
-            investor_data[investor_id]["total_invested"] += net_action
-            total_fund_invested += net_action
+
+            if action.type in ["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT"]:
+                investor_data[investor_id]["units"] += float(action.units)
+            elif action.type == "SECONDARY_EXIT":
+                investor_data[investor_id]["units"] -= float(action.units)
 
         investors_list = []
         for inv_id, data in investor_data.items():
-            ownership_pct = (data["total_invested"] / total_fund_invested * 100.0) if total_fund_invested > 0 else 0.0
+            ownership_pct = (data["units"] / total_fund_units * 100.0) if total_fund_units > 0 else 0.0
             investors_list.append({
                 **data,
                 "ownership_percentage": ownership_pct
             })
-            
+
         # 2. Graph Data
         # X-axis: Years of fund life
         graph_data = []
-        
+
         # Pre-calculate required capital by year (Deals)
         required_by_year = {}
-        
+
         # Past Deals (CurrentDeal)
         current_deals = fund.current_deals.all()
         for deal in current_deals:
             yr = deal.entry_year
             required_by_year[yr] = required_by_year.get(yr, 0.0) + float(deal.amount_invested)
-            
+
         # Future Deals (InvestmentDeal)
         future_deals = fund.deals.all()
         # We need the serializer to get expected_pro_rata_investments
         future_deals_serialized = InvestmentDealSerializer(future_deals, many=True).data
         future_deals_lookup = {d["id"]: d for d in future_deals_serialized}
-        
+
         for deal in future_deals:
             yr = deal.entry_year
             required_by_year[yr] = required_by_year.get(yr, 0.0) + float(deal.amount_invested)
-            
+
             # Distribute future pro-rata expectations
             if deal.pro_rata_rights and deal.expected_number_of_rounds > 0:
                 d_data = future_deals_lookup.get(str(deal.id))
@@ -1517,25 +1515,27 @@ class InvestorLogView(APIView):
         invested_by_year = {}
         for action in investor_actions:
             yr = action.year
-            amount = float(action.amount) if action.type == "CAPITAL_INVESTMENT" and action.amount else 0.0
-            original_val = float(action.original_value) if action.type == "SECONDARY_EXIT" and action.original_value else 0.0
-            net_action = amount - original_val
-            invested_by_year[yr] = invested_by_year.get(yr, 0.0) + net_action
-            
+            # Only count primary investments for "Capital Invested" in the fund
+            if action.type == "PRIMARY_INVESTMENT":
+                amount = float(action.amount) if action.amount else 0.0
+                invested_by_year[yr] = invested_by_year.get(yr, 0.0) + amount
+
         cumulative_invested = 0.0
         cumulative_required = 0.0
-        
+
         for yr in range(inception_year, end_year + 1):
             cumulative_invested += invested_by_year.get(yr, 0.0)
             cumulative_required += required_by_year.get(yr, 0.0)
-            
+
             graph_data.append({
                 "year": yr,
                 "total_capital_invested": cumulative_invested,
                 "total_capital_required": cumulative_required
             })
-            
+
         return Response({
             "investors": investors_list,
-            "graph_data": graph_data
+            "graph_data": graph_data,
+            "actions": InvestorActionSerializer(investor_actions, many=True).data,
+            "total_units": total_fund_units
         })

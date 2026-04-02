@@ -119,10 +119,21 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
 
   // Fetch portfolio value when data loads or year changes
   useEffect(() => {
-    if (data) {
-      fetchFundPortfolioValue(formData.year);
-    }
+    fetchFundPortfolioValue(formData.year);
   }, [data, formData.year, fetchFundPortfolioValue]);
+
+  // Update price when percentage or discount changes for SECONDARY_EXIT
+  useEffect(() => {
+    if (formData.type === "SECONDARY_EXIT" && formData.percentage_sold && formData.discount_percentage) {
+      const percentage = parseFloat(formData.percentage_sold);
+      const discount = parseFloat(formData.discount_percentage);
+      
+      if (!isNaN(percentage) && !isNaN(discount) && !isNaN(fundPortfolioValue)) {
+        const calculatedPrice = calculatePriceSoldAt(percentage, fundPortfolioValue, discount);
+        setFormData(prev => ({ ...prev, amount: calculatedPrice.toString() }));
+      }
+    }
+  }, [formData.type, formData.percentage_sold, formData.discount_percentage, fundPortfolioValue]);
 
 
   if (loading) return <div className="p-4 text-gray-400">Loading investor log...</div>;
@@ -145,19 +156,6 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
     }).format(value);
   };
 
-  // Pagination logic
-  const indexOfLastAction = currentPage * actionsPerPage;
-  const indexOfFirstAction = indexOfLastAction - actionsPerPage;
-  const currentActions = data.actions.slice(indexOfFirstAction, indexOfLastAction);
-  const totalPages = Math.ceil(data.actions.length / actionsPerPage);
-
-  const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-  
   // Helper for calculating price sold at
   const calculatePriceSoldAt = (percentage: number, portfolio: number, discount: number): number => {
     // Ensure percentage is treated as a fraction (e.g., 50% -> 0.50)
@@ -165,18 +163,19 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
     return percentageAsFraction * portfolio * (1 - (discount / 100));
   };
 
-  // Update price when percentage or discount changes for SECONDARY_EXIT
-  useEffect(() => {
-    if (formData.type === "SECONDARY_EXIT" && formData.percentage_sold && formData.discount_percentage) {
-      const percentage = parseFloat(formData.percentage_sold);
-      const discount = parseFloat(formData.discount_percentage);
-      
-      if (!isNaN(percentage) && !isNaN(discount) && !isNaN(fundPortfolioValue)) {
-        const calculatedPrice = calculatePriceSoldAt(percentage, fundPortfolioValue, discount);
-        setFormData(prev => ({ ...prev, amount: calculatedPrice.toString() }));
-      }
-    }
-  }, [formData.type, formData.percentage_sold, formData.discount_percentage, fundPortfolioValue]);
+  // Pagination logic
+  const actions = data.actions || [];
+  const indexOfLastAction = currentPage * actionsPerPage;
+  const indexOfFirstAction = indexOfLastAction - actionsPerPage;
+  const currentActions = actions.slice(indexOfFirstAction, indexOfLastAction);
+  const totalPages = Math.ceil(actions.length / actionsPerPage);
+
+  const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
 
   // Update discount when price sold at changes for SECONDARY_EXIT
   const handlePriceSoldAtChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -239,7 +238,7 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
   };
 
   // Process data for the area chart
-  const processedGraphData = data.graph_data.map(d => ({
+  const processedGraphData = (data.graph_data || []).map(d => ({
     ...d,
     greenArea: d.total_capital_invested >= d.total_capital_required 
       ? [d.total_capital_required, d.total_capital_invested] 
@@ -254,40 +253,40 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
       
       {/* Metrics Summary (Total Units) */}
       <div className="grid grid-cols-1 md:grid-grid-cols-3 gap-6">
-        <div className="bg-[#111] p-6 rounded-xl border border-white/10 shadow-2xl flex flex-col items-center justify-center">
-          <span className="text-gray-400 text-sm uppercase tracking-wider mb-2">Total Fund Units</span>
-          <span className="text-3xl font-bold text-emerald-400 font-mono">
-            {formatNumber(data.total_units)}
+        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-xl flex flex-col items-center justify-center">
+          <span className="text-gray-500 text-sm uppercase tracking-wider mb-2 font-medium">Total Fund Units</span>
+          <span className="text-3xl font-bold text-emerald-600 font-mono">
+            {formatNumber(data.total_units || 0)}
           </span>
         </div>
       </div>
 
       {/* Investors Table */}
-      <div className="bg-[#111] rounded-xl border border-white/10 overflow-hidden shadow-2xl">
-        <div className="px-6 py-4 border-b border-white/10 bg-white/5 flex justify-between items-center">
-          <h3 className="text-lg font-semibold text-white">Investor List</h3>
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-xl">
+        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-gray-900">Investor List</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-white/10 bg-white/5 text-gray-400 text-xs uppercase tracking-wider">
-                <th className="px-6 py-4 font-medium">First Name</th>
-                <th className="px-6 py-4 font-medium">Last Name</th>
-                <th className="px-6 py-4 font-medium">Email</th>
-                <th className="px-6 py-4 font-medium text-right">Units Owned</th>
-                <th className="px-6 py-4 font-medium text-right">Ownership %</th>
+              <tr className="border-b border-gray-200 bg-gray-50 text-gray-600 text-xs uppercase tracking-wider">
+                <th className="px-6 py-4 font-semibold">First Name</th>
+                <th className="px-6 py-4 font-semibold">Last Name</th>
+                <th className="px-6 py-4 font-semibold">Email</th>
+                <th className="px-6 py-4 font-semibold text-right">Units Owned</th>
+                <th className="px-6 py-4 font-semibold text-right">Ownership %</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
-              {data.investors.map((investor, idx) => (
-                <tr key={idx} className="hover:bg-white/5 transition-colors">
-                  <td className="px-6 py-4 text-white text-sm">{investor.first_name}</td>
-                  <td className="px-6 py-4 text-white text-sm">{investor.last_name}</td>
-                  <td className="px-6 py-4 text-gray-400 text-sm">{investor.email}</td>
-                  <td className="px-6 py-4 text-white text-sm text-right font-mono">
+            <tbody className="divide-y divide-gray-100">
+              {(data.investors || []).map((investor, idx) => (
+                <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4 text-gray-900 text-sm">{investor.first_name}</td>
+                  <td className="px-6 py-4 text-gray-900 text-sm">{investor.last_name}</td>
+                  <td className="px-6 py-4 text-gray-600 text-sm">{investor.email}</td>
+                  <td className="px-6 py-4 text-gray-900 text-sm text-right font-mono">
                     {formatNumber(investor.units)}
                   </td>
-                  <td className="px-6 py-4 text-sm text-right font-mono text-emerald-400">
+                  <td className="px-6 py-4 text-sm text-right font-mono text-emerald-600 font-semibold">
                     {investor.ownership_percentage.toFixed(2)}%
                   </td>
                 </tr>
@@ -298,12 +297,12 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
       </div>
 
       {/* Investor Actions Table */}
-      <div className="bg-[#111] rounded-xl border border-white/10 overflow-hidden shadow-2xl">
-        <div className="px-6 py-4 border-b border-white/10 bg-white/5 flex justify-between items-center">
-          <h3 className="text-lg font-semibold text-white">Investor Actions</h3>
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-xl">
+        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-gray-900">Investor Actions</h3>
           <button 
             onClick={() => setShowModal(true)}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"
           >
             + Add Action
           </button>
@@ -311,33 +310,33 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-white/10 bg-white/5 text-gray-400 text-xs uppercase tracking-wider">
-                <th className="px-6 py-4 font-medium">Type</th>
-                <th className="px-6 py-4 font-medium">Investor</th>
-                <th className="px-6 py-4 font-medium">Year</th>
-                <th className="px-6 py-4 font-medium text-right">Amount</th>
-                <th className="px-6 py-4 font-medium text-right">Units</th>
-                <th className="px-6 py-4 font-medium">Date</th>
+              <tr className="border-b border-gray-200 bg-gray-50 text-gray-600 text-xs uppercase tracking-wider">
+                <th className="px-6 py-4 font-semibold">Type</th>
+                <th className="px-6 py-4 font-semibold">Investor</th>
+                <th className="px-6 py-4 font-semibold">Year</th>
+                <th className="px-6 py-4 font-semibold text-right">Amount</th>
+                <th className="px-6 py-4 font-semibold text-right">Units</th>
+                <th className="px-6 py-4 font-semibold">Date</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-gray-100">
               {currentActions.map((action) => (
-                <tr key={action.id} className="hover:bg-white/5 transition-colors">
+                <tr key={action.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4 text-sm">
                     <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
-                      action.type === 'PRIMARY_INVESTMENT' ? 'bg-emerald-500/20 text-emerald-400' :
-                      action.type === 'SECONDARY_INVESTMENT' ? 'bg-blue-500/20 text-blue-400' :
-                      'bg-red-500/20 text-red-400'
+                      action.type === 'PRIMARY_INVESTMENT' ? 'bg-emerald-100 text-emerald-700' :
+                      action.type === 'SECONDARY_INVESTMENT' ? 'bg-blue-100 text-blue-700' :
+                      'bg-red-100 text-red-700'
                     }`}>
                       {action.type.replace('_', ' ')}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-white text-sm">{action.investor_email}</td>
-                  <td className="px-6 py-4 text-white text-sm">{action.year}</td>
-                  <td className="px-6 py-4 text-white text-sm text-right font-mono">
+                  <td className="px-6 py-4 text-gray-900 text-sm">{action.investor_email}</td>
+                  <td className="px-6 py-4 text-gray-900 text-sm">{action.year}</td>
+                  <td className="px-6 py-4 text-gray-900 text-sm text-right font-mono">
                     {action.amount ? formatCurrency(parseFloat(action.amount)) : '-'}
                   </td>
-                  <td className="px-6 py-4 text-white text-sm text-right font-mono">
+                  <td className="px-6 py-4 text-gray-900 text-sm text-right font-mono">
                     {formatNumber(parseFloat(action.units))}
                   </td>
                   <td className="px-6 py-4 text-gray-500 text-xs">
@@ -350,13 +349,13 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
         </div>
         {/* Pagination Controls */}
         {totalPages > 1 && (
-          <div className="px-6 py-4 border-t border-white/10 bg-white/5 flex justify-center gap-2">
+          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-center gap-2">
             {[...Array(totalPages)].map((_, i) => (
               <button
                 key={i}
                 onClick={() => paginate(i + 1)}
                 className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
-                  currentPage === i + 1 ? 'bg-emerald-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                  currentPage === i + 1 ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
                 }`}
               >
                 {i + 1}
@@ -368,20 +367,20 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
 
       {/* Modal for adding action */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
-            <div className="px-6 py-4 border-b border-white/10 bg-white/5 flex justify-between items-center">
-              <h3 className="text-lg font-semibold text-white">Add Investor Action</h3>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-white">✕</button>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-gray-200 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-gray-900">Add Investor Action</h3>
+              <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-900">✕</button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="space-y-2">
-                <label className="text-xs text-gray-400 uppercase tracking-wider">Action Type</label>
+                <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Action Type</label>
                 <select 
                   name="type" 
                   value={formData.type} 
                   onChange={handleInputChange}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white outline-none focus:border-emerald-500"
+                  className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2 text-gray-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                 >
                   <option value="PRIMARY_INVESTMENT">Primary Investment</option>
                   <option value="SECONDARY_EXIT">Secondary Exit</option>
@@ -390,24 +389,24 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-xs text-gray-400 uppercase tracking-wider">Year</label>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Year</label>
                   <input 
                     type="number" 
                     name="year" 
                     value={formData.year} 
                     onChange={handleInputChange}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white outline-none focus:border-emerald-500"
+                    className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2 text-gray-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                   />
                 </div>
                 {formData.type === "PRIMARY_INVESTMENT" && (
                   <div className="space-y-2">
-                    <label className="text-xs text-gray-400 uppercase tracking-wider">Amount (USD)</label>
+                    <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Amount (USD)</label>
                     <input 
                       type="number" 
                       name="amount" 
                       value={formData.amount} 
                       onChange={handleInputChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white outline-none focus:border-emerald-500"
+                      className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2 text-gray-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                     />
                   </div>
                 )}
@@ -415,12 +414,12 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
 
               {formData.type === "PRIMARY_INVESTMENT" ? (
                 <div className="space-y-2">
-                  <label className="text-xs text-gray-400 uppercase tracking-wider">Investor</label>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Investor</label>
                   <select 
                     name="investor" 
                     value={formData.investor} 
                     onChange={handleInputChange}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white outline-none focus:border-emerald-500"
+                    className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2 text-gray-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                     required
                   >
                     <option value="">Select Investor</option>
@@ -430,12 +429,12 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
               ) : ( // Secondary Exit
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-xs text-gray-400 uppercase tracking-wider">Investor Selling</label>
+                    <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Investor Selling</label>
                     <select 
                       name="investor_selling" 
                       value={formData.investor_selling} 
                       onChange={handleInputChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white outline-none focus:border-emerald-500"
+                      className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2 text-gray-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                       required
                     >
                       <option value="">Select Seller</option>
@@ -443,12 +442,12 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs text-gray-400 uppercase tracking-wider">Investor Sold To</label>
+                    <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Investor Sold To</label>
                     <select 
                       name="investor_sold_to" 
                       value={formData.investor_sold_to} 
                       onChange={handleInputChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white outline-none focus:border-emerald-500"
+                      className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2 text-gray-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                     >
                       <option value="">Select Buyer (Optional)</option>
                       {investors.map(inv => <option key={inv.id} value={inv.id}>{inv.email}</option>)}
@@ -456,35 +455,35 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <label className="text-xs text-gray-400 uppercase tracking-wider">Percentage Sold (%)</label>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Percentage Sold (%)</label>
                       <input 
                         type="number" 
                         step="0.0001"
                         name="percentage_sold" 
                         value={formData.percentage_sold} 
                         onChange={handleInputChange}
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white outline-none focus:border-emerald-500"
+                        className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2 text-gray-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                         required
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs text-gray-400 uppercase tracking-wider">Discount (%)</label>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Discount (%)</label>
                       <input 
                         type="number" 
                         name="discount_percentage" 
                         value={formData.discount_percentage} 
                         onChange={handleInputChange}
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white outline-none focus:border-emerald-500"
+                        className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2 text-gray-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                       />
                     </div>
                     <div className="space-y-2 col-span-2">
-                      <label className="text-xs text-gray-400 uppercase tracking-wider">Price Sold At (USD)</label>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Price Sold At (USD)</label>
                       <input 
                         type="number" 
                         name="amount" 
                         value={formData.amount} 
                         onChange={handlePriceSoldAtChange} // Use dedicated handler for price calculation
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white outline-none focus:border-emerald-500"
+                        className="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-2 text-gray-900 outline-none cursor-not-allowed"
                         readOnly // Make it read-only, calculated from percentage and discount
                       />
                     </div>
@@ -495,14 +494,14 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
               <div className="pt-4 flex gap-4">
                 <button 
                   type="submit"
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition-all"
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition-all shadow-md"
                 >
                   Confirm Action
                 </button>
                 <button 
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="flex-1 bg-white/5 hover:bg-white/10 text-white font-semibold py-3 rounded-xl transition-all"
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 rounded-xl transition-all"
                 >
                   Cancel
                 </button>
@@ -513,18 +512,18 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
       )}
 
       {/* Comparison Graph */}
-      <div className="bg-[#111] rounded-xl border border-white/10 p-6 shadow-2xl">
-        <h3 className="text-lg font-semibold text-white mb-6">Capital Invested vs. Capital Required</h3>
+      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-xl">
+        <h3 className="text-lg font-semibold text-gray-900 mb-6">Capital Invested vs. Capital Required</h3>
         <div className="h-[400px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={processedGraphData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
-              <XAxis dataKey="year" stroke="#666" fontSize={12} tickLine={false} axisLine={false} />
-              <YAxis stroke="#666" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${(val / 1000000).toFixed(0)}M`} />
-              <Tooltip contentStyle={{ backgroundColor: "#111", border: "1px solid #333", borderRadius: "8px" }} itemStyle={{ fontSize: "12px" }} formatter={(value: any) => [formatCurrency(value), ""]} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+              <XAxis dataKey="year" stroke="#374151" fontSize={12} tickLine={false} axisLine={false} />
+              <YAxis stroke="#374151" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${(val / 1000000).toFixed(0)}M`} />
+              <Tooltip contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} itemStyle={{ fontSize: "12px", color: "#111827" }} formatter={(value: any) => [formatCurrency(value), ""]} />
               <Legend verticalAlign="top" height={36} iconType="circle" />
-              <Area type="monotone" dataKey="greenArea" stroke="none" fill="#10b981" fillOpacity={0.2} name="Invested > Required" legendType="none" tooltipType="none" />
-              <Area type="monotone" dataKey="redArea" stroke="none" fill="#ef4444" fillOpacity={0.2} name="Required > Invested" legendType="none" tooltipType="none" />
+              <Area type="monotone" dataKey="greenArea" stroke="none" fill="#10b981" fillOpacity={0.1} name="Invested > Required" legendType="none" tooltipType="none" />
+              <Area type="monotone" dataKey="redArea" stroke="none" fill="#ef4444" fillOpacity={0.1} name="Required > Invested" legendType="none" tooltipType="none" />
               <Line type="monotone" dataKey="total_capital_invested" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: "#10b981" }} activeDot={{ r: 6 }} name="Total Capital Invested" />
               <Line type="monotone" dataKey="total_capital_required" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4, fill: "#3b82f6" }} activeDot={{ r: 6 }} name="Total Capital Required" />
             </ComposedChart>
