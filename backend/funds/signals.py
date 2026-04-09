@@ -1,6 +1,6 @@
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
-from .models import Fund, ModelInput, InvestmentRound, CurrentDeal
+from .models import Fund, ModelInput, InvestmentRound, CurrentDeal, InvestorAction, CurrentInvestorStats
 
 @receiver(post_save, sender=Fund)
 def create_fund_model_inputs(sender, instance, created, **kwargs):
@@ -41,3 +41,13 @@ def deal_saved(sender, instance, **kwargs):
 def deal_deleted(sender, instance, **kwargs):
     """If a deal is deleted, recalculate company rounds."""
     InvestmentRound.recalculate_for_company(instance.fund, instance.company_name)
+
+@receiver(post_save, sender=InvestorAction)
+def investor_action_saved(sender, instance, **kwargs):
+    """If any action is saved, recalcaulte investor statistics."""
+    CurrentInvestorStats.recalculate_investor_stats(instance, instance.investor, instance.fund, "save")
+
+@receiver(post_delete, sender=InvestorAction)
+def investor_action_saved(sender, instance, **kwargs):
+    """If any action is deleted, recalcaulte investor statistics."""
+    CurrentInvestorStats.recalculate_investor_stats(instance, instance.investor, instance.fund, "delete")

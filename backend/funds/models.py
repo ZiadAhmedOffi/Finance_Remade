@@ -404,3 +404,58 @@ class InvestorAction(models.Model):
     def __str__(self):
         return f"{self.type} - {self.investor.email} - {self.fund.name} ({self.year})"
 
+class CurrentInvestorStats(models.Model):
+    """
+    Represents the current amount an investor invested into the fund after removing the cost basis for units sold
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    investor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="current_investor_stats"
+    )
+    fund = models.ForeignKey(
+        Fund,
+        on_delete=models.CASCADE,
+        related_name="current_investor_stats"
+    )
+    
+    # Invested amount for the investor in the related fund
+    amount_invested = models.DecimalField(max_digits=30, decimal_places=2, default=0.00)
+    # Realized gain from secondary exits the investor performed in the related fund
+    realized_gain = models.DecimalField(max_digits=30, decimal_places=2, default=0.00)
+    # Current number of units owned by the investor in the fund
+    units = models.DecimalField(max_digits=30, decimal_places=4, default=0.0000)\
+
+    class Meta:
+        ordering = ["amount_invested"]
+        indexes = [
+            models.Index(fields=["investor", "fund"]),
+        ]
+
+    def __str__(self):
+        return f"{self.investor.email} - {self.fund.name} - ({self.amount})"
+    
+    @staticmethod
+    def recalculate_investor_stats(action, investor, fund, signal):
+        """A method to be used whenever investor actions are added or deleted"""
+        relation, created = CurrentInvestorStats.objects.get_or_create(investor = investor, fund = fund)
+        if signal == "save":  
+            if action.type == "SECONDARY_EXIT":
+                relation.amount_invested = float(relation.amount_invested) * (1 - (float(action.units) / float(relation.units)))
+                relation.units = float(relation.units) - float(action.units)
+                relation.realized_gain = float(relation.realized_gain) + float(action.amount) - (float(relation.amount_invested) / float(relation.units) * float(action.units))
+            else: 
+                relation.amount_invested = float(relation.amount_invested) + float(action.amount)
+                relation.units = float(relation.units) + float(action.units)
+        elif signal == "delete":
+            if action.type == "SECONDARY_EXIT":
+                relation.amount_invested = float(relation.amount_invested) / (1 - (float(action.units) / float(relation.units)))
+                relation.units = float(relation.units) -  float(action.units)
+                relation.realized_gain = float(relation.realized_gain) - float(action.amount) + (float(relation.amount_invested) / float      (relation.units) * float(action.units))
+            else:
+                relation.amount_invested = float(relation.amount_invested) - float(action.amount)
+                relation.units = float(relation.units) - float(action.units)
+
+        relation.save()

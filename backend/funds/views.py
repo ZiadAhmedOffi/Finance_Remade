@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from .logic import get_total_fund_portfolio, get_total_units_at_year
-from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, InvestorAction, RiskAssessment
+from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, InvestorAction, RiskAssessment, CurrentInvestorStats
 from .serializers import (
     FundSerializer, 
     FundLogSerializer, 
@@ -265,7 +265,6 @@ class InvestorDashboardView(APIView):
                 fund_data[fund_id]["units"] -= float(action.units)
                 fund_data[fund_id]["net_deployed"] -= float(action.amount or 0)
 
-        total_capital_deployed = 0.0
         total_current_portfolio_value = 0.0
         
         portfolio_table = []
@@ -274,8 +273,6 @@ class InvestorDashboardView(APIView):
         # We need fund performance to get current values
         for fund_id, data in fund_data.items():
             fund = data["fund"]
-            
-            total_capital_deployed += data["net_deployed"]
             
             # Calculate ownership in the fund
             total_fund_units = float(fund.total_units)
@@ -299,11 +296,28 @@ class InvestorDashboardView(APIView):
                 "value": current_val_in_fund
             })
 
+        relations = CurrentInvestorStats.objects.filter(investor = investor)
+        realized_gains = 0
+        total_capital_deployed = 0
+
+        realized_gains = sum(float(relation.realized_gain or 0) for relation in relations)
+        total_capital_deployed = sum(float(relation.amount_invested or 0) for relation in relations)
+
         unrealized_gains = total_current_portfolio_value - total_capital_deployed
         
         unrealized_multiple = 0.0
         if total_capital_deployed > 0:
             unrealized_multiple = total_current_portfolio_value / total_capital_deployed
+
+        realized_multiple = 0.0
+        investor_investments = InvestorAction.objects.filter(investor=investor, type__in=["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT"])
+        investor_exits = InvestorAction.objects.filter(investor=investor, type="SECONDARY_EXIT")
+        total_exits_amount = sum(float(action.amount or 0) for action in investor_exits)
+        total_invested_amount = sum(float(action.amount or 0) for action in investor_investments)
+        if total_capital_deployed > 0 and total_capital_deployed != total_invested_amount:
+            realized_multiple = total_exits_amount / (total_invested_amount - total_capital_deployed) # the subtraction to get the cost basis for total units sold
+        elif total_capital_deployed == total_invested_amount:
+            realized_multiple = 0.0
 
         # Line Graph Logic & Historical Breakdown
         years = sorted(list(set(a.year for a in actions)))
@@ -362,9 +376,9 @@ class InvestorDashboardView(APIView):
         return Response({
             "metrics": {
                 "total_capital_deployed": total_capital_deployed,
-                "realized_gains": 0.0, # Simple dashboard for now
+                "realized_gains": realized_gains,
                 "unrealized_gains": unrealized_gains,
-                "realized_multiple": 0.0,
+                "realized_multiple": realized_multiple ,
                 "unrealized_multiple": unrealized_multiple,
             },
             "portfolio": portfolio_table,
