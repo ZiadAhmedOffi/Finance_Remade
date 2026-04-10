@@ -24,8 +24,6 @@ interface PerformanceTableEntry {
   appreciation_current: number;
   injection_prognosis: number;
   appreciation_prognosis: number;
-  appreciation_of_current_after_cutoff: number;
-  injection_of_current_after_cutoff: number;
   total_portfolio_value_no_prognosis: number;
   total_portfolio_value_with_prognosis: number;
   cumulative_injection_no_prognosis: number;
@@ -213,9 +211,9 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
     let portfolioHighGrowth = 0;
 
     return dashboard.performance_table.map((row) => {
-      // Logic adaptation: Use only Current Deals (injection_current and injection_after_cutoff)
-      const injection = row.injection_current + row.injection_of_current_after_cutoff;
-      const baseAppreciation = row.appreciation_current + row.appreciation_of_current_after_cutoff;
+      // Logic: Use only Current Deals (injection_current and appreciation_current)
+      const injection = row.injection_current || 0;
+      const baseAppreciation = row.appreciation_current || 0;
       
       const gaYearly = gaMap[row.year] || 0;
 

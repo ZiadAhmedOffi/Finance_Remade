@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from .logic import get_total_fund_portfolio, get_total_units_at_year
-from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, InvestorAction, RiskAssessment, CurrentInvestorStats
+from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, InvestorAction, RiskAssessment, CurrentInvestorStats, PossibleCapitalSource
 from .serializers import (
     FundSerializer, 
     FundLogSerializer, 
@@ -14,7 +14,8 @@ from .serializers import (
     CurrentDealSerializer,
     InvestmentRoundSerializer,
     InvestorActionSerializer,
-    RiskAssessmentSerializer
+    RiskAssessmentSerializer,
+    PossibleCapitalSourceSerializer
 )
 import math # Import math module
 from django.contrib.auth import get_user_model
@@ -230,6 +231,62 @@ class InvestorActionDetailView(APIView):
             ip=request.META.get("REMOTE_ADDR")
         )
         return Response({"message": "Investor action deleted."}, status=status.HTTP_200_OK)
+
+class PossibleCapitalSourceListView(APIView):
+    """
+    Handles listing and creating possible capital sources for a fund.
+    Creation restricted to Super Admins and SC members.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, fund_id):
+        fund = get_object_or_404(Fund, id=fund_id)
+        if not PermissionService.can_view_fund(request.user, fund):
+            return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        sources = PossibleCapitalSource.objects.filter(fund=fund)
+        serializer = PossibleCapitalSourceSerializer(sources, many=True)
+        return Response(serializer.data)
+
+    def post(self, request, fund_id):
+        fund = get_object_or_404(Fund, id=fund_id)
+        if not (PermissionService.is_super_admin(request.user) or 
+                PermissionService.is_sc_member(request.user, fund)):
+            return Response({"error": "Only super admins and SC members can add capital sources."}, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = PossibleCapitalSourceSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(fund=fund)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class PossibleCapitalSourceDetailView(APIView):
+    """
+    Handles updating and deleting specific capital sources.
+    Restricted to Super Admins and SC members.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, source_id):
+        source = get_object_or_404(PossibleCapitalSource, id=source_id)
+        if not (PermissionService.is_super_admin(request.user) or 
+                PermissionService.is_sc_member(request.user, source.fund)):
+            return Response({"error": "Only super admins and SC members can update capital sources."}, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = PossibleCapitalSourceSerializer(source, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, source_id):
+        source = get_object_or_404(PossibleCapitalSource, id=source_id)
+        if not (PermissionService.is_super_admin(request.user) or 
+                PermissionService.is_sc_member(request.user, source.fund)):
+            return Response({"error": "Only super admins and SC members can delete capital sources."}, status=status.HTTP_403_FORBIDDEN)
+        
+        source.delete()
+        return Response({"message": "Capital source deleted."}, status=status.HTTP_200_OK)
 
 class InvestorDashboardView(APIView):
     """
@@ -1225,9 +1282,11 @@ class FundPerformanceView(APIView):
         for year in range(start_year, end_year + 1):
             year_current_deals = current_deals_by_year.get(year, [])
             c_injection = sum(float(d["amount_invested"]) for d in year_current_deals)
+            c_deals_count = len(year_current_deals)
             
             year_prognosis_deals = prognosis_deals_by_year.get(year, [])
             p_injection = sum(float(d["amount_invested"]) for d in year_prognosis_deals)
+            p_deals_count = len(year_prognosis_deals)
             
             for deal_obj in deals:
                 if deal_obj.pro_rata_rights and deal_obj.expected_number_of_rounds > 0:
@@ -1252,7 +1311,9 @@ class FundPerformanceView(APIView):
                 "injection_current": c_injection,
                 "injection_prognosis": p_injection,
                 "appreciation_current": c_appreciation,
-                "appreciation_prognosis": p_appreciation
+                "appreciation_prognosis": p_appreciation,
+                "deals_count_current": c_deals_count,
+                "deals_count_prognosis": p_deals_count
             })
         
         return performance_table, {
@@ -1277,14 +1338,21 @@ class FundPerformanceView(APIView):
         performance_table = []
         cum_inj_no_p = 0.0
         cum_inj_with_p = 0.0
+        cum_deals_c = 0
+        cum_deals_total = 0
         
         for row in performance_table_raw:
             year = row["year"]
             c_inj = row["injection_current"]
             p_inj = row["injection_prognosis"]
+            c_deals = row["deals_count_current"]
+            p_deals = row["deals_count_prognosis"]
             
             cum_inj_no_p += c_inj if year <= current_year else 0
             cum_inj_with_p += c_inj + p_inj
+            
+            cum_deals_c += c_deals if year <= current_year else 0
+            cum_deals_total += c_deals + p_deals
             
             performance_table.append({
                 **row,
@@ -1294,6 +1362,8 @@ class FundPerformanceView(APIView):
                 # "appreciation_of_current_after_cutoff": row["appreciation_current"] if year > current_year else 0, # Removed as per user request
                 "cumulative_injection_no_prognosis": cum_inj_no_p,
                 "cumulative_injection_with_prognosis": cum_inj_with_p,
+                "cumulative_deals_count_current": cum_deals_c,
+                "cumulative_deals_count_prognosis": cum_deals_total,
                 "total_portfolio_value_no_prognosis": row["total_portfolio_value_with_prognosis"] - row["injection_prognosis"] - row["appreciation_prognosis"], # Portfolio Value (No Future Deals) calculation
             })
 
@@ -1537,12 +1607,22 @@ class InvestorLogView(APIView):
                 amount = float(action.amount) if action.amount else 0.0
                 invested_by_year[yr] = invested_by_year.get(yr, 0.0) + amount
 
+        # Pre-calculate possible capital sources by year
+        possible_sources = PossibleCapitalSource.objects.filter(fund=fund)
+        possible_by_year = {}
+        for source in possible_sources:
+            yr = source.year
+            amount = float(source.amount)
+            possible_by_year[yr] = possible_by_year.get(yr, 0.0) + amount
+
         cumulative_invested = 0.0
         cumulative_required = 0.0
+        cumulative_possible = 0.0
 
         for yr in range(inception_year, end_year + 1):
             cumulative_invested += invested_by_year.get(yr, 0.0)
             cumulative_required += required_by_year.get(yr, 0.0)
+            cumulative_possible += possible_by_year.get(yr, 0.0)
             
             # Get actual portfolio value for this year
             portfolio_val = get_total_fund_portfolio(fund, yr)
@@ -1551,6 +1631,7 @@ class InvestorLogView(APIView):
                 "year": yr,
                 "total_capital_invested": cumulative_invested,
                 "total_capital_required": cumulative_required,
+                "total_capital_with_possible": cumulative_invested + cumulative_possible,
                 "portfolio_value": portfolio_val
             })
 
@@ -1558,5 +1639,6 @@ class InvestorLogView(APIView):
             "investors": investors_list,
             "graph_data": graph_data,
             "actions": InvestorActionSerializer(investor_actions, many=True).data,
+            "possible_capital_sources": PossibleCapitalSourceSerializer(possible_sources, many=True).data,
             "total_units": total_fund_units
         })

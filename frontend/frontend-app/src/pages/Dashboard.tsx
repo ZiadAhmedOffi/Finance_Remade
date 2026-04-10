@@ -8,6 +8,7 @@ interface Fund {
   id: string;
   name: string;
   description: string;
+  tag: string;
   status: "ESTABLISHED" | "FUTURE" | "DEACTIVATED";
 }
 

@@ -24,8 +24,6 @@ interface PerformanceTableEntry {
   appreciation_current: number;
   injection_prognosis: number;
   appreciation_prognosis: number;
-  appreciation_of_current_after_cutoff: number;
-  injection_of_current_after_cutoff: number;
   total_portfolio_value_no_prognosis: number;
   total_portfolio_value_with_prognosis: number;
   cumulative_injection_no_prognosis: number;
@@ -80,7 +78,7 @@ interface FundPerformanceTabProps {
  * Provides a high-level overview of fund performance, including:
  * 1. Primary financial metrics (Total Invested, GEV, MOIC, IRR).
  * 2. Detailed annual performance table.
- * 3. Advanced data visualizations (Waterfall, Investment Velocity).
+ * 3. Advanced data visualizations (Waterfall, Capital Allocation Strategy).
  * 
  * @param {string} fundId - The unique identifier of the fund.
  */
@@ -306,7 +304,7 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
         </div>
 
         <div className="chart-container">
-          <h3>Investment Velocity (Deals)</h3>
+          <h3>Capital Allocation Strategy (Deals)</h3>
           <ResponsiveContainer width="100%" height={300}>
             <ComposedChart data={dashboard.performance_table}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -326,7 +324,7 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
         </div>
 
         <div className="chart-container">
-          <h3>Investment Velocity (Amount)</h3>
+          <h3>Capital Allocation Strategy (Amount)</h3>
           <ResponsiveContainer width="100%" height={300}>
             <ComposedChart data={dashboard.performance_table}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />

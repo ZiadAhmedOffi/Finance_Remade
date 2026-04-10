@@ -16,11 +16,26 @@ interface Fund {
   id: string;
   name: string;
   description: string;
+  tag: string;
 }
 
 interface FundCardProps {
   fund: Fund;
 }
+
+const TAG_COLORS: Record<string, { bg: string, text: string }> = {
+  "BIC": { bg: "#EEF2FF", text: "#4338CA" },
+  "VC": { bg: "#ECFDF5", text: "#047857" },
+  "VS": { bg: "#FFFBEB", text: "#B45309" },
+  "AIG": { bg: "#FEF2F2", text: "#B91C1C" },
+  "SF": { bg: "#F5F3FF", text: "#6D28D9" },
+  "REAL_ESTATE": { bg: "#FFF7ED", text: "#C2410C" },
+};
+
+const getTagLabel = (tag: string) => {
+  if (tag === "REAL_ESTATE") return "Real estate";
+  return tag;
+};
 
 /**
  * FundCard Component
@@ -103,20 +118,20 @@ const FundCard: React.FC<FundCardProps> = ({ fund }) => {
     return {
       ...entry,
       start_value: start_value,
-      // Combined for simple display if needed, but we prefer stacked
-      injection: entry.injection_current + entry.injection_prognosis + entry.injection_of_current_after_cutoff,
-      appreciation: (entry.appreciation_current ?? 0) + (entry.appreciation_prognosis ?? 0) + (entry.appreciation_of_current_after_cutoff ?? 0)
+      // Use clean injection and appreciation fields from backend
+      injection: (entry.injection_current ?? 0) + (entry.injection_prognosis ?? 0),
+      appreciation: (entry.appreciation_current ?? 0) + (entry.appreciation_prognosis ?? 0)
     };
   }) || [];
 
   // Calculate base points (Portfolio Value - G&A) / Total Invested
   const calculateBasePointsData = () => {
     if (!admin_fee || !dashboard?.performance_table) return [];
-
+    
+    // ... (Constants logic for gaMap remains correct as per fund structure)
     const { inception_year, fund_life, total_admin_cost, operations_fee, management_fees } = admin_fee;
     const years_arr = Array.from({ length: fund_life }, (_, i) => inception_year + i);
 
-    // Cost allocation variables
     const estLicensingY1 = total_admin_cost * 0.05;
     const estLicensingLater = estLicensingY1 * 0.5;
     const row1Vals = years_arr.map((_, i) => i === 0 ? estLicensingY1 : estLicensingLater);
@@ -162,7 +177,7 @@ const FundCard: React.FC<FundCardProps> = ({ fund }) => {
     const gaMap: Record<number, number> = {};
     years_arr.forEach((year, i) => { gaMap[year] = totalGAVals[i]; });
 
-    // For BP calculations, we use combined prognosis metrics
+    // For BP calculations, we use combined metrics
     const totalInvested = dashboard.total_invested;
     const irrBase = aggregated_exits?.find((c: any) => c.case === "Base Case")?.irr || 0;
     const irrUpside = aggregated_exits?.find((c: any) => c.case === "Upside Case")?.irr || 0;
@@ -173,7 +188,7 @@ const FundCard: React.FC<FundCardProps> = ({ fund }) => {
     let portfolioHighGrowth = 0;
 
     return dashboard.performance_table.map((row: any) => {
-      const injection = row.injection_current + row.injection_prognosis + row.injection_of_current_after_cutoff;
+      const injection = (row.injection_current ?? 0) + (row.injection_prognosis ?? 0);
       const gaYearly = gaMap[row.year] || 0;
 
       portfolioBase = portfolioBase * (1 + irrBase) + injection;
@@ -263,13 +278,27 @@ const FundCard: React.FC<FundCardProps> = ({ fund }) => {
 
       {/* Fund Metadata */}
       <div className="card-content">
-        <div className="card-header-row" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
-          <h3 className="fund-name" style={{margin: 0, fontSize: '1.25rem', fontWeight: '700'}}>
-              <Link to={`/funds/${fund.id}`} style={{color: '#1e293b', textDecoration: 'none'}}>{fund.name}</Link>
-          </h3>
-          <div className="metric-badges" style={{display: 'flex', gap: '0.5rem'}}>
-            <span className="metric-badge moic" title="Prognosis MOIC" style={{background: '#dbeafe', color: '#1e40af', padding: '0.25rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '600'}}>{dashboard?.moic.toFixed(2)}x (Fut)</span>
-            <span className="metric-badge moic-past" title="Achieved MOIC" style={{background: '#e2e8f0', color: '#475569', padding: '0.25rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '600'}}>{current_deals_metrics?.moic.toFixed(2)}x (Past)</span>
+        <div className="card-header-row" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem'}}>
+          <div style={{display: 'flex', flexDirection: 'column', gap: '0.25rem'}}>
+            <h3 className="fund-name" style={{margin: 0, fontSize: '1.25rem', fontWeight: '700'}}>
+                <Link to={`/funds/${fund.id}`} style={{color: '#1e293b', textDecoration: 'none'}}>{fund.name}</Link>
+            </h3>
+            <span style={{
+              alignSelf: 'flex-start',
+              padding: '0.1rem 0.6rem',
+              borderRadius: '4px',
+              fontSize: '0.7rem',
+              fontWeight: '700',
+              textTransform: 'uppercase',
+              backgroundColor: TAG_COLORS[fund.tag]?.bg || '#f1f5f9',
+              color: TAG_COLORS[fund.tag]?.text || '#475569'
+            }}>
+              {getTagLabel(fund.tag)}
+            </span>
+          </div>
+          <div className="metric-badges" style={{display: 'flex', gap: '0.4rem', flexShrink: 0}}>
+            <span className="metric-badge moic" title="Prognosis MOIC" style={{background: '#dbeafe', color: '#1e40af', padding: '0.25rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '600', whiteSpace: 'nowrap'}}>{dashboard?.moic.toFixed(2)}x (Fut)</span>
+            <span className="metric-badge moic-past" title="Achieved MOIC" style={{background: '#e2e8f0', color: '#475569', padding: '0.25rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '600', whiteSpace: 'nowrap'}}>{current_deals_metrics?.moic.toFixed(2)}x (Past)</span>
           </div>
         </div>
         

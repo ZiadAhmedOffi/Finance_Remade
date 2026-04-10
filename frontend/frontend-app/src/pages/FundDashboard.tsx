@@ -15,6 +15,7 @@ interface Fund {
   id: string;
   name: string;
   description: string;
+  tag: string;
   steering_committee: string[];
   status: "ESTABLISHED" | "FUTURE" | "DEACTIVATED";
 }
@@ -41,6 +42,7 @@ const FundDashboard: React.FC = () => {
   
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
+  const [newTag, setNewTag] = useState("VC");
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isSCMember, setIsSCMember] = useState(false);
 
@@ -69,6 +71,7 @@ const FundDashboard: React.FC = () => {
       setFund(response.data);
       setNewName(response.data.name);
       setNewDescription(response.data.description);
+      setNewTag(response.data.tag);
       checkPermissions(response.data);
       setError(null);
     } catch (err: any) {
@@ -106,7 +109,8 @@ const FundDashboard: React.FC = () => {
     try {
       await api.put(`/funds/${fundId}/`, {
         name: newName,
-        description: newDescription
+        description: newDescription,
+        tag: newTag
       });
       setMessage("Fund information updated successfully.");
       fetchFundData();
@@ -132,7 +136,7 @@ const FundDashboard: React.FC = () => {
     { id: "deals", label: "Investment Deals", icon: "🤝" },
     { id: "model-inputs", label: "Model Inputs", icon: "⚙️" },
     { id: "aggregated-exits", label: "Aggregated Exits", icon: "📈" },
-    { id: "risk", label: "Risk Assessment", icon: "⚖️" },
+    { id: "risk", label: "Stability and Risk", icon: "⚖️" },
     ...(canEdit ? [{ id: "investor-log", label: "Investor Log", icon: "📋" }] : []),
     { id: "admin-fee", label: "Admin Fee", icon: "💰" },
     { id: "basic-info", label: "Basic Info", icon: "ℹ️" },
@@ -218,7 +222,7 @@ const FundDashboard: React.FC = () => {
             <RiskAssessmentTab fundId={fundId} canEdit={canEdit} />
           )}
           {activeTab === "investor-log" && canEdit && fundId && (
-            <InvestorLogTab fundId={fundId} />
+            <InvestorLogTab fundId={fundId} canEdit={canEdit} />
           )}
           {activeTab === "admin-fee" && fundId && (
             <AdminFeeTab fundId={fundId} />
@@ -239,6 +243,21 @@ const FundDashboard: React.FC = () => {
                       />
                     </div>
                     <div className="form-group">
+                      <label>Fund Tag</label>
+                      <select 
+                        value={newTag} 
+                        onChange={(e) => setNewTag(e.target.value)}
+                        className="form-input"
+                      >
+                        <option value="BIC">BIC</option>
+                        <option value="VC">VC</option>
+                        <option value="VS">VS</option>
+                        <option value="AIG">AIG</option>
+                        <option value="SF">SF</option>
+                        <option value="REAL_ESTATE">Real estate</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
                       <label>Description</label>
                       <textarea 
                         value={newDescription} 
@@ -255,6 +274,10 @@ const FundDashboard: React.FC = () => {
                        <div className="info-item">
                          <label>Fund Name</label>
                          <p className="value">{fund.name}</p>
+                       </div>
+                       <div className="info-item">
+                         <label>Tag</label>
+                         <p className="value">{fund.tag === "REAL_ESTATE" ? "Real estate" : fund.tag}</p>
                        </div>
                        <div className="info-item full-width">
                          <label>Description</label>

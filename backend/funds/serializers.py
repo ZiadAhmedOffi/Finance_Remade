@@ -1,9 +1,28 @@
 import math
 from rest_framework import serializers
-from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, RiskAssessment
+from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, RiskAssessment, PossibleCapitalSource, InvestorAction
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
+
+class PossibleCapitalSourceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PossibleCapitalSource
+        fields = [
+            "id",
+            "fund",
+            "name",
+            "amount",
+            "year",
+            "created_at",
+        ]
+        read_only_fields = ["id", "fund", "created_at"]
+
+    def validate_year(self, value):
+        current_year = datetime.now().year
+        if value < current_year:
+            raise serializers.ValidationError(f"Year of intent declaration cannot be smaller than the current year ({current_year}).")
+        return value
 
 class ModelInputSerializer(serializers.ModelSerializer):
     average_ticket = serializers.SerializerMethodField()
@@ -362,6 +381,7 @@ class FundSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "description",
+            "tag",
             "created_by",
             "created_by_email",
             "created_at",

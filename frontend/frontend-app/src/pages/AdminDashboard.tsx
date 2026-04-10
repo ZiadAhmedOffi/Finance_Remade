@@ -13,6 +13,7 @@ interface Fund {
   id: string;
   name: string;
   description: string;
+  tag: string;
   created_by_email: string;
   steering_committee: string[];
   status: "ESTABLISHED" | "FUTURE" | "DEACTIVATED";
@@ -81,6 +82,7 @@ const AdminDashboard: React.FC = () => {
 
   const [newFundName, setNewFundName] = useState("");
   const [newFundDescription, setNewFundDescription] = useState("");
+  const [newFundTag, setNewFundTag] = useState("VC");
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [privilegeError, setPrivilegeError] = useState<{title: string, message: string} | null>(null);
@@ -214,11 +216,13 @@ const AdminDashboard: React.FC = () => {
     try {
       await api.post("/funds/", {
         name: newFundName,
-        description: newFundDescription
+        description: newFundDescription,
+        tag: newFundTag
       });
       setMessage("Fund created successfully.");
       setNewFundName("");
       setNewFundDescription("");
+      setNewFundTag("VC");
       setIsFundModalOpen(false);
       fetchFunds();
     } catch (err: any) {
@@ -246,13 +250,23 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleChangeFundStatus = async (fundId: string, newStatus: string) => {
+  const handleChangeFundStatus = async (fund_id: string, newStatus: string) => {
     try {
-      await api.put(`/funds/${fundId}/`, { status: newStatus });
+      await api.put(`/funds/${fund_id}/`, { status: newStatus });
       setMessage(`Fund status updated to ${newStatus}.`);
       fetchFunds();
     } catch (err) {
       setError("Failed to update fund status.");
+    }
+  };
+
+  const handleChangeFundTag = async (fund_id: string, newTag: string) => {
+    try {
+      await api.put(`/funds/${fund_id}/`, { tag: newTag });
+      setMessage(`Fund tag updated to ${newTag}.`);
+      fetchFunds();
+    } catch (err) {
+      setError("Failed to update fund tag.");
     }
   };
 
@@ -460,6 +474,7 @@ const AdminDashboard: React.FC = () => {
                 <thead>
                   <tr>
                     <th>Fund Name</th>
+                    <th>Tag</th>
                     <th>Status</th>
                     <th>Created By</th>
                     <th>SC Members</th>
@@ -468,12 +483,30 @@ const AdminDashboard: React.FC = () => {
                 </thead>
                 <tbody>
                   {funds.map((fund) => {
-                    const canEditStatus = isSuperAdmin || currentUser?.roles.some(r => r.fund === fund.id && r.role.name === "STEERING_COMMITTEE");
+                    const canEditFund = isSuperAdmin || currentUser?.roles.some(r => r.fund === fund.id && r.role.name === "STEERING_COMMITTEE");
                     return (
                       <tr key={fund.id}>
                         <td>{fund.name}</td>
                         <td>
-                          {canEditStatus ? (
+                          {canEditFund ? (
+                            <select 
+                              value={fund.tag} 
+                              onChange={(e) => handleChangeFundTag(fund.id, e.target.value)}
+                              style={{padding: '0.2rem', borderRadius: '4px'}}
+                            >
+                              <option value="BIC">BIC</option>
+                              <option value="VC">VC</option>
+                              <option value="VS">VS</option>
+                              <option value="AIG">AIG</option>
+                              <option value="SF">SF</option>
+                              <option value="REAL_ESTATE">Real estate</option>
+                            </select>
+                          ) : (
+                            <span>{fund.tag === "REAL_ESTATE" ? "Real estate" : fund.tag}</span>
+                          )}
+                        </td>
+                        <td>
+                          {canEditFund ? (
                             <select 
                               value={fund.status} 
                               onChange={(e) => handleChangeFundStatus(fund.id, e.target.value)}
@@ -623,6 +656,22 @@ const AdminDashboard: React.FC = () => {
                 onChange={(e) => setNewFundName(e.target.value)}
                 placeholder="Enter fund name"
               />
+            </div>
+            <div className="form-group">
+              <label>Fund Tag</label>
+              <select 
+                value={newFundTag} 
+                onChange={(e) => setNewFundTag(e.target.value)}
+                className="form-input"
+                style={{width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc'}}
+              >
+                <option value="BIC">BIC</option>
+                <option value="VC">VC</option>
+                <option value="VS">VS</option>
+                <option value="AIG">AIG</option>
+                <option value="SF">SF</option>
+                <option value="REAL_ESTATE">Real estate</option>
+              </select>
             </div>
             <div className="form-group">
               <label>Description</label>

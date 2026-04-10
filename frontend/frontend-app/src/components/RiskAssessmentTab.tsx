@@ -142,7 +142,7 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
         setAssessments(merged);
       } catch (err) {
         console.error(err);
-        setError("Failed to load risk assessment data.");
+        setError("Failed to load stability and risk data.");
       } finally {
         setLoading(false);
       }
@@ -177,7 +177,7 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
     }
   };
 
-  if (loading) return <div className="loading">Loading Risk Assessment...</div>;
+  if (loading) return <div className="loading">Loading Stability and Risk...</div>;
 
   return (
     <div className="risk-assessment-tab">
@@ -185,7 +185,7 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
       {saveSuccess && <div className="alert alert-success">Changes saved successfully!</div>}
 
       <div className="content-card mb-4" style={{ padding: '1.5rem' }}>
-        <h3 className="tab-title">Portfolio Risk Assessment</h3>
+        <h3 className="tab-title">Portfolio Stability and Risk</h3>
         <div className="table-responsive">
           <table className="data-table">
             <thead>

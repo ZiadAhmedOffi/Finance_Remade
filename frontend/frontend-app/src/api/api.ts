@@ -82,6 +82,12 @@ export const fundsApi = {
   saveRiskAssessments: (fundId: string, data: any[]) => api.post(`/funds/${fundId}/risk-assessments/`, data),
   getInvestorLog: (fundId: string) => api.get(`/funds/${fundId}/investor-log/`),
 
+  // Capital Sources
+  getCapitalSources: (fundId: string) => api.get(`/funds/${fundId}/capital-sources/`),
+  createCapitalSource: (fundId: string, data: any) => api.post(`/funds/${fundId}/capital-sources/`, data),
+  updateCapitalSource: (sourceId: string, data: any) => api.put(`/funds/capital-sources/${sourceId}/`, data),
+  deleteCapitalSource: (sourceId: string) => api.delete(`/funds/capital-sources/${sourceId}/`),
+
   // Investor Dashboard & Actions
   getInvestors: () => api.get("/funds/investors/"),
   getInvestorActions: () => api.get("/funds/investor-actions/"),

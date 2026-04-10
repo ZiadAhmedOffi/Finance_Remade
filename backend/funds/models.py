@@ -13,9 +13,25 @@ class Fund(models.Model):
         ("DEACTIVATED", "Deactivated"),
     ]
 
+    TAG_CHOICES = [
+        ("BIC", "BIC"),
+        ("VC", "VC"),
+        ("VS", "VS"),
+        ("AIG", "AIG"),
+        ("SF", "SF"),
+        ("REAL_ESTATE", "Real estate"),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255, unique=True, db_index=True)
     description = models.TextField(blank=True)
+    
+    tag = models.CharField(
+        max_length=20,
+        choices=TAG_CHOICES,
+        default="VC",
+        db_index=True
+    )
     
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -37,6 +53,7 @@ class Fund(models.Model):
         indexes = [
             models.Index(fields=["name"]),
             models.Index(fields=["status"]),
+            models.Index(fields=["tag"]),
         ]
 
     def __str__(self):
@@ -338,6 +355,31 @@ class InvestmentRound(models.Model):
             
             # Use update to avoid triggering signals recursively if any
             InvestmentRound.objects.filter(id=round_obj.id).update(new_ownership_percentage=current_ownership)
+
+class PossibleCapitalSource(models.Model):
+    """
+    Represents a potential capital source for the fund.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    fund = models.ForeignKey(
+        Fund,
+        on_delete=models.CASCADE,
+        related_name="possible_capital_sources"
+    )
+    name = models.CharField(max_length=255)
+    amount = models.DecimalField(max_digits=30, decimal_places=2)
+    year = models.PositiveIntegerField()
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["year", "created_at"]
+        indexes = [
+            models.Index(fields=["fund", "year"]),
+        ]
+
+    def __str__(self):
+        return f"{self.name} - {self.fund.name} ({self.year})"
 
 class InvestorAction(models.Model):
     """
