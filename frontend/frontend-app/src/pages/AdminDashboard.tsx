@@ -529,7 +529,7 @@ const AdminDashboard: React.FC = () => {
                           </div>
                         </td>
                         <td className="actions">
-                          {canEditStatus && fund.status !== "DEACTIVATED" && (
+                          {canEditFund && fund.status !== "DEACTIVATED" && (
                             <button onClick={() => handleDeactivateFund(fund.id)} className="btn btn-deactivate">Deactivate</button>
                           )}
                         </td>

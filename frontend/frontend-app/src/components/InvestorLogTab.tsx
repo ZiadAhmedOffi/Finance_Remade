@@ -900,7 +900,7 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId, canEdit }) => {
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
               <XAxis dataKey="year" stroke="#374151" fontSize={12} tickLine={false} axisLine={false} />
               <YAxis stroke="#374151" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${(val / 1000000).toFixed(0)}M`} />
-              <Tooltip contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} itemStyle={{ fontSize: "12px", color: "#111827" }} formatter={(value: any, name: string) => [formatCurrency(value), name]} />
+              <Tooltip contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} itemStyle={{ fontSize: "12px", color: "#111827" }} formatter={(value: any, name: any) => [formatCurrency(value), name]} />
               <Legend verticalAlign="top" height={36} iconType="circle" />
               
               {/* Red: Required > Invested */}
