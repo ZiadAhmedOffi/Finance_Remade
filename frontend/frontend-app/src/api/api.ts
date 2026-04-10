@@ -1,4 +1,5 @@
 import axios from "axios";
+import { createDPoPProof } from "../utils/dpopUtils";
 
 // Priority: Environment Variable (Vercel/Production), then local default
 // Using a relative path if possible, or protocol-relative to avoid mixed content
@@ -11,14 +12,40 @@ const api = axios.create({
 });
 
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
     const token = localStorage.getItem("access_token");
     if (token) {
-      config.headers["Authorization"] = `Bearer ${token}`;
+      config.headers["Authorization"] = `DPoP ${token}`;
     }
+    
+    // Attach DPoP Proof
+    try {
+      const fullUrl = config.baseURL ? `${config.baseURL}${config.url}` : config.url || "";
+      const proof = await createDPoPProof(config.method || "GET", fullUrl);
+      config.headers["DPoP"] = proof;
+    } catch (e) {
+      console.error("Failed to generate DPoP proof", e);
+    }
+
     return config;
   },
   (error) => {
+    return Promise.reject(error);
+  }
+);
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response) {
+      const { status } = error.response;
+      if (status === 401 || status === 403) {
+        // Only redirect if not already on login or error page
+        if (!window.location.pathname.includes("/login") && !window.location.pathname.includes("/error")) {
+          window.location.href = `/error?code=${status}&message=${encodeURIComponent(error.response.data.error || "Access Denied")}`;
+        }
+      }
+    }
     return Promise.reject(error);
   }
 );

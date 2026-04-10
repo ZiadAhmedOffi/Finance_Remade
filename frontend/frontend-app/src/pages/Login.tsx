@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { api } from "../api/api";
+import { createDPoPProof } from "../utils/dpopUtils";
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -18,9 +19,17 @@ const LoginPage: React.FC = () => {
     setError("");
 
     try {
+      // Generate DPoP proof for the login request
+      const fullUrl = api.defaults.baseURL ? `${api.defaults.baseURL}/users/token/` : "/api/users/token/";
+      const proof = await createDPoPProof("POST", fullUrl);
+
       const response = await api.post("/users/token/", {
         email,
         password,
+      }, {
+        headers: {
+          "DPoP": proof
+        }
       });
 
       const { access, refresh } = response.data;

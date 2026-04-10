@@ -163,15 +163,16 @@ class InvestorActionListView(APIView):
 class InvestorActionDetailView(APIView):
     """
     Handles updating and deleting specific investor actions.
-    Restricted to Super Admins.
+    Restricted to Super Admins and SC members of the fund.
     """
     permission_classes = [IsAuthenticated]
 
     def put(self, request, action_id):
-        if not PermissionService.is_super_admin(request.user):
-            return Response({"error": "Only super admins can update investor actions."}, status=status.HTTP_403_FORBIDDEN)
-        
         action = get_object_or_404(InvestorAction, id=action_id)
+        if not (PermissionService.is_super_admin(request.user) or 
+                PermissionService.is_sc_member(request.user, action.fund)):
+            return Response({"error": "Only super admins and SC members can update investor actions."}, status=status.HTTP_403_FORBIDDEN)
+        
         serializer = InvestorActionSerializer(action, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
@@ -195,10 +196,11 @@ class InvestorActionDetailView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, action_id):
-        if not PermissionService.is_super_admin(request.user):
-            return Response({"error": "Only super admins can delete investor actions."}, status=status.HTTP_403_FORBIDDEN)
-        
         action = get_object_or_404(InvestorAction, id=action_id)
+        if not (PermissionService.is_super_admin(request.user) or 
+                PermissionService.is_sc_member(request.user, action.fund)):
+            return Response({"error": "Only super admins and SC members can delete investor actions."}, status=status.HTTP_403_FORBIDDEN)
+        
         action_id_str = str(action.id)
         action_type = action.type
         investor_email = action.investor.email

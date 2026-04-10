@@ -59,6 +59,7 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
 
   // Form Modal state
   const [showModal, setShowModal] = useState(false);
+  const [editingActionId, setEditingActionId] = useState<string | null>(null);
   const [investors, setInvestors] = useState<{id: string, email: string}[]>([]);
   const [fundPortfolioValue, setFundPortfolioValue] = useState<number>(0); // To store portfolio value for calculations
 
@@ -96,50 +97,73 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
     }
   };
 
-  // Fetch fund portfolio value for calculations when year changes or on load
-  const fetchFundPortfolioValue = useCallback(async (year: number) => {
+  const handleEdit = (action: any) => {
+    setEditingActionId(action.id);
+    setFormData({
+      type: action.type,
+      investor: action.investor || "",
+      year: action.year,
+      amount: action.amount || "",
+      percentage_sold: action.percentage_sold || "",
+      discount_percentage: action.discount_percentage || "0",
+      investor_selling: action.investor_selling || "",
+      investor_sold_to: action.investor_sold_to || "",
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = async (actionId: string) => {
+    if (!window.confirm("Are you sure you want to delete this investor action?")) return;
     try {
-      if (data?.graph_data) {
-        const yearData = data.graph_data.find(d => d.year === year);
-        const portfolioVal = yearData ? (yearData.portfolio_value || 0) : 0;
-        setFundPortfolioValue(portfolioVal);
-      } else {
-        setFundPortfolioValue(0);
-      }
-    } catch (err) {
-      console.error("Error fetching fund portfolio value:", err);
-      setFundPortfolioValue(0); // Default to 0 on error
+      await fundsApi.deleteInvestorAction(actionId);
+      fetchInvestorLog();
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Failed to delete investor action.");
     }
-  }, [data?.graph_data]);
+  };
 
-
-  useEffect(() => {
-    fetchInvestorLog();
-    fetchInvestors();
-  }, [fundId]);
-
-  // Fetch portfolio value when data loads or year changes (using year - 1 for calculations)
-  useEffect(() => {
-    fetchFundPortfolioValue(formData.year - 1);
-  }, [data, formData.year, fetchFundPortfolioValue]);
-
-  // Update price when fundPortfolioValue changes (e.g. year change)
-  useEffect(() => {
-    if (formData.type === "SECONDARY_EXIT" && formData.percentage_sold && formData.discount_percentage) {
-      const percentage = parseFloat(formData.percentage_sold);
-      const discount = parseFloat(formData.discount_percentage);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const payload: any = {
+        ...formData,
+        fund: fundId,
+        year: parseInt(formData.year.toString()),
+      };
       
-      if (!isNaN(percentage) && !isNaN(discount) && !isNaN(fundPortfolioValue)) {
-        const calculatedPrice = calculatePriceSoldAt(percentage, fundPortfolioValue, discount);
-        setFormData(prev => ({ ...prev, amount: calculatedPrice.toFixed(2) }));
+      if (formData.type === "PRIMARY_INVESTMENT") {
+        payload.amount = parseFloat(formData.amount);
+      } else if (formData.type === "SECONDARY_EXIT") {
+        payload.percentage_sold = parseFloat(formData.percentage_sold);
+        payload.discount_percentage = parseFloat(formData.discount_percentage);
+        payload.investor = formData.investor_selling; // Seller is the primary investor for the action
+        payload.amount = parseFloat(formData.amount); // Amount is the price sold at
       }
+
+      if (editingActionId) {
+        await fundsApi.updateInvestorAction(editingActionId, payload);
+      } else {
+        await fundsApi.createInvestorAction(payload);
+      }
+      
+      setShowModal(false);
+      setEditingActionId(null);
+      fetchInvestorLog();
+      // Reset form
+      setFormData({
+        type: "PRIMARY_INVESTMENT",
+        investor: "",
+        year: new Date().getFullYear(),
+        amount: "",
+        percentage_sold: "",
+        discount_percentage: "0",
+        investor_selling: "",
+        investor_sold_to: "",
+      });
+    } catch (err: any) {
+      alert(err.response?.data?.error || `Failed to ${editingActionId ? 'update' : 'create'} investor action.`);
     }
-  }, [fundPortfolioValue]);
-
-
-  if (loading) return <div className="p-4 text-gray-400">Loading investor log...</div>;
-  if (error) return <div className="p-4 text-red-500">{error}</div>;
-  if (!data) return <div className="p-4 text-gray-400">No data available.</div>;
+  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -163,15 +187,6 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
     const percentageAsFraction = percentage / 100;
     return percentageAsFraction * portfolio * (1 - (discount / 100));
   };
-
-  // Pagination logic
-  const actions = data.actions || [];
-  const indexOfLastAction = currentPage * actionsPerPage;
-  const indexOfFirstAction = indexOfLastAction - actionsPerPage;
-  const currentActions = actions.slice(indexOfFirstAction, indexOfLastAction);
-  const totalPages = Math.ceil(actions.length / actionsPerPage);
-
-  const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -216,42 +231,44 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
     });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Fetch fund portfolio value for calculations when year changes or on load
+  const fetchFundPortfolioValue = useCallback(async (year: number) => {
     try {
-      const payload: any = {
-        ...formData,
-        fund: fundId,
-        year: parseInt(formData.year.toString()),
-      };
-      
-      if (formData.type === "PRIMARY_INVESTMENT") {
-        payload.amount = parseFloat(formData.amount);
-      } else if (formData.type === "SECONDARY_EXIT") {
-        payload.percentage_sold = parseFloat(formData.percentage_sold);
-        payload.discount_percentage = parseFloat(formData.discount_percentage);
-        payload.investor = formData.investor_selling; // Seller is the primary investor for the action
-        payload.amount = parseFloat(formData.amount); // Amount is the price sold at
+      if (data?.graph_data) {
+        const yearData = data.graph_data.find(d => d.year === year);
+        const portfolioVal = yearData ? (yearData.portfolio_value || 0) : 0;
+        setFundPortfolioValue(portfolioVal);
+      } else {
+        setFundPortfolioValue(0);
       }
-
-      await fundsApi.createInvestorAction(payload);
-      setShowModal(false);
-      fetchInvestorLog();
-      // Reset form
-      setFormData({
-        type: "PRIMARY_INVESTMENT",
-        investor: "",
-        year: new Date().getFullYear(),
-        amount: "",
-        percentage_sold: "",
-        discount_percentage: "0",
-        investor_selling: "",
-        investor_sold_to: "",
-      });
-    } catch (err: any) {
-      alert(err.response?.data?.error || "Failed to create investor action.");
+    } catch (err) {
+      console.error("Error fetching fund portfolio value:", err);
+      setFundPortfolioValue(0); // Default to 0 on error
     }
-  };
+  }, [data?.graph_data]);
+
+  useEffect(() => {
+    fetchInvestorLog();
+    fetchInvestors();
+  }, [fundId]);
+
+  // Fetch portfolio value when data loads or year changes (using year - 1 for calculations)
+  useEffect(() => {
+    fetchFundPortfolioValue(formData.year - 1);
+  }, [data, formData.year, fetchFundPortfolioValue]);
+
+  if (loading) return <div className="p-4 text-gray-400">Loading investor log...</div>;
+  if (error) return <div className="p-4 text-red-500">{error}</div>;
+  if (!data) return <div className="p-4 text-gray-400">No data available.</div>;
+
+  // Pagination logic
+  const actions = data.actions || [];
+  const indexOfLastAction = currentPage * actionsPerPage;
+  const indexOfFirstAction = indexOfLastAction - actionsPerPage;
+  const currentActions = actions.slice(indexOfFirstAction, indexOfLastAction);
+  const totalPages = Math.ceil(actions.length / actionsPerPage);
+
+  const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
 
   // Process data for the area chart
   const processedGraphData = (data.graph_data || []).map(d => ({
@@ -317,7 +334,20 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
         <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
           <h3 className="text-lg font-semibold text-gray-900">Investor Actions</h3>
           <button 
-            onClick={() => setShowModal(true)}
+            onClick={() => {
+              setEditingActionId(null);
+              setFormData({
+                type: "PRIMARY_INVESTMENT",
+                investor: "",
+                year: new Date().getFullYear(),
+                amount: "",
+                percentage_sold: "",
+                discount_percentage: "0",
+                investor_selling: "",
+                investor_sold_to: "",
+              });
+              setShowModal(true);
+            }}
             className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"
           >
             + Add Action
@@ -333,6 +363,7 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
                 <th className="px-6 py-4 font-semibold text-right">Amount</th>
                 <th className="px-6 py-4 font-semibold text-right">Units</th>
                 <th className="px-6 py-4 font-semibold">Date</th>
+                <th className="px-6 py-4 font-semibold text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -357,6 +388,26 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
                   </td>
                   <td className="px-6 py-4 text-gray-500 text-xs">
                     {new Date(action.created_at).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 text-right space-x-2">
+                    <button 
+                      onClick={() => handleEdit(action)}
+                      className="text-blue-600 hover:text-blue-800 transition-colors"
+                      title="Edit Action"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(action.id)}
+                      className="text-red-600 hover:text-red-800 transition-colors"
+                      title="Delete Action"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -386,7 +437,7 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId }) => {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-gray-200 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
             <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-              <h3 className="text-lg font-semibold text-gray-900">Add Investor Action</h3>
+              <h3 className="text-lg font-semibold text-gray-900">{editingActionId ? 'Edit' : 'Add'} Investor Action</h3>
               <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-900">✕</button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">

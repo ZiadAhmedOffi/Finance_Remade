@@ -24,10 +24,16 @@ from users.models import AuditLog
 # -----------------------------
 # JWT Custom Token Serializer
 # -----------------------------
+import jwt
+import json
+import base64
+import hashlib
+
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     """
     Custom JWT Token Serializer that adds extra claims to the token
     such as email, staff status, superuser status, and assigned roles.
+    Includes DPoP binding (cnf claim) if proof is provided.
     """
     @classmethod
     def get_token(cls, user: User):
@@ -47,14 +53,19 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
-        email = attrs.get("email")
+        # Handle both 'email' and 'username' as fallbacks
+        email = attrs.get("email") or attrs.get("username")
         password = attrs.get("password")
         request = self.context.get("request")
         ip = request.META.get("REMOTE_ADDR") if request else None
 
+        if not email or not password:
+            raise ValidationError("Email and password are required.")
+
         try:
             user = User.objects.get(email=email)
         except User.DoesNotExist:
+            print(f"DEBUG: User not found for email: {email}")
             AuditService.log_event(
                 actor=None,
                 action="LOGIN_FAILED",
@@ -64,6 +75,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             raise ValidationError("Invalid credentials.")
 
         if not user.check_password(password):
+            print(f"DEBUG: Invalid password for user: {email}")
             AuditService.log_event(
                 actor=user,
                 action="LOGIN_FAILED",
@@ -73,6 +85,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             raise ValidationError("Invalid credentials.")
 
         if not user.is_active:
+            print(f"DEBUG: User is inactive: {email}")
             AuditService.log_event(
                 actor=user,
                 action="LOGIN_FAILED",
@@ -82,6 +95,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             raise ValidationError("User account is not active.")
 
         # Log success
+        print(f"DEBUG: Login success for user: {email}")
         AuditService.log_event(
             actor=user,
             action="LOGIN_SUCCESS",
@@ -96,6 +110,30 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         # Manually create the token
         refresh = self.get_token(user)
+
+        # DPoP binding for access token
+        if request:
+            dpop_proof = request.headers.get("DPoP")
+            if dpop_proof:
+                try:
+                    header = jwt.get_unverified_header(dpop_proof)
+                    jwk = header.get("jwk")
+                    if jwk:
+                        # RFC 7638 thumbprint
+                        required_fields = {
+                            "crv": jwk.get("crv"),
+                            "kty": jwk.get("kty"),
+                            "x": jwk.get("x"),
+                            "y": jwk.get("y"),
+                        }
+                        json_jwk = json.dumps(required_fields, separators=(",", ":"), sort_keys=True)
+                        hash_digest = hashlib.sha256(json_jwk.encode("utf-8")).digest()
+                        jkt = base64.urlsafe_b64encode(hash_digest).decode("utf-8").replace("=", "")
+                        refresh["cnf"] = {"jkt": jkt}
+                        print(f"DEBUG: Bound token to JKT: {jkt}")
+                except Exception as e:
+                    print(f"DEBUG: Failed to bind token to DPoP: {str(e)}")
+                    pass
 
         data = {}
         data["refresh"] = str(refresh)

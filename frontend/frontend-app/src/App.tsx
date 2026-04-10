@@ -11,6 +11,7 @@ import InvestorDashboard from "./pages/InvestorDashboard";
 import PrivateRoute from "./components/PrivateRoute";
 import AdminRoute from "./components/AdminRoute";
 import NotFound from "./pages/NotFound";
+import ErrorPage from "./pages/ErrorPage";
 
 /**
  * Main App component. Handles routing and global user activity tracking
@@ -111,6 +112,7 @@ function App() {
       <Route path="/" element={<Navigate to="/login" />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/error" element={<ErrorPage />} />
       <Route element={<PrivateRoute />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/profile" element={<Profile />} />

@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api/api";
 import "./AdminDashboard.css";
 import NotFound from "./NotFound";
-import InvestorActionsAdmin from "../components/InvestorActionsAdmin";
 
 interface Role {
   id: string;
@@ -57,7 +56,7 @@ interface AuditLog {
  */
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<"pending" | "active" | "logs" | "funds" | "investor-actions">("pending");
+  const [activeTab, setActiveTab] = useState<"pending" | "active" | "logs" | "funds">("pending");
   const [pendingUsers, setPendingUsers] = useState<User[]>([]);
   const [activeUsers, setActiveUsers] = useState<User[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -340,14 +339,6 @@ const AdminDashboard: React.FC = () => {
         >
           Audit Logs
         </button>
-        {isSuperAdmin && (
-          <button 
-            className={activeTab === "investor-actions" ? "tab-btn active" : "tab-btn"}
-            onClick={() => setActiveTab("investor-actions")}
-          >
-            Investor Actions
-          </button>
-        )}
       </div>
 
       <div className="tab-content">
@@ -575,11 +566,6 @@ const AdminDashboard: React.FC = () => {
                 </div>
               </>
             ) : <p className="empty-state">No logs found.</p>}
-          </section>
-        ) : activeTab === "investor-actions" ? (
-          <section>
-            <h2>Investor Actions Management</h2>
-            <InvestorActionsAdmin />
           </section>
         ) : null}
       </div>

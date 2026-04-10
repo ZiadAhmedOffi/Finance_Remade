@@ -54,7 +54,7 @@ INSTALLED_APPS = [
 REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "users.exceptions.custom_exception_handler",
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "users.auth.DPoPAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
@@ -66,7 +66,8 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
-    "AUTH_HEADER_TYPES": ("Bearer",),
+    "AUTH_HEADER_TYPES": ("DPoP",),
+    "LEEWAY": 30,
 }
 
 MIDDLEWARE = [
@@ -111,6 +112,13 @@ if not CORS_ALLOWED_ORIGINS or CORS_ALLOWED_ORIGINS == ['']:
 
 # Allow credentials for JWT cookies if needed, though we use headers
 CORS_ALLOW_CREDENTIALS = True
+
+# Add DPoP to allowed headers
+from corsheaders.defaults import default_headers
+
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "DPoP",
+]
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
