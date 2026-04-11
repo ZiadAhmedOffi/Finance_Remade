@@ -497,7 +497,7 @@ class CurrentInvestorStats(models.Model):
             if action.type == "SECONDARY_EXIT":
                 relation.amount_invested = float(relation.amount_invested) / (1 - (float(action.units) / float(relation.units)))
                 relation.units = float(relation.units) -  float(action.units)
-                relation.realized_gain = float(relation.realized_gain) - float(action.amount) + (float(relation.amount_invested) / float      (relation.units) * float(action.units))
+                relation.realized_gain = float(relation.realized_gain) - float(action.amount) + (float(relation.amount_invested) / float(relation.units) * float(action.units))
             else:
                 relation.amount_invested = float(relation.amount_invested) - float(action.amount)
                 relation.units = float(relation.units) - float(action.units)
