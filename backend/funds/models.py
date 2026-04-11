@@ -468,7 +468,7 @@ class CurrentInvestorStats(models.Model):
     # Realized gain from secondary exits the investor performed in the related fund
     realized_gain = models.DecimalField(max_digits=30, decimal_places=2, default=0.00)
     # Current number of units owned by the investor in the fund
-    units = models.DecimalField(max_digits=30, decimal_places=4, default=0.0000)\
+    units = models.DecimalField(max_digits=30, decimal_places=4, default=0.0000)
 
     class Meta:
         ordering = ["amount_invested"]

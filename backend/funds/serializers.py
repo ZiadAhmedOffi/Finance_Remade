@@ -475,4 +475,15 @@ class InvestorActionSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"percentage_sold": "Percentage sold is required for secondary exit."})
             if data.get("investor_selling") is None:
                 raise serializers.ValidationError({"investor_selling": "Investor selling is required for secondary exit."})
+        
+        # Percentages should be between 0 and 100
+        # Note: They are calculated as (value / 100) when used for fractional math
+        pct_sold = data.get("percentage_sold")
+        discount = data.get("discount_percentage", 0)
+        
+        if pct_sold is not None and (pct_sold < 0 or pct_sold > 100):
+            raise serializers.ValidationError({"percentage_sold": "Percentage sold must be between 0 and 100."})
+        if discount is not None and (discount < 0 or discount > 100):
+            raise serializers.ValidationError({"discount_percentage": "Discount percentage must be between 0 and 100."})
+                
         return data
