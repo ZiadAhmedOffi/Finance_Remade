@@ -1,5 +1,6 @@
 
-import { computeImpliedReturnRate, computeNAVByYear, Investment } from './finance';
+import { computeImpliedReturnRate, computeNAVByYear } from './finance';
+import type { Investment } from './finance';
 
 /**
  * Simple test runner for financial utilities.
@@ -80,10 +81,5 @@ function runTests() {
   console.log("\nAll tests completed.");
 }
 
-// In case we are running this in a browser or as a module
-if (typeof require !== 'undefined' && require.main === module) {
-    runTests();
-} else {
-    // For environments like 'tsx' where the above might not work exactly
-    runTests();
-}
+// For running with tsx
+runTests();
