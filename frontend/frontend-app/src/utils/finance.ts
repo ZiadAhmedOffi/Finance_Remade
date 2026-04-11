@@ -77,12 +77,17 @@ export function computeImpliedReturnRate(
 
 /**
  * Calculates Net Asset Value (NAV) per year using forward-compounding.
+ * Separates historical performance (up to historicalFinalYear) and future projections.
  * 
- * Formula: NAV_t = sum_{i=0 to t} I_i * (1 + r)^(min(t, finalYear) - i)
+ * Formula: 
+ * For i <= historicalFinalYear: I_i * (1 + r)^(min(t, historicalFinalYear) - i)
+ * For i > historicalFinalYear: I_i * (1 + rFuture)^(min(t, fundEndYear) - i)
  * 
  * @param investments Array of {year, amount} objects.
- * @param r The implied annual return rate.
- * @param finalYear The year T at which compounding stops.
+ * @param r The implied historical annual return rate.
+ * @param historicalFinalYear The year T at which historical growth stops.
+ * @param rFuture The projected annual return rate for future investments.
+ * @param fundEndYear The year at which all growth stops.
  * @param startYear Optional start year for the result set.
  * @param endYear Optional end year for the result set.
  * @returns An array of {year, nav} objects.
@@ -90,7 +95,9 @@ export function computeImpliedReturnRate(
 export function computeNAVByYear(
   investments: Investment[],
   r: number,
-  finalYear: number,
+  historicalFinalYear: number,
+  rFuture: number,
+  fundEndYear: number,
   startYear?: number,
   endYear?: number
 ): Array<{year: number, nav: number}> {
@@ -101,17 +108,22 @@ export function computeNAVByYear(
   const maxYear = endYear ?? Math.max(...years);
   
   const results: Array<{year: number, nav: number}> = [];
-  const factor = 1 + r;
 
   for (let t = minYear; t <= maxYear; t++) {
     let nav = 0;
-    const effectiveYear = Math.min(t, finalYear);
     for (const inv of investments) {
       if (inv.year <= t) {
-        // Growth stops after finalYear. If an injection is after finalYear, exponent could be negative.
-        // Usually injections are before finalYear. We'll use max(0, ...) to ensure at least face value.
-        const exponent = Math.max(0, effectiveYear - inv.year);
-        nav += inv.amount * Math.pow(factor, exponent);
+        if (inv.year <= historicalFinalYear) {
+          // Historical part: Grows until historicalFinalYear
+          const effectiveYear = Math.min(t, historicalFinalYear);
+          const exponent = Math.max(0, effectiveYear - inv.year);
+          nav += inv.amount * Math.pow(1 + r, exponent);
+        } else {
+          // Future part: Grows until fundEndYear
+          const effectiveYear = Math.min(t, fundEndYear);
+          const exponent = Math.max(0, effectiveYear - inv.year);
+          nav += inv.amount * Math.pow(1 + rFuture, exponent);
+        }
       }
     }
     results.push({ year: t, nav });

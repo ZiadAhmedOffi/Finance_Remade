@@ -69,6 +69,9 @@ def get_total_fund_portfolio(fund, year):
 
     management_fee_pct = float(model_inputs.management_fee)
     inception_year = int(model_inputs.inception_year)
+    current_year = datetime.now().year
+    fund_life = int(model_inputs.fund_life)
+    fund_end_year = inception_year + fund_life
 
     # 1. Deal Prognosis Metrics
     total_invested = sum(deal.amount_invested for deal in deals)
@@ -95,11 +98,13 @@ def get_total_fund_portfolio(fund, year):
     
     total_invested_float = float(total_invested) + total_expected_pro_rata
     gross_exit_value = sum(float(d["exit_value"]) for d in deals_data)
-    moic = gross_exit_value / total_invested_float if total_invested_float > 0 else 0
+    # Target for future deals: only sum exit values of deals starting from current_year
+    gross_exit_value_future = sum(float(d["exit_value"]) for d in deals_data if d["entry_year"] >= current_year)
     
-    current_year = datetime.now().year
-    p_final_year = current_year + int(model_inputs.fund_life)
-    irr = solve_implied_return_rate(p_injections_by_year, p_final_year, gross_exit_value)
+    # Expected IRR (irr) targeting fund_end_year using future injections
+    p_injections_future = {yr: amt for yr, amt in p_injections_by_year.items() if yr >= current_year}
+    p_solver_injections = p_injections_future if p_injections_future else p_injections_by_year
+    irr = solve_implied_return_rate(p_solver_injections, fund_end_year, gross_exit_value_future)
 
     # 2. Current Deals Metrics
     c_total_invested = sum(d.amount_invested for d in current_deals)
@@ -113,23 +118,32 @@ def get_total_fund_portfolio(fund, year):
         yr = d["entry_year"]
         c_injections_by_year[yr] = c_injections_by_year.get(yr, 0.0) + float(d["amount_invested"])
             
-    c_irr = solve_implied_return_rate(c_injections_by_year, current_year, c_gross_exit_value)
+    # Current IRR (c_irr) targeting current_year - 1
+    historical_target_year = current_year - 1
+    c_irr = solve_implied_return_rate(c_injections_by_year, historical_target_year, c_gross_exit_value)
 
-    # 3. Step through years to find value at 'year'
-    # Use compute_nav_by_year for correct forward-compounding
+    # 3. Calculate NAV parts
+    safe_c_irr = c_irr if c_irr and c_irr > -1 else 0.0
+    safe_p_irr = irr if irr and irr > -1 else 0.0
+
+    # Iterative calculation to match FundPerformanceView
+    # Find start_year
     all_entry_years = [d["entry_year"] for d in deals_data] + [d["entry_year"] for d in c_deals_data]
     start_year = min(inception_year, min(all_entry_years)) if all_entry_years else inception_year
-
-    # prognosis pro-rata injections handled by year
-    combined_p_injections = p_injections_by_year.copy()
     
-    navs_c = compute_nav_by_year(c_injections_by_year, c_irr, current_year, start_year, year)
-    navs_p = compute_nav_by_year(combined_p_injections, irr, p_final_year, start_year, year)
-
-    current_portfolio_value = navs_c.get(year, 0.0)
-    prognosis_portfolio_value = navs_p.get(year, 0.0)
+    c_pv = 0.0
+    p_pv = 0.0
+    for yr in range(start_year, year + 1):
+        c_inj = c_injections_by_year.get(yr, 0.0)
+        p_inj = p_injections_by_year.get(yr, 0.0)
         
-    return current_portfolio_value + prognosis_portfolio_value
+        c_appr = c_pv * safe_c_irr if yr <= fund_end_year else 0.0
+        p_appr = p_pv * safe_p_irr if yr <= fund_end_year else 0.0
+        
+        c_pv += c_inj + c_appr
+        p_pv += p_inj + p_appr
+        
+    return c_pv + p_pv
 
 def get_total_units_at_year(fund, year):
     """

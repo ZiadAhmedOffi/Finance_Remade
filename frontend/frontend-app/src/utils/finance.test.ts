@@ -35,12 +35,25 @@ function runTests() {
   const r10Pct = computeImpliedReturnRate(basicInvestments, 2, 231);
   assertEquals(r10Pct, 0.1, "Basic Case r (Exact 10% for 231)", 0.0001);
 
-  // NAV Progression for 10% case, finalYear = 2
-  const navs = computeNAVByYear(basicInvestments, 0.1, 2, 0, 3);
+  // NAV Progression for 10% case, historicalFinalYear = 2, rFuture = 0.05, fundEndYear = 5
+  const navs = computeNAVByYear(basicInvestments, 0.1, 2, 0.05, 5, 0, 3);
   assertEquals(navs.find(n => n.year === 0)?.nav, 100, "NAV Year 0");
   assertEquals(navs.find(n => n.year === 1)?.nav, 210, "NAV Year 1 (100*1.1 + 100)");
-  assertEquals(navs.find(n => n.year === 2)?.nav, 231, "NAV Year 2 (210*1.1)", 1e-10);
-  assertEquals(navs.find(n => n.year === 3)?.nav, 231, "NAV Year 3 (Capped at Year 2)", 1e-10);
+  assertEquals(navs.find(n => n.year === 2)?.nav, 231, "NAV Year 2 (210*1.1)");
+  assertEquals(navs.find(n => n.year === 3)?.nav, 231, "NAV Year 3 (Capped at Year 2 for historical part)");
+
+  // Future investment test: Investment at Year 3, rFuture = 0.1
+  const futureInvs: Investment[] = [
+    { year: 0, amount: 100 },
+    { year: 3, amount: 100 }
+  ];
+  const navsFuture = computeNAVByYear(futureInvs, 0.1, 2, 0.1, 5, 0, 4);
+  // Year 2: 100 * (1.1)^2 = 121
+  // Year 3: 121 (hist part capped) + 100 (future part injected) = 221
+  // Year 4: 121 (hist part capped) + 100 * (1.1) = 231
+  assertEquals(navsFuture.find(n => n.year === 2)?.nav, 121, "NAV Year 2 (Historical part grew)");
+  assertEquals(navsFuture.find(n => n.year === 3)?.nav, 221, "NAV Year 3 (Future part injected)");
+  assertEquals(navsFuture.find(n => n.year === 4)?.nav, 231, "NAV Year 4 (Future part grew)");
 
   // 2. Uneven Investments
   // Year 0: 100, Year 2: 200, Final Year: 5
@@ -52,7 +65,7 @@ function runTests() {
   console.log(`Computed uneven r: ${(rUneven * 100).toFixed(2)}%`);
 
   // 3. Exact Reconstruction Test
-  const reconstructedValue = computeNAVByYear(unevenInvestments, rUneven, 5, 5, 5)[0].nav;
+  const reconstructedValue = computeNAVByYear(unevenInvestments, rUneven, 5, 0, 5, 5, 5)[0].nav;
   assertEquals(reconstructedValue, 500, "Exact Reconstruction Test", 1e-6);
 
   // 4. Edge Cases

@@ -179,26 +179,39 @@ const FundCard: React.FC<FundCardProps> = ({ fund }) => {
 
     // For BP calculations, we use combined metrics
     const totalInvested = dashboard.total_invested;
+    const { historical_final_year, fund_end_year } = dashboard.performance_table[0] || {};
+    
     const irrBase = aggregated_exits?.find((c: any) => c.case === "Base Case")?.irr || 0;
     const irrUpside = aggregated_exits?.find((c: any) => c.case === "Upside Case")?.irr || 0;
     const irrHighGrowth = aggregated_exits?.find((c: any) => c.case === "High Growth Case")?.irr || 0;
 
-    let portfolioBase = 0;
-    let portfolioUpside = 0;
-    let portfolioHighGrowth = 0;
+    // Split each portfolio into historical and future parts for correct compounding
+    let pBase = 0;
+    let pUpside = 0;
+    let pHighGrowth = 0;
 
     return dashboard.performance_table.map((row: any) => {
       const injection = (row.injection_current ?? 0) + (row.injection_prognosis ?? 0);
       const gaYearly = gaMap[row.year] || 0;
+      const year = row.year;
 
-      portfolioBase = (portfolioBase + injection) * (1 + irrBase);
-      portfolioUpside = (portfolioUpside + injection) * (1 + irrUpside);
-      portfolioHighGrowth = (portfolioHighGrowth + injection) * (1 + irrHighGrowth);
+      const apprBase = pBase * irrBase;
+      const apprUpside = pUpside * irrUpside;
+      const apprHighGrowth = pHighGrowth * irrHighGrowth;
+
+      // Appreciation applies until fund_end_year
+      const currentApprBase = year <= fund_end_year ? apprBase : 0;
+      const currentApprUpside = year <= fund_end_year ? apprUpside : 0;
+      const currentApprHighGrowth = year <= fund_end_year ? apprHighGrowth : 0;
+
+      pBase += injection + currentApprBase;
+      pUpside += injection + currentApprUpside;
+      pHighGrowth += injection + currentApprHighGrowth;
 
       const investedBP = totalInvested > 0 ? (injection / totalInvested) * 100 : 0;
-      const lineBase = totalInvested > 0 ? ((portfolioBase - gaYearly) / totalInvested) * 100 : 0;
-      const lineUpside = totalInvested > 0 ? ((portfolioUpside - gaYearly) / totalInvested) * 100 : 0;
-      const lineHighGrowth = totalInvested > 0 ? ((portfolioHighGrowth - gaYearly) / totalInvested) * 100 : 0;
+      const lineBase = totalInvested > 0 ? ((pBase - gaYearly) / totalInvested) * 100 : 0;
+      const lineUpside = totalInvested > 0 ? ((pUpside - gaYearly) / totalInvested) * 100 : 0;
+      const lineHighGrowth = totalInvested > 0 ? ((pHighGrowth - gaYearly) / totalInvested) * 100 : 0;
 
       return {
         year: row.year,
