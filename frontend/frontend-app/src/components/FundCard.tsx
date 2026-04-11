@@ -191,9 +191,9 @@ const FundCard: React.FC<FundCardProps> = ({ fund }) => {
       const injection = (row.injection_current ?? 0) + (row.injection_prognosis ?? 0);
       const gaYearly = gaMap[row.year] || 0;
 
-      portfolioBase = portfolioBase * (1 + irrBase) + injection;
-      portfolioUpside = portfolioUpside * (1 + irrUpside) + injection;
-      portfolioHighGrowth = portfolioHighGrowth * (1 + irrHighGrowth) + injection;
+      portfolioBase = (portfolioBase + injection) * (1 + irrBase);
+      portfolioUpside = (portfolioUpside + injection) * (1 + irrUpside);
+      portfolioHighGrowth = (portfolioHighGrowth + injection) * (1 + irrHighGrowth);
 
       const investedBP = totalInvested > 0 ? (injection / totalInvested) * 100 : 0;
       const lineBase = totalInvested > 0 ? ((portfolioBase - gaYearly) / totalInvested) * 100 : 0;

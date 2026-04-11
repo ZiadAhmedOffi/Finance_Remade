@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from .models import Fund, ModelInput, InvestmentDeal, CurrentDeal
 from decimal import Decimal
 from datetime import datetime
-from .views import calculate_irr
+from .views import solve_implied_return_rate
 
 User = get_user_model()
 
@@ -21,19 +21,22 @@ class IRRCalculationTest(TestCase):
         self.model_inputs.save()
 
     def test_current_irr_logic(self):
-        """Test the current IRR calculation logic."""
-        real_moic = 2.0
-        exit_horizon = 5.0
-        # Expected IRR = 2.0 ^ (1/5) - 1 = 1.148698 - 1 = 0.148698...
+        """Test the new IRR calculation logic (forward compounding)."""
+        # Investment at t=0, final value at T=5
+        injections = {2024: 100.0}
+        final_year = 2029
+        final_value = 200.0
+        # Expected IRR = 2.0 ^ (1/5) - 1 = 0.148698...
         expected_irr = (2.0 ** (1.0/5.0)) - 1.0
-        calculated_irr = calculate_irr(real_moic, exit_horizon)
+        calculated_irr = solve_implied_return_rate(injections, final_year, final_value)
         self.assertAlmostEqual(calculated_irr, expected_irr, places=6)
 
     def test_new_irr_logic(self):
         """Verify IRR in FundPerformanceView response (new logic)."""
         # Create a current deal
         # inception_year = 2024, current_year = 2026
-        # wait_time = (2026-1-2024) * 1M / 1M = 1.0
+        # Injections: 2024: 1M. Exit Value: 2M.
+        # Formula: 1M * (1+r)^(2026-2024) = 2M => (1+r)^2 = 2 => r = sqrt(2)-1
         CurrentDeal.objects.create(
             fund=self.fund,
             company_name="Deal 1",
@@ -56,16 +59,12 @@ class IRRCalculationTest(TestCase):
         self.assertEqual(response.status_code, 200)
         c_metrics = response.data["current_deals_metrics"]
         
-        # In my setup: current_year = 2026 (assumed by datetime.now().year if I run it now in 2026)
-        # Wait, what is the current year in the test environment?
-        # Today's date is March 31, 2026.
-        current_year = datetime.now().year # 2026
+        # In my setup: current_year = 2026 (assumed)
+        current_year = datetime.now().year
         inception_year = 2024
-        wait_time = float(current_year - 1 - inception_year) # 1.0
+        delta_t = current_year - inception_year # 2.0
         
-        real_moic = c_metrics["real_moic"]
-        moic = c_metrics["moic"]
-        # Expected IRR = moic ^ (1/1.0) - 1 = moic - 1
-        expected_irr = (float(moic) ** (1.0/wait_time)) - 1.0
+        moic = c_metrics["moic"] # 2.0
+        # Expected IRR = moic ^ (1/2.0) - 1
+        expected_irr = (float(moic) ** (1.0/delta_t)) - 1.0
         self.assertAlmostEqual(c_metrics["irr"], expected_irr, places=6)
-        self.assertAlmostEqual(c_metrics["irr"], float(moic) - 1.0, places=6)

@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.db import transaction
-from .logic import get_total_fund_portfolio, get_total_units_at_year
+from .logic import get_total_fund_portfolio, get_total_units_at_year, solve_implied_return_rate, compute_nav_by_year
 from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, InvestorAction, RiskAssessment, CurrentInvestorStats, PossibleCapitalSource
 from .serializers import (
     FundSerializer, 
@@ -1121,29 +1121,6 @@ class FundLogListView(APIView):
         serializer = FundLogSerializer(logs, many=True)
         return Response(serializer.data)
 
-def calculate_irr(real_moic, wait_time):
-    """
-    Calculates IRR based on the formula: [(Real MOIC to Investors)^(1/wait_time) - 1]
-    """
-    if real_moic <= 0 or wait_time <= 0:
-        return 0.0
-    return (float(real_moic) ** (1.0 / float(wait_time))) - 1.0
-
-def calculate_wait_time(inception_year, current_year, total_invested, injections_by_year):
-    """
-    Calculates weighted average investment time based on:
-    [summation_{yr=inception}^{current_year-1} (invested_capital_yr * (current_year - 1 - inception_year)) / total_invested]
-    """
-    if total_invested <= 0:
-        return 0.0
-    
-    wait_base = float(current_year - 1 - inception_year)
-    numerator = 0.0
-    for yr in range(inception_year, current_year):
-        numerator += float(injections_by_year.get(yr, 0.0)) * wait_base
-    
-    return numerator / float(total_invested)
-
 class FundPerformanceView(APIView):
     """
     Calculates performance metrics for the three dashboard tabs:
@@ -1213,8 +1190,9 @@ class FundPerformanceView(APIView):
         p_net_to_investors = gross_exit_value - (p_total_fees + p_carry_amount)
         p_real_moic = p_net_to_investors / total_invested_float if total_invested_float > 0 else 0
         
-        p_wait = calculate_wait_time(current_year, (current_year + int(model_inputs.fund_life)), total_invested_float, p_injections_by_year)
-        irr = calculate_irr(moic, p_wait)
+        # New IRR Solver
+        p_final_year = current_year + int(model_inputs.fund_life)
+        irr = solve_implied_return_rate(p_injections_by_year, p_final_year, gross_exit_value)
 
         # 2. Current Deals Metrics (Past Only)
         c_total_invested = sum(d.amount_invested for d in current_deals)
@@ -1243,8 +1221,8 @@ class FundPerformanceView(APIView):
         c_net_to_investors = c_gross_exit_value - (c_total_fees + c_carry_amount)
         c_real_moic = c_net_to_investors / c_total_invested_float if c_total_invested_float > 0 else 0
         
-        c_wait = calculate_wait_time(inception_year, current_year, c_total_invested_float, c_injections_by_year)
-        c_irr = calculate_irr(c_moic, c_wait)
+        # New IRR Solver
+        c_irr = solve_implied_return_rate(c_injections_by_year, current_year, c_gross_exit_value)
 
         # 3. Performance Table
         current_year = datetime.now().year
@@ -1319,7 +1297,8 @@ class FundPerformanceView(APIView):
         return performance_table, {
             "p_real_moic": p_real_moic, "irr": irr, "moic": moic, "total_invested": total_invested_float, "gross_exit_value": gross_exit_value,
             "c_real_moic": c_real_moic, "c_irr": c_irr, "c_moic": c_moic, "c_total_invested": c_total_invested_float, "c_gross_exit_value": c_gross_exit_value,
-            "p_wait": p_wait, "c_wait": c_wait
+            "p_injections_by_year": p_injections_by_year, "c_injections_by_year": c_injections_by_year,
+            "p_final_year": p_final_year, "c_final_year": current_year
         }
 
     def get(self, request, fund_id):
@@ -1398,7 +1377,7 @@ class FundPerformanceView(APIView):
             aggregated_exits.append({
                 "case": case["name"], "gev": case_gev, "profit_before_carry": profit, "gross_moic": case_moic,
                 "carry_pct": carry_pct, "carry_amount": carry_amt, "total_fees": fees, "net_to_investors": net,
-                "real_moic": real_moic, "irr": calculate_irr(case_moic, metrics["c_wait"])
+                "real_moic": real_moic, "irr": solve_implied_return_rate(metrics["c_injections_by_year"], metrics["c_final_year"], case_gev)
             })
 
         admin_fee_data = {
@@ -1457,7 +1436,7 @@ class FundPerformanceView(APIView):
             case_real_moic = case_net_to_investors / total_combined_invested if total_combined_invested > 0 else 0
             
             # New IRR formula for each case
-            case_irr = calculate_irr(case_real_moic, exit_horizon)
+            case_irr = solve_implied_return_rate(metrics["c_injections_by_year"], metrics["c_final_year"], case_gev)
             
             aggregated_exits.append({
                 "case": case["name"],
