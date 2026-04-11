@@ -483,7 +483,7 @@ class CurrentInvestorStats(models.Model):
     @staticmethod
     def recalculate_investor_stats(action, investor, fund, signal):
         """A method to be used whenever investor actions are added or deleted"""
-        relation, created = CurrentInvestorStats.objects.locked_get_or_create(investor = investor, fund = fund)
+        relation, created = locked_get_or_create(CurrentInvestorStats,investor = investor, fund = fund)
         print(created)
         if signal == "save":  
             if action.type == "SECONDARY_EXIT":
