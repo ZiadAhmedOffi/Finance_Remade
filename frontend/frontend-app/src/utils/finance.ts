@@ -78,10 +78,11 @@ export function computeImpliedReturnRate(
 /**
  * Calculates Net Asset Value (NAV) per year using forward-compounding.
  * 
- * Formula: NAV_t = sum_{i=0 to t} I_i * (1 + r)^(t - i)
+ * Formula: NAV_t = sum_{i=0 to t} I_i * (1 + r)^(min(t, finalYear) - i)
  * 
  * @param investments Array of {year, amount} objects.
  * @param r The implied annual return rate.
+ * @param finalYear The year T at which compounding stops.
  * @param startYear Optional start year for the result set.
  * @param endYear Optional end year for the result set.
  * @returns An array of {year, nav} objects.
@@ -89,6 +90,7 @@ export function computeImpliedReturnRate(
 export function computeNAVByYear(
   investments: Investment[],
   r: number,
+  finalYear: number,
   startYear?: number,
   endYear?: number
 ): Array<{year: number, nav: number}> {
@@ -103,9 +105,13 @@ export function computeNAVByYear(
 
   for (let t = minYear; t <= maxYear; t++) {
     let nav = 0;
+    const effectiveYear = Math.min(t, finalYear);
     for (const inv of investments) {
       if (inv.year <= t) {
-        nav += inv.amount * Math.pow(factor, t - inv.year);
+        // Growth stops after finalYear. If an injection is after finalYear, exponent could be negative.
+        // Usually injections are before finalYear. We'll use max(0, ...) to ensure at least face value.
+        const exponent = Math.max(0, effectiveYear - inv.year);
+        nav += inv.amount * Math.pow(factor, exponent);
       }
     }
     results.push({ year: t, nav });

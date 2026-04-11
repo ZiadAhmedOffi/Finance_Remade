@@ -1275,8 +1275,8 @@ class FundPerformanceView(APIView):
                         if deal_obj.entry_year < year <= deal_obj.entry_year + deal_obj.expected_number_of_rounds:
                             p_injection += round_amt
             
-            c_appreciation = (current_portfolio_value or 0.0) * safe_c_irr
-            p_appreciation = (prognosis_portfolio_value or 0.0) * safe_p_irr
+            c_appreciation = (current_portfolio_value or 0.0) * safe_c_irr if year <= current_year else 0.0
+            p_appreciation = (prognosis_portfolio_value or 0.0) * safe_p_irr if year <= p_final_year else 0.0
             
             current_portfolio_value = max(0.0, current_portfolio_value) + (c_injection or 0.0) + (c_appreciation or 0.0)
             prognosis_portfolio_value = max(0.0, prognosis_portfolio_value) + (p_injection or 0.0) + (p_appreciation or 0.0)

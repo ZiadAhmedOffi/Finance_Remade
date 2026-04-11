@@ -38,18 +38,20 @@ def solve_implied_return_rate(injections_by_year, final_year, final_value):
             low = mid
     return (low + high) / 2.0
 
-def compute_nav_by_year(injections_by_year, r, start_year, end_year):
+def compute_nav_by_year(injections_by_year, r, final_year, start_year, end_year):
     """
     Calculates Net Asset Value (NAV) per year using forward-compounding.
-    Formula: NAV_t = sum_{i=0 to t} I_i * (1 + r)^(t - i)
+    Formula: NAV_t = sum_{i=0 to t} I_i * (1 + r)^(min(t, final_year) - i)
     """
     nav_by_year = {}
     factor = 1.0 + r
     for t in range(start_year, end_year + 1):
         total = 0.0
+        effective_year = min(t, final_year)
         for yr, amt in injections_by_year.items():
             if yr <= t:
-                total += float(amt) * (factor ** (t - yr))
+                exponent = max(0, effective_year - yr)
+                total += float(amt) * (factor ** exponent)
         nav_by_year[t] = total
     return nav_by_year
 
@@ -121,8 +123,8 @@ def get_total_fund_portfolio(fund, year):
     # prognosis pro-rata injections handled by year
     combined_p_injections = p_injections_by_year.copy()
     
-    navs_c = compute_nav_by_year(c_injections_by_year, c_irr, start_year, year)
-    navs_p = compute_nav_by_year(combined_p_injections, irr, start_year, year)
+    navs_c = compute_nav_by_year(c_injections_by_year, c_irr, current_year, start_year, year)
+    navs_p = compute_nav_by_year(combined_p_injections, irr, p_final_year, start_year, year)
 
     current_portfolio_value = navs_c.get(year, 0.0)
     prognosis_portfolio_value = navs_p.get(year, 0.0)
