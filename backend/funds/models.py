@@ -1,6 +1,7 @@
 import uuid
 from django.db import models
 from django.conf import settings
+from .db_functions import locked_get_or_create
 
 class Fund(models.Model):
     """
@@ -482,7 +483,8 @@ class CurrentInvestorStats(models.Model):
     @staticmethod
     def recalculate_investor_stats(action, investor, fund, signal):
         """A method to be used whenever investor actions are added or deleted"""
-        relation, created = CurrentInvestorStats.objects.get_or_create(investor = investor, fund = fund)
+        relation, created = CurrentInvestorStats.objects.locked_get_or_create(investor = investor, fund = fund)
+        print(created)
         if signal == "save":  
             if action.type == "SECONDARY_EXIT":
                 relation.amount_invested = float(relation.amount_invested) * (1 - (float(action.units) / float(relation.units)))
