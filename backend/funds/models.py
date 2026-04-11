@@ -503,3 +503,42 @@ class CurrentInvestorStats(models.Model):
                 relation.units = float(relation.units) - float(action.units)
 
         relation.save()
+
+class Report(models.Model):
+    """
+    Model for dynamic fund reports. Stores configuration and metadata
+    about generated static reports.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    slug = models.SlugField(unique=True, db_index=True)
+    name = models.CharField(max_length=255)
+    fund = models.ForeignKey(Fund, on_delete=models.CASCADE, related_name='reports')
+    
+    config_json = models.JSONField(help_text="Metrics selection, chart types, etc.")
+    
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ("ACTIVE", "Active"), 
+            ("INACTIVE", "Inactive"), 
+            ("GENERATING", "Generating"),
+            ("FAILED", "Failed")
+        ],
+        default="INACTIVE",
+        db_index=True
+    )
+    
+    static_url = models.URLField(blank=True, null=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=["slug"]),
+            models.Index(fields=["status"]),
+        ]
+
+    def __str__(self):
+        return f"{self.name} - {self.fund.name}"

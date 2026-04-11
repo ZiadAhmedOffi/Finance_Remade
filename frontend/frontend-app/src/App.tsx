@@ -12,6 +12,7 @@ import PrivateRoute from "./components/PrivateRoute";
 import AdminRoute from "./components/AdminRoute";
 import NotFound from "./pages/NotFound";
 import ErrorPage from "./pages/ErrorPage";
+import PublicReportPage from "./pages/PublicReportPage";
 
 /**
  * Main App component. Handles routing and global user activity tracking
@@ -75,7 +76,11 @@ function App() {
    * Redirects to login if the session has expired and cannot be refreshed.
    */
   const handleUserActivity = useCallback(async () => {
-    if (location.pathname === "/login" || location.pathname === "/register") {
+    if (
+      location.pathname === "/login" || 
+      location.pathname === "/register" || 
+      location.pathname.startsWith("/reports/public/")
+    ) {
       return;
     }
 
@@ -126,6 +131,8 @@ function App() {
         <Route path="/funds/:fundId" element={<FundDashboard />} />
       </Route>
       
+      <Route path="/reports/public/:slug" element={<PublicReportPage />} />
+
       {/* Catch-all route for 404 */}
       <Route path="*" element={<NotFound />} />
     </Routes>

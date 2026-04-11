@@ -487,3 +487,33 @@ class InvestorActionSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"discount_percentage": "Discount percentage must be between 0 and 100."})
                 
         return data
+
+from .models import Report
+
+class ReportSerializer(serializers.ModelSerializer):
+    fund_name = serializers.CharField(source="fund.name", read_only=True)
+    created_by_email = serializers.EmailField(source="created_by.email", read_only=True)
+
+    class Meta:
+        model = Report
+        fields = [
+            "id",
+            "slug",
+            "name",
+            "fund",
+            "fund_name",
+            "config_json",
+            "status",
+            "static_url",
+            "created_by",
+            "created_by_email",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "slug", "static_url", "created_by", "created_at", "updated_at"]
+
+    def create(self, validated_data):
+        import uuid
+        # Generate a unique slug if not provided (though read_only above)
+        validated_data['slug'] = str(uuid.uuid4())[:8]
+        return super().create(validated_data)

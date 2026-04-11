@@ -11,6 +11,11 @@ const api = axios.create({
   baseURL: API_BASE,
 });
 
+const publicApi = axios.create({
+  baseURL: API_BASE,
+});
+
+// Interceptor for private api...
 api.interceptors.request.use(
   async (config) => {
     const token = localStorage.getItem("access_token");
@@ -98,6 +103,14 @@ export const fundsApi = {
     const params = investorId ? { investor_id: investorId } : {};
     return api.get("/funds/investor-dashboard/", { params });
   },
+
+  // Reports
+  getReports: () => api.get("/funds/reports/"),
+  createReport: (data: any) => api.post("/funds/reports/", data),
+  updateReport: (id: string, data: any) => api.patch(`/funds/reports/${id}/`, data),
+  deleteReport: (id: string) => api.delete(`/funds/reports/${id}/`),
+  regenerateReport: (id: string) => api.post(`/funds/reports/${id}/regenerate/`),
+  getPublicReport: (slug: string) => publicApi.get(`/funds/reports/public/${slug}/`),
 };
 
-export { api };
+export { api, publicApi };
