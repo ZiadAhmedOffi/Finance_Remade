@@ -179,7 +179,7 @@ const FundCard: React.FC<FundCardProps> = ({ fund }) => {
 
     // For BP calculations, we use combined metrics
     const totalInvested = dashboard.total_invested;
-    const { historical_final_year, fund_end_year } = dashboard.performance_table[0] || {};
+    const { fund_end_year } = dashboard.performance_table[0] || {};
     
     const irrBase = aggregated_exits?.find((c: any) => c.case === "Base Case")?.irr || 0;
     const irrUpside = aggregated_exits?.find((c: any) => c.case === "Upside Case")?.irr || 0;
