@@ -106,6 +106,7 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [showTable, setShowTable] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -185,71 +186,98 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
       {saveSuccess && <div className="alert alert-success">Changes saved successfully!</div>}
 
       <div className="content-card mb-4" style={{ padding: '1.5rem' }}>
-        <h3 className="tab-title">Portfolio Stability and Risk</h3>
-        <div className="table-responsive">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Company Name</th>
-                <th>Execution Capacity Score (0-10)</th>
-                <th>Market Validation Score (0-10)</th>
-                <th>Current Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {assessments.map((item, idx) => (
-                <tr key={item.company_name}>
-                  <td style={{ fontWeight: '600' }}>{item.company_name}</td>
-                  <td>
-                    <input 
-                      type="number" 
-                      className="form-input-sm"
-                      value={item.execution_capacity_score}
-                      onChange={(e) => handleScoreChange(idx, 'execution_capacity_score', e.target.value)}
-                      min="0"
-                      max="10"
-                      step="0.1"
-                      disabled={!canEdit}
-                    />
-                  </td>
-                  <td>
-                    <input 
-                      type="number" 
-                      className="form-input-sm"
-                      value={item.market_validation_score}
-                      onChange={(e) => handleScoreChange(idx, 'market_validation_score', e.target.value)}
-                      min="0"
-                      max="10"
-                      step="0.1"
-                      disabled={!canEdit}
-                    />
-                  </td>
-                  <td>
-                    <select 
-                      className="form-input-sm"
-                      value={item.status}
-                      onChange={(e) => handleStatusChange(idx, e.target.value)}
-                      disabled={!canEdit}
-                      style={{ 
-                        backgroundColor: getStatusColor(item.status) + '20', 
-                        color: getStatusColor(item.status),
-                        borderColor: getStatusColor(item.status),
-                        fontWeight: '600'
-                      }}
-                    >
-                      {STATUS_OPTIONS.map(opt => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div 
+          onClick={() => setShowTable(!showTable)}
+          style={{ 
+            cursor: 'pointer', 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            background: 'linear-gradient(to right, #f8fafc, #f1f5f9)',
+            padding: '1rem 1.5rem',
+            borderRadius: '0.75rem',
+            border: '1px solid #e2e8f0',
+            transition: 'all 0.2s ease',
+            marginBottom: showTable ? '1.5rem' : '0'
+          }}
+          className="section-header-btn"
+        >
+          <h3 className="tab-title" style={{ margin: 0, border: 'none' }}>Portfolio Stability and Risk Assessment</h3>
+          <span style={{ 
+            transition: 'transform 0.3s ease', 
+            transform: showTable ? 'rotate(180deg)' : 'rotate(0deg)',
+            fontSize: '1.2rem'
+          }}>▼</span>
         </div>
-        {canEdit && (
-          <div className="form-actions mt-3">
-            <button className="btn btn-primary" onClick={handleSave}>Save Assessment</button>
+
+        {showTable && (
+          <div className="section-content animate-fade-in">
+            <div className="table-responsive">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Company Name</th>
+                    <th>Execution Capacity Score (0-10)</th>
+                    <th>Market Validation Score (0-10)</th>
+                    <th>Current Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {assessments.map((item, idx) => (
+                    <tr key={item.company_name}>
+                      <td style={{ fontWeight: '600' }}>{item.company_name}</td>
+                      <td>
+                        <input 
+                          type="number" 
+                          className="form-input-sm"
+                          value={item.execution_capacity_score}
+                          onChange={(e) => handleScoreChange(idx, 'execution_capacity_score', e.target.value)}
+                          min="0"
+                          max="10"
+                          step="0.1"
+                          disabled={!canEdit}
+                        />
+                      </td>
+                      <td>
+                        <input 
+                          type="number" 
+                          className="form-input-sm"
+                          value={item.market_validation_score}
+                          onChange={(e) => handleScoreChange(idx, 'market_validation_score', e.target.value)}
+                          min="0"
+                          max="10"
+                          step="0.1"
+                          disabled={!canEdit}
+                        />
+                      </td>
+                      <td>
+                        <select 
+                          className="form-input-sm"
+                          value={item.status}
+                          onChange={(e) => handleStatusChange(idx, e.target.value)}
+                          disabled={!canEdit}
+                          style={{ 
+                            backgroundColor: getStatusColor(item.status) + '20', 
+                            color: getStatusColor(item.status),
+                            borderColor: getStatusColor(item.status),
+                            fontWeight: '600'
+                          }}
+                        >
+                          {STATUS_OPTIONS.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {canEdit && (
+              <div className="form-actions mt-3">
+                <button className="btn btn-primary" onClick={handleSave}>Save Assessment</button>
+              </div>
+            )}
           </div>
         )}
       </div>

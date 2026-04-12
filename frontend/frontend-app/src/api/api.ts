@@ -82,6 +82,16 @@ export const fundsApi = {
   updateInvestmentRound: (fundId: string, roundId: string, data: any) => api.put(`/funds/${fundId}/investment-rounds/${roundId}/`, data),
   deleteInvestmentRound: (fundId: string, roundId: string) => api.delete(`/funds/${fundId}/investment-rounds/${roundId}/`),
   getFundPerformance: (fundId: string) => api.get(`/funds/${fundId}/performance/`),
+  
+  // Excel Operations
+  downloadExcelTemplate: (fundId: string) => api.get(`/funds/${fundId}/excel-template/`, { responseType: 'blob' }),
+  uploadExcelData: (fundId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/funds/${fundId}/excel-ingest/`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
 
   getRiskAssessments: (fundId: string) => api.get(`/funds/${fundId}/risk-assessments/`),
   saveRiskAssessments: (fundId: string, data: any[]) => api.post(`/funds/${fundId}/risk-assessments/`, data),

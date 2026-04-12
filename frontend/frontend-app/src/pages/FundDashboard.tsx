@@ -204,6 +204,18 @@ const FundDashboard: React.FC = () => {
 
           {activeTab === "deals" && fundId && (
             <div className="deals-content-wrapper">
+              {canEdit && (
+                <div className="content-card" style={{border: '1px dashed #007bff', background: '#f0f7ff', marginBottom: '3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem 2.5rem'}}>
+                  <div>
+                    <h3 style={{border: 'none', margin: 0, fontSize: '1.1rem', color: '#0056b3'}}>Bulk Upload Deals via Excel?</h3>
+                    <p style={{margin: '0.25rem 0 0 0', fontSize: '0.9rem', color: '#64748b'}}>Use our Excel ingestion tool to add multiple deals at once.</p>
+                  </div>
+                  <button className="btn btn-primary" onClick={() => setActiveTab('model-inputs')}>
+                    Go to Ingestion Tool &rarr;
+                  </button>
+                </div>
+              )}
+              
               <div style={{ marginBottom: "4rem" }}>
                 <h2 style={{ marginBottom: "2rem", borderBottom: "2px solid #64748b", paddingBottom: "0.5rem", color: "#475569" }}>Current Deals (Already Made)</h2>
                 <CurrentDealsTab fundId={fundId} canEdit={canEdit} />

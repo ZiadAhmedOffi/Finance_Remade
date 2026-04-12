@@ -42,6 +42,8 @@ const ModelInputsTab: React.FC<ModelInputsTabProps> = ({ fundId, canEdit }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [ingestDetails, setIngestDetails] = useState<any>(null);
 
   /**
    * Fetches the current model inputs from the API.
@@ -93,7 +95,56 @@ const ModelInputsTab: React.FC<ModelInputsTabProps> = ({ fundId, canEdit }) => {
     }
   };
 
+  const handleDownloadTemplate = async () => {
+    try {
+      const response = await fundsApi.downloadExcelTemplate(fundId);
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `fund_${fundId}_template.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      alert("Failed to download template.");
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!window.confirm("Ingesting this Excel file will overwrite existing model inputs and append the deals to this fund's already exisiting deals. Are you sure?")) {
+      e.target.value = "";
+      return;
+    }
+
+    setUploading(true);
+    setIngestDetails(null);
+    setError(null);
+    try {
+      const response = await fundsApi.uploadExcelData(fundId, file);
+      setIngestDetails(response.data.details);
+      setMessage("Data ingested successfully!");
+      // Reload inputs
+      const reload = await fundsApi.getModelInputs(fundId);
+      setData(reload.data);
+    } catch (err: any) {
+      const errorData = err.response?.data;
+      if (errorData?.threat_type === "MACRO_DETECTED") {
+        setError("SECURITY ALERT: Malicious content detected. Your account has been flagged.");
+      } else {
+        setError(errorData?.error || "Ingestion failed.");
+        setIngestDetails(errorData?.details); // Might contain specific row errors
+      }
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
   if (loading) return <div>Loading model inputs...</div>;
+
   if (error) return <div className="alert alert-error">{error}</div>;
   if (!data) return null;
 
@@ -125,8 +176,60 @@ const ModelInputsTab: React.FC<ModelInputsTabProps> = ({ fundId, canEdit }) => {
         </div>
       </div>
 
+      {/* Excel Ingestion Section */}
+      {canEdit && (
+        <div className="content-card" style={{border: '1px dashed #cbd5e1', background: '#f8fafc', marginBottom: '3rem'}}>
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '2rem'}}>
+            <div style={{maxWidth: '600px'}}>
+              <h3 style={{border: 'none', marginBottom: '0.5rem'}}>Excel Data Ingestion</h3>
+              <p style={{color: '#64748b', fontSize: '0.9rem', margin: 0}}>
+                Update all fund data at once using a standardized Excel template.
+              </p>
+              <p style={{color: '#e74c3c', fontSize: '0.85rem', fontWeight: '600', marginTop: '0.5rem', lineHeight: '1.4'}}>
+                Note: Pro-rata (follow-on) deals cannot be uploaded via Excel and must be added manually in the Investment Deals tab.
+              </p>
+            </div>
+            <div style={{display: 'flex', gap: '1rem', alignItems: 'center'}}>
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={handleDownloadTemplate}
+                style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}
+              >
+                <span>📥</span> Download Template
+              </button>
+              <label className={`btn btn-primary ${uploading ? 'disabled' : ''}`} style={{display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: uploading ? 'not-allowed' : 'pointer', margin: 0}}>
+                <span>📤</span> {uploading ? 'Processing...' : 'Upload Data'}
+                <input type="file" accept=".xlsx" style={{display: 'none'}} onChange={handleFileUpload} disabled={uploading} />
+              </label>
+            </div>
+          </div>
+          
+          {ingestDetails && (
+            <div style={{marginTop: '1.5rem', padding: '1rem', background: error ? '#fff1f2' : '#f0fdf4', borderRadius: '8px', border: `1px solid ${error ? '#fecaca' : '#bbf7d0'}`}}>
+              <h4 style={{margin: '0 0 0.5rem 0', fontSize: '0.95rem', color: error ? '#991b1b' : '#166534'}}>
+                {error ? 'Ingestion Error Details' : 'Ingestion Summary'}
+              </h4>
+              {Array.isArray(ingestDetails) ? (
+                <ul style={{margin: 0, paddingLeft: '1.5rem', fontSize: '0.85rem', color: '#b91c1c'}}>
+                  {ingestDetails.map((err: any, idx: number) => (
+                    <li key={idx}>[{err.sheet}] Row {err.row}: {err.message}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p style={{margin: 0, fontSize: '0.85rem', color: '#166534'}}>
+                  Successfully updated: {ingestDetails.model_inputs} inputs. 
+                  Appended: {ingestDetails.current_deals_appended} current deals, {ingestDetails.future_deals_appended} future deals.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Parameter Configuration Form */}
       <form onSubmit={handleSubmit} className="model-inputs-form content-card">
+
         <div className="form-section">
           <h3>Fund & Timeline</h3>
           <div className="input-grid" style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.5rem'}}>

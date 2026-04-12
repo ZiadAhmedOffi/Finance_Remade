@@ -1603,7 +1603,93 @@ class ReportRegenerateView(APIView):
         )
         return Response(ReportSerializer(report).data)
 
+from django.http import HttpResponse
+from .security import SecurityScanner
+from .ingestion import ExcelIngestService
+
+class ExcelTemplateView(APIView):
+    """
+    Generates and returns a downloadable Excel template for a specific fund.
+    Only Super Admins and SC members of the fund can access.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, fund_id):
+        fund = get_object_or_404(Fund, id=fund_id)
+        if not (PermissionService.is_super_admin(request.user) or 
+                PermissionService.is_sc_member(request.user, fund)):
+            return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        template_output = ExcelIngestService.generate_template(fund)
+        
+        response = HttpResponse(
+            template_output.read(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response['Content-Disposition'] = f'attachment; filename="fund_{fund.name}_template.xlsx"'
+        return response
+
+class ExcelIngestView(APIView):
+    """
+    Handles Excel file upload, security scanning, and data ingestion.
+    Only Super Admins and SC members of the fund can access.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, fund_id):
+        fund = get_object_or_404(Fund, id=fund_id)
+        if not (PermissionService.is_super_admin(request.user) or 
+                PermissionService.is_sc_member(request.user, fund)):
+            return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        uploaded_file = request.FILES.get('file')
+        if not uploaded_file:
+            return Response({"error": "No file uploaded."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 1. Security Scan
+        is_safe, error_msg, threat_type = SecurityScanner.scan_file(uploaded_file, request.user)
+        if not is_safe:
+            # Audit the threat
+            AuditService.log(
+                actor=request.user,
+                action="SECURITY_THREAT_DETECTED",
+                fund=fund,
+                metadata={"threat_type": threat_type, "error": error_msg},
+                ip=request.META.get("REMOTE_ADDR")
+            )
+            return Response({"error": error_msg, "threat_type": threat_type}, status=status.HTTP_403_FORBIDDEN)
+        
+        # 2. Ingest Data
+        success, result = ExcelIngestService.ingest_data(fund, uploaded_file, request.user)
+        
+        if success:
+            AuditService.log(
+                actor=request.user,
+                action="EXCEL_INGESTION_SUCCESS",
+                fund=fund,
+                metadata=result,
+                ip=request.META.get("REMOTE_ADDR")
+            )
+            return Response({
+                "message": "Data ingested successfully.",
+                "details": result
+            }, status=status.HTTP_200_OK)
+        else:
+            # result contains errors (list or string)
+            AuditService.log(
+                actor=request.user,
+                action="EXCEL_INGESTION_FAILED",
+                fund=fund,
+                metadata={"errors": result},
+                ip=request.META.get("REMOTE_ADDR")
+            )
+            return Response({
+                "error": "Ingestion failed.",
+                "details": result
+            }, status=status.HTTP_400_BAD_REQUEST)
+
 class PublicReportView(APIView):
+
     """
     Endpoint for public access to reports via slug.
     Validates that report is ACTIVE.

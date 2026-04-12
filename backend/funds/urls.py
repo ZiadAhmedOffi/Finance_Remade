@@ -22,7 +22,9 @@ from .views import (
     ReportListView,
     ReportDetailView,
     ReportRegenerateView,
-    PublicReportView
+    PublicReportView,
+    ExcelTemplateView,
+    ExcelIngestView
 )
 
 urlpatterns = [
@@ -30,6 +32,9 @@ urlpatterns = [
     path("<uuid:fund_id>/", FundDetailView.as_view(), name="fund-detail"),
     path("<uuid:fund_id>/logs/", FundLogListView.as_view(), name="fund-logs"),
     path("<uuid:fund_id>/model-inputs/", ModelInputDetailView.as_view(), name="fund-model-inputs"),
+    path("<uuid:fund_id>/excel-template/", ExcelTemplateView.as_view(), name="fund-excel-template"),
+    path("<uuid:fund_id>/excel-ingest/", ExcelIngestView.as_view(), name="fund-excel-ingest"),
+
     path("<uuid:fund_id>/deals/", InvestmentDealListView.as_view(), name="fund-deals"),
     path("<uuid:fund_id>/deals/<uuid:deal_id>/", InvestmentDealDetailView.as_view(), name="fund-deal-detail"),
     path("<uuid:fund_id>/current-deals/", CurrentDealListView.as_view(), name="fund-current-deals"),
