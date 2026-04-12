@@ -235,6 +235,7 @@ class CurrentDeal(models.Model):
     amount_invested = models.DecimalField(max_digits=20, decimal_places=2)
     entry_valuation = models.DecimalField(max_digits=20, decimal_places=2)
     latest_valuation = models.DecimalField(max_digits=20, decimal_places=2)
+    expected_exit_multiple = models.DecimalField(max_digits=10, decimal_places=2, default=5.00)
     
     # Pro Rata Logic
     is_pro_rata = models.BooleanField(default=False)

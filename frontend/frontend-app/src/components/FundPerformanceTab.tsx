@@ -11,7 +11,13 @@ import {
   Line,
   Bar,
   ReferenceLine,
-} from "recharts";
+  Cell,
+  Radar,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  } from "recharts";
 
 /**
  * Interface representing a single year's entry in the performance table.
@@ -92,6 +98,7 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
     metrics: true,
     annualPerformance: false,
     capitalAllocation: false,
+    intrinsicValue: false,
   });
 
   const toggleSection = (section: keyof typeof sections) => {
@@ -516,6 +523,125 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
                     <Line type="monotone" dataKey="cumulative_injection_with_prognosis" stroke="#34495e" name="Invested (With Prognosis)" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 3 }} />
                     <Line type="monotone" dataKey="total_portfolio_value_with_prognosis" stroke="#27ae60" name="Portfolio Value (With Prognosis)" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 3 }} />
                   </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Intrinsic Value and Liquidity Index Section */}
+        <button 
+          onClick={() => toggleSection('intrinsicValue')}
+          style={{
+            width: '100%', 
+            padding: '1.25rem 1.5rem', 
+            background: 'linear-gradient(to right, #f8fafc, #f1f5f9)', 
+            border: '1px solid #e2e8f0', 
+            borderRadius: '0.75rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            cursor: 'pointer',
+            fontWeight: '700',
+            fontSize: '1.1rem',
+            color: '#1e293b',
+            marginBottom: '1rem',
+            transition: 'all 0.2s ease',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+          }}
+          className="section-header-btn"
+        >
+          <span style={{display: 'flex', alignItems: 'center', gap: '0.75rem'}}>
+            <span style={{
+              background: '#2563eb', 
+              color: 'white', 
+              width: '24px', 
+              height: '24px', 
+              borderRadius: '6px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              fontSize: '0.8rem'
+            }}>4</span>
+            INTRINSIC VALUE AND LIQUIDITY INDEX
+          </span>
+          <span style={{ 
+            transition: 'transform 0.3s ease', 
+            transform: sections.intrinsicValue ? 'rotate(180deg)' : 'rotate(0deg)',
+            fontSize: '1.2rem'
+          }}>▼</span>
+        </button>
+
+        {sections.intrinsicValue && (
+          <div className="section-content animate-fade-in">
+            <div className="content-card" style={{ padding: '2rem', marginBottom: '2rem' }}>
+              <h3 style={{ marginBottom: '2rem', textAlign: 'center' }}>Intrinsic Value</h3>
+              <div style={{ width: '100%', height: 600 }}>
+                <ResponsiveContainer>
+                  <RadarChart cx="50%" cy="50%" outerRadius="80%" data={(() => {
+                    const currentDeals = (data as any).current_deals || [];
+                    
+                    return currentDeals.map((d: any) => {
+                      const entryVal = parseFloat(d.entry_valuation);
+                      const currentVal = parseFloat(d.latest_valuation);
+                      const exitMultiple = parseFloat(d.expected_exit_multiple || 5.0);
+                      
+                      // Target = Entry Valuation * Multiple
+                      const targetVal = entryVal * exitMultiple;
+                      
+                      return {
+                        subject: d.company_name,
+                        entry: targetVal > 0 ? (entryVal / targetVal) * 100 : 0,
+                        current: targetVal > 0 ? (currentVal / targetVal) * 100 : 0,
+                        expected: 100,
+                        full_name: d.company_name
+                      };
+                    });
+                  })()}>
+                    <PolarGrid />
+                    <PolarAngleAxis dataKey="subject" />
+                    <PolarRadiusAxis angle={30} domain={[0, 100]} />
+                    <Radar
+                      name="Entry Valuation"
+                      dataKey="entry"
+                      stroke="#3498db"
+                      fill="#3498db"
+                      fillOpacity={0.4}
+                    />
+                    <Radar
+                      name="Current Valuation"
+                      dataKey="current"
+                      stroke="#2ecc71"
+                      fill="#2ecc71"
+                      fillOpacity={0.5}
+                    />
+                    <Radar
+                      name="Expected Final Valuation"
+                      dataKey="expected"
+                      stroke="#e74c3c"
+                      fill="transparent"
+                      strokeDasharray="5 5"
+                    />
+                    <Tooltip content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="custom-tooltip" style={{ 
+                            backgroundColor: '#fff', 
+                            padding: '10px', 
+                            border: '1px solid #ccc',
+                            borderRadius: '4px'
+                          }}>
+                            <p style={{ fontWeight: 'bold' }}>{data.full_name}</p>
+                            <p style={{ color: '#3498db' }}>Entry: {data.entry.toFixed(1)}%</p>
+                            <p style={{ color: '#2ecc71' }}>Current: {data.current.toFixed(1)}%</p>
+                            <p style={{ color: '#e74c3c' }}>Target: 100%</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }} />
+                    <Legend />
+                  </RadarChart>
                 </ResponsiveContainer>
               </div>
             </div>

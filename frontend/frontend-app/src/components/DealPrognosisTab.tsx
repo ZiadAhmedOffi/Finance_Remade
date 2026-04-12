@@ -385,6 +385,7 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
                   <th>Expected Rounds</th>
                   <th>Exit Year</th>
                   <th>Scenario</th>
+                  <th>Expected Multiple</th>
                   <th>Holding Period</th>
                   <th>Ownership %</th>
                   <th>Expected Ownership After Dilution</th>
@@ -447,6 +448,9 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
                         <span className={`status-badge scenario-${deal.selected_scenario.toLowerCase()}`}>
                           {deal.selected_scenario}
                         </span>
+                      </td>
+                      <td style={{ fontWeight: 'bold' }}>
+                        {parseFloat(deal[`${deal.selected_scenario.toLowerCase()}_factor` as keyof Deal] as string).toFixed(2)}x
                       </td>
                       <td>{deal.holding_period} yrs</td>
                       <td>{formatPercentage(deal.post_money_ownership)}</td>

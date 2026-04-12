@@ -32,6 +32,7 @@ interface CurrentDeal {
   amount_invested: string;
   entry_valuation: string;
   latest_valuation: string;
+  expected_exit_multiple: string;
   holding_period: number;
   post_money_ownership: number;
   ownership_after_dilution: number;
@@ -88,6 +89,7 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
     amount_invested: "1000000",
     entry_valuation: "10000000",
     latest_valuation: "12000000",
+    expected_exit_multiple: "5",
     is_pro_rata: false,
     pro_rata_rights: false,
     parent_deal: null as string | null
@@ -214,6 +216,7 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
       amount_invested: deal.amount_invested,
       entry_valuation: deal.entry_valuation,
       latest_valuation: deal.latest_valuation,
+      expected_exit_multiple: deal.expected_exit_multiple || "5",
       is_pro_rata: deal.is_pro_rata,
       pro_rata_rights: deal.pro_rata_rights || false,
       parent_deal: deal.parent_deal
@@ -423,6 +426,10 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
                 <label>Latest Valuation (USD)</label>
                 <input type="number" value={formData.latest_valuation} onChange={e => setFormData({...formData, latest_valuation: e.target.value})} required step="any" disabled={formData.is_pro_rata} />
               </div>
+              <div className="form-group">
+                <label>Expected Exit Multiple (e.g. 5x)</label>
+                <input type="number" value={formData.expected_exit_multiple} onChange={e => setFormData({...formData, expected_exit_multiple: e.target.value})} required step="0.1" disabled={formData.is_pro_rata} />
+              </div>
               <div className="form-group" style={{display: 'flex', alignItems: 'center', gap: '0.5rem', height: '100%', paddingTop: '1.5rem'}}>
                 <input 
                   type="checkbox" 
@@ -466,6 +473,7 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
                   <th>Pro Rata Rights</th>
                   <th>Latest Val</th>
                   <th>Val Year</th>
+                  <th>Expected Multiple</th>
                   <th>MOIC</th>
                   <th>Holding Period</th>
                   <th>Ownership %</th>
@@ -530,6 +538,7 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
                       </td>
                       <td>{formatCurrency(deal.latest_valuation)}</td>
                       <td>{deal.latest_valuation_year}</td>
+                      <td>{deal.expected_exit_multiple}x</td>
                       <td>{formatMOIC(deal.moic)}</td>
                       <td>{`${deal.holding_period} yrs`}</td>
                       <td>{formatPercentage(deal.post_money_ownership)}</td>

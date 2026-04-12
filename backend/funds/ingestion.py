@@ -31,7 +31,7 @@ class ExcelIngestService:
         ws2 = wb.create_sheet("current_deals")
         ws2.append(["company_name", "company_type", "industry", "entry_year", 
                    "latest_valuation_year", "amount_invested", "entry_valuation", 
-                   "latest_valuation", "pro_rata_rights"])
+                   "latest_valuation", "expected_exit_multiple", "pro_rata_rights"])
         
         # Sheet 3: Future Deals (Prognosis)
         ws3 = wb.create_sheet("future_deals")
@@ -82,6 +82,11 @@ class ExcelIngestService:
             for row_idx, row in enumerate(ws_current.iter_rows(min_row=2, values_only=True), 2):
                 if not row[0]: continue
                 try:
+                    # Validate expected_exit_multiple
+                    multiple = decimal.Decimal(str(row[8] or 5.0))
+                    if multiple <= 0:
+                        raise ValueError("Expected exit multiple must be greater than 0.")
+                    
                     current_deals_data.append({
                         "fund": fund,
                         "company_name": str(row[0]),
@@ -92,8 +97,9 @@ class ExcelIngestService:
                         "amount_invested": decimal.Decimal(str(row[5])),
                         "entry_valuation": decimal.Decimal(str(row[6])),
                         "latest_valuation": decimal.Decimal(str(row[7])),
+                        "expected_exit_multiple": multiple,
                         "is_pro_rata": False, # Pro-rata deals cannot be uploaded via Excel
-                        "pro_rata_rights": bool(row[8]),
+                        "pro_rata_rights": bool(row[9]),
                     })
                 except Exception as e:
                     errors.append({"sheet": "current_deals", "row": row_idx, "message": f"Validation error: {str(e)}"})
