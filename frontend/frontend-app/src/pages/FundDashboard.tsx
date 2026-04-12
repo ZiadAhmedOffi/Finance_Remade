@@ -41,6 +41,10 @@ const FundDashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   
+  // Pagination for action logs
+  const [currentLogPage, setCurrentLogPage] = useState(1);
+  const logsPerPage = 10;
+
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newTag, setNewTag] = useState("VC");
@@ -318,32 +322,48 @@ const FundDashboard: React.FC = () => {
             <section className="logs-section content-card">
               <h3>Action Logs</h3>
               {logs.length > 0 ? (
-                <div className="table-responsive">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Timestamp</th>
-                        <th>Actor</th>
-                        <th>Action</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {logs.map(log => (
-                        <tr key={log.id}>
-                          <td>{new Date(log.timestamp).toLocaleString()}</td>
-                          <td>{log.actor_email}</td>
-                          <td>{log.action}</td>
-                          <td>
-                            <span className={log.success ? "status-success" : "status-failed"}>
-                              {log.success ? "Success" : "Failed"}
-                            </span>
-                          </td>
+                <>
+                  <div className="table-responsive">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Timestamp</th>
+                          <th>Actor</th>
+                          <th>Action</th>
+                          <th>Status</th>
                         </tr>
+                      </thead>
+                      <tbody>
+                        {logs.slice((currentLogPage - 1) * logsPerPage, currentLogPage * logsPerPage).map(log => (
+                          <tr key={log.id}>
+                            <td>{new Date(log.timestamp).toLocaleString()}</td>
+                            <td>{log.actor_email}</td>
+                            <td>{log.action}</td>
+                            <td>
+                              <span className={log.success ? "status-success" : "status-failed"}>
+                                {log.success ? "Success" : "Failed"}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {logs.length > logsPerPage && (
+                    <div className="pagination-controls" style={{marginTop: '2rem', display: 'flex', justifyContent: 'center', gap: '0.5rem'}}>
+                      {Array.from({ length: Math.ceil(logs.length / logsPerPage) }, (_, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setCurrentLogPage(i + 1)}
+                          className={`btn ${currentLogPage === i + 1 ? 'btn-primary' : 'btn-secondary'}`}
+                          style={{minWidth: '2.5rem'}}
+                        >
+                          {i + 1}
+                        </button>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
+                    </div>
+                  )}
+                </>
               ) : <p>No logs available for this fund.</p>}
             </section>
           )}

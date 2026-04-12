@@ -487,6 +487,12 @@
   text-decoration: underline;
 }
 
+.section-header-btn:hover {
+  background: linear-gradient(to right, #f1f5f9, #e2e8f0) !important;
+  border-color: #cbd5e1 !important;
+  transform: translateY(-1px);
+}
+
 @media (max-width: 1200px) {
   .charts-grid { grid-template-columns: 1fr; }
   .chart-container.wide { grid-column: span 1; }

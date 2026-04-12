@@ -87,6 +87,17 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Toggle states for sections
+  const [sections, setSections] = useState({
+    metrics: true,
+    annualPerformance: false,
+    capitalAllocation: false,
+  });
+
+  const toggleSection = (section: keyof typeof sections) => {
+    setSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  };
+
   /**
    * Fetches performance data from the backend.
    */
@@ -155,215 +166,361 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
           </pattern>
         </defs>
       </svg>
-      {/* Current Deals Metrics Card (Past) */}
-      <div className="content-card" style={{background: '#f8fafc', borderColor: '#64748b', marginBottom: '3rem'}}>
-        <h3 style={{textAlign: 'center', color: '#475569', marginBottom: '2rem', textTransform: 'uppercase', letterSpacing: '0.05em'}}>Performance of Deals Already Made (Past)</h3>
-        <div style={{display: 'flex', flexDirection: 'column', gap: '2.5rem', textAlign: 'center'}}>
-          <div style={{display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: '2rem'}}>
-            <div className="summary-item">
-              <label style={{color: '#64748b', fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block'}}>Total Amount Invested</label>
-              <div className="summary-value" style={{fontSize: '2.5rem', fontWeight: '900', color: '#1e293b'}}>
-                {formatCurrencyLong(current_deals_metrics.total_invested)}
+
+      {/* SECTION 1: METRICS */}
+      <div className="section-container" style={{marginBottom: '2rem'}}>
+        <button 
+          onClick={() => toggleSection('metrics')}
+          style={{
+            width: '100%', 
+            padding: '1.25rem 1.5rem', 
+            background: 'linear-gradient(to right, #f8fafc, #f1f5f9)', 
+            border: '1px solid #e2e8f0', 
+            borderRadius: '0.75rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            cursor: 'pointer',
+            fontWeight: '700',
+            fontSize: '1.1rem',
+            color: '#1e293b',
+            marginBottom: '1rem',
+            transition: 'all 0.2s ease',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+          }}
+          className="section-header-btn"
+        >
+          <span style={{display: 'flex', alignItems: 'center', gap: '0.75rem'}}>
+            <span style={{
+              background: '#2563eb', 
+              color: 'white', 
+              width: '24px', 
+              height: '24px', 
+              borderRadius: '6px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              fontSize: '0.8rem'
+            }}>1</span>
+            FUND METRICS (PAST & FUTURE)
+          </span>
+          <span style={{ 
+            transition: 'transform 0.3s ease', 
+            transform: sections.metrics ? 'rotate(180deg)' : 'rotate(0deg)',
+            fontSize: '1.2rem'
+          }}>▼</span>
+        </button>
+
+        {sections.metrics && (
+          <div className="section-content animate-fade-in">
+            {/* Current Deals Metrics Card (Past) */}
+            <div className="content-card" style={{background: '#f8fafc', borderColor: '#64748b', marginBottom: '2rem'}}>
+              <h3 style={{textAlign: 'center', color: '#475569', marginBottom: '2rem', textTransform: 'uppercase', letterSpacing: '0.05em'}}>Performance of Deals Already Made (Past)</h3>
+              <div style={{display: 'flex', flexDirection: 'column', gap: '2.5rem', textAlign: 'center'}}>
+                <div style={{display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: '2rem'}}>
+                  <div className="summary-item">
+                    <label style={{color: '#64748b', fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block'}}>Total Amount Invested</label>
+                    <div className="summary-value" style={{fontSize: '2.5rem', fontWeight: '900', color: '#1e293b'}}>
+                      {formatCurrencyLong(current_deals_metrics.total_invested)}
+                    </div>
+                  </div>
+                  <div className="summary-item">
+                    <label style={{color: '#64748b', fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block'}}>Gross Exit Value Achieved</label>
+                    <div className="summary-value" style={{fontSize: '2.5rem', fontWeight: '900', color: '#1e293b'}}>
+                      {formatCurrencyLong(current_deals_metrics.gross_exit_value)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="divider-h" style={{margin: '0 auto', width: '80%', opacity: '0.2', borderTop: '1px solid #64748b'}} />
+
+                <div style={{display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: '2rem'}}>
+                  <div className="summary-item">
+                    <label style={{color: '#64748b', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>MOIC Achieved</label>
+                    <div className="summary-value" style={{fontSize: '1.6rem', fontWeight: '700', color: '#1e293b'}}>
+                      {formatMultiple(current_deals_metrics.moic)}
+                    </div>
+                  </div>
+                  <div className="summary-item">
+                    <label style={{color: '#64748b', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>IRR (Realized/Current)</label>
+                    <div className="summary-value" style={{fontSize: '1.6rem', fontWeight: '700', color: '#1e293b'}}>
+                      {formatPercent(current_deals_metrics.irr)}
+                    </div>
+                  </div>
+                  <div className="summary-item">
+                    <label style={{color: '#64748b', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>Number of Deals Made</label>
+                    <div className="summary-value" style={{fontSize: '1.6rem', fontWeight: '700', color: '#1e293b'}}>
+                      {current_deals_metrics.total_deals}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="summary-item">
-              <label style={{color: '#64748b', fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block'}}>Gross Exit Value Achieved</label>
-              <div className="summary-value" style={{fontSize: '2.5rem', fontWeight: '900', color: '#1e293b'}}>
-                {formatCurrencyLong(current_deals_metrics.gross_exit_value)}
+
+            {/* Deal Prognosis Metrics Card (Future) */}
+            <div className="content-card" style={{background: '#f0f7ff', borderColor: '#007bff', marginBottom: '2rem'}}>
+              <h3 style={{textAlign: 'center', color: '#0056b3', marginBottom: '2rem', textTransform: 'uppercase', letterSpacing: '0.05em'}}>Prognosis for Future Deals (Future)</h3>
+              <div style={{display: 'flex', flexDirection: 'column', gap: '2.5rem', textAlign: 'center'}}>
+                <div style={{display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: '2rem'}}>
+                  <div className="summary-item">
+                    <label style={{color: '#0056b3', fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block'}}>Total Amount to be Invested</label>
+                    <div className="summary-value" style={{fontSize: '2.5rem', fontWeight: '900', color: '#007bff'}}>
+                      {formatCurrencyLong(dashboard.total_invested)}
+                    </div>
+                  </div>
+                  <div className="summary-item">
+                    <label style={{color: '#0056b3', fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block'}}>Expected Gross Exit Value</label>
+                    <div className="summary-value" style={{fontSize: '2.5rem', fontWeight: '900', color: '#007bff'}}>
+                      {formatCurrencyLong(dashboard.gross_exit_value)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="divider-h" style={{margin: '0 auto', width: '80%', opacity: '0.3', borderTop: '1px solid #007bff'}} />
+
+                <div style={{display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: '2rem'}}>
+                  <div className="summary-item">
+                    <label style={{color: '#0056b3', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>Target MOIC</label>
+                    <div className="summary-value" style={{fontSize: '1.6rem', fontWeight: '700', color: '#007bff'}}>
+                      {formatMultiple(dashboard.moic)}
+                    </div>
+                  </div>
+                  <div className="summary-item">
+                    <label style={{color: '#0056b3', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>Expected IRR</label>
+                    <div className="summary-value" style={{fontSize: '1.6rem', fontWeight: '700', color: '#007bff'}}>
+                      {formatPercent(dashboard.irr)}
+                    </div>
+                  </div>
+                  <div className="summary-item">
+                    <label style={{color: '#0056b3', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>Total Deals to be Made</label>
+                    <div className="summary-value" style={{fontSize: '1.6rem', fontWeight: '700', color: '#007bff'}}>
+                      {dashboard.total_deals}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-
-          <div className="divider-h" style={{margin: '0 auto', width: '80%', opacity: '0.2', borderTop: '1px solid #64748b'}} />
-
-          <div style={{display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: '2rem'}}>
-            <div className="summary-item">
-              <label style={{color: '#64748b', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>MOIC Achieved</label>
-              <div className="summary-value" style={{fontSize: '1.6rem', fontWeight: '700', color: '#1e293b'}}>
-                {formatMultiple(current_deals_metrics.moic)}
-              </div>
-            </div>
-            <div className="summary-item">
-              <label style={{color: '#64748b', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>IRR (Realized/Current)</label>
-              <div className="summary-value" style={{fontSize: '1.6rem', fontWeight: '700', color: '#1e293b'}}>
-                {formatPercent(current_deals_metrics.irr)}
-              </div>
-            </div>
-            <div className="summary-item">
-              <label style={{color: '#64748b', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>Number of Deals Made</label>
-              <div className="summary-value" style={{fontSize: '1.6rem', fontWeight: '700', color: '#1e293b'}}>
-                {current_deals_metrics.total_deals}
-              </div>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* Deal Prognosis Metrics Card (Future) */}
-      <div className="content-card" style={{background: '#f0f7ff', borderColor: '#007bff', marginBottom: '3rem'}}>
-        <h3 style={{textAlign: 'center', color: '#0056b3', marginBottom: '2rem', textTransform: 'uppercase', letterSpacing: '0.05em'}}>Prognosis for Future Deals (Future)</h3>
-        <div style={{display: 'flex', flexDirection: 'column', gap: '2.5rem', textAlign: 'center'}}>
-          <div style={{display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: '2rem'}}>
-            <div className="summary-item">
-              <label style={{color: '#0056b3', fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block'}}>Total Amount to be Invested</label>
-              <div className="summary-value" style={{fontSize: '2.5rem', fontWeight: '900', color: '#007bff'}}>
-                {formatCurrencyLong(dashboard.total_invested)}
+      {/* SECTION 2: ANNUAL PORTFOLIO PERFORMANCE */}
+      <div className="section-container" style={{marginBottom: '2rem'}}>
+        <button 
+          onClick={() => toggleSection('annualPerformance')}
+          style={{
+            width: '100%', 
+            padding: '1.25rem 1.5rem', 
+            background: 'linear-gradient(to right, #f8fafc, #f1f5f9)', 
+            border: '1px solid #e2e8f0', 
+            borderRadius: '0.75rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            cursor: 'pointer',
+            fontWeight: '700',
+            fontSize: '1.1rem',
+            color: '#1e293b',
+            marginBottom: '1rem',
+            transition: 'all 0.2s ease',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+          }}
+          className="section-header-btn"
+        >
+          <span style={{display: 'flex', alignItems: 'center', gap: '0.75rem'}}>
+            <span style={{
+              background: '#2563eb', 
+              color: 'white', 
+              width: '24px', 
+              height: '24px', 
+              borderRadius: '6px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              fontSize: '0.8rem'
+            }}>2</span>
+            ANNUAL PORTFOLIO PERFORMANCE
+          </span>
+          <span style={{ 
+            transition: 'transform 0.3s ease', 
+            transform: sections.annualPerformance ? 'rotate(180deg)' : 'rotate(0deg)',
+            fontSize: '1.2rem'
+          }}>▼</span>
+        </button>
+
+        {sections.annualPerformance && (
+          <div className="section-content animate-fade-in">
+            {/* Annual Performance Table */}
+            <div className="content-card" style={{marginBottom: '2rem'}}>
+              <h3>Annual Portfolio Performance Data</h3>
+              <div className="table-responsive">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Year</th>
+                      <th>Cap Injection (Current)</th>
+                      <th>Cap Appr (Current)</th>
+                      <th>Cap Injection (Prognosis)</th>
+                      <th>Cap Appr (Prognosis)</th>
+                      <th>Total Portfolio Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboard.performance_table.map((row) => (
+                      <tr key={row.year} style={row.year === currentYear ? {backgroundColor: '#f1f5f9', fontWeight: 'bold'} : {}}>
+                        <td>{row.year} {row.year === currentYear && "(Current)"}</td>
+                        <td>{formatCurrencyLong(row.injection_current)}</td>
+                        <td>{formatCurrencyLong(row.appreciation_current)}</td>
+                        <td>{formatCurrencyLong(row.injection_prognosis)}</td>
+                        <td>{formatCurrencyLong(row.appreciation_prognosis)}</td>
+                        <td>{formatCurrencyLong(row.total_portfolio_value_with_prognosis)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
-            <div className="summary-item">
-              <label style={{color: '#0056b3', fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block'}}>Expected Gross Exit Value</label>
-              <div className="summary-value" style={{fontSize: '2.5rem', fontWeight: '900', color: '#007bff'}}>
-                {formatCurrencyLong(dashboard.gross_exit_value)}
+
+            <div className="chart-container wide" style={{marginBottom: '2rem'}}>
+              <h3>Annual Portfolio Value Expansion</h3>
+              <ResponsiveContainer width="100%" height={400}>
+                <ComposedChart data={waterfallData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="year" />
+                  <YAxis tickFormatter={formatCurrency} />
+                  <Tooltip formatter={(value: any) => formatCurrencyLong(Number(value))} />
+                  <Legend />
+                  <ReferenceLine x={currentYear} stroke="#e74c3c" strokeDasharray="3 3" label={{ position: 'top', value: 'Current Year', fill: '#e74c3c', fontSize: 12 }} />
+                  
+                  <Bar dataKey="startValue" stackId="a" fill="transparent" legendType="none" />
+                  
+                  {/* Injections grouped */}
+                  <Bar dataKey="injection_current" stackId="a" fill="#3498db" name="Capital Injection (Current)" />
+                  <Bar dataKey="injection_prognosis" stackId="a" fill="url(#hash-injection)" name="Capital Injection (Prognosis)" />
+                  
+                  {/* Appreciations grouped */}
+                  <Bar dataKey="appreciation_current" stackId="a" fill="#2ecc71" name="Capital Appreciation (Current)" />
+                  <Bar dataKey="appreciation_prognosis" stackId="a" fill="url(#hash-appreciation)" name="Capital Appreciation (Prognosis)" />
+                  
+                  <Line type="stepAfter" dataKey="total_portfolio_value_with_prognosis" stroke="#7f8c8d" strokeWidth={2} dot={false} name="Value Step" legendType="none" />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* SECTION 3: STRATEGY & APPRECIATION */}
+      <div className="section-container" style={{marginBottom: '2rem'}}>
+        <button 
+          onClick={() => toggleSection('capitalAllocation')}
+          style={{
+            width: '100%', 
+            padding: '1.25rem 1.5rem', 
+            background: 'linear-gradient(to right, #f8fafc, #f1f5f9)', 
+            border: '1px solid #e2e8f0', 
+            borderRadius: '0.75rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            cursor: 'pointer',
+            fontWeight: '700',
+            fontSize: '1.1rem',
+            color: '#1e293b',
+            marginBottom: '1rem',
+            transition: 'all 0.2s ease',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+          }}
+          className="section-header-btn"
+        >
+          <span style={{display: 'flex', alignItems: 'center', gap: '0.75rem'}}>
+            <span style={{
+              background: '#2563eb', 
+              color: 'white', 
+              width: '24px', 
+              height: '24px', 
+              borderRadius: '6px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              fontSize: '0.8rem'
+            }}>3</span>
+            CAPITAL ALLOCATION STRATEGY & APPRECIATION
+          </span>
+          <span style={{ 
+            transition: 'transform 0.3s ease', 
+            transform: sections.capitalAllocation ? 'rotate(180deg)' : 'rotate(0deg)',
+            fontSize: '1.2rem'
+          }}>▼</span>
+        </button>
+
+        {sections.capitalAllocation && (
+          <div className="section-content animate-fade-in">
+            <div className="charts-grid">
+              <div className="chart-container">
+                <h3>Capital Allocation Strategy (Deals)</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <ComposedChart data={dashboard.performance_table}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="year" />
+                    <YAxis yAxisId="left" label={{ value: 'Deals', angle: -90, position: 'insideLeft' }} />
+                    <Tooltip />
+                    <Legend />
+                    <ReferenceLine x={currentYear} stroke="#e74c3c" strokeDasharray="3 3" />
+                    
+                    <Bar yAxisId="left" dataKey="deals_count_current" fill="#9b59b6" name="Deals (Current)" />
+                    <Bar yAxisId="left" dataKey="deals_count_prognosis" fill="url(#hash-deals)" name="Deals (Prognosis)" stroke="#9b59b6" strokeDasharray="5 5" />
+                    
+                    <Line yAxisId="left" type="monotone" dataKey="cumulative_deals_count_current" stroke="#f1c40f" name="Cum. Deals (Current)" strokeWidth={2} dot={false} />
+                    <Line yAxisId="left" type="monotone" dataKey="cumulative_deals_count_prognosis" stroke="#f1c40f" name="Cum. Deals (Total)" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 3 }} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="chart-container">
+                <h3>Capital Allocation Strategy (Amount)</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <ComposedChart data={dashboard.performance_table}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="year" />
+                    <YAxis yAxisId="left" tickFormatter={formatCurrency} />
+                    <Tooltip formatter={(v: any) => formatCurrencyLong(Number(v))} />
+                    <Legend />
+                    <ReferenceLine x={currentYear} stroke="#e74c3c" strokeDasharray="3 3" />
+                    
+                    <Bar yAxisId="left" dataKey="injection_current" fill="#e67e22" name="Amount (Current)" />
+                    <Bar yAxisId="left" dataKey="injection_prognosis" fill="url(#hash-amount)" name="Amount (Prognosis)" stroke="#e67e22" strokeDasharray="5 5" />
+                    
+                    <Line yAxisId="left" type="monotone" dataKey="cumulative_injection_no_prognosis" stroke="#e74c3c" name="Cum. Invested (Current)" strokeWidth={2} dot={false} />
+                    <Line yAxisId="left" type="monotone" dataKey="cumulative_injection_with_prognosis" stroke="#e74c3c" name="Cum. Invested (Total)" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 3 }} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="chart-container wide">
+                <h3>Capital Appreciation: Scenario Comparison</h3>
+                <ResponsiveContainer width="100%" height={400}>
+                  <ComposedChart data={dashboard.performance_table}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="year" />
+                    <YAxis tickFormatter={formatCurrency} />
+                    <Tooltip formatter={(v: any) => formatCurrencyLong(Number(v))} />
+                    <Legend />
+                    <ReferenceLine x={currentYear - 1} stroke="#e74c3c" strokeDasharray="3 3" label={{ position: 'top', value: 'Last Closed Year', fill: '#e74c3c', fontSize: 12 }} />
+                    
+                    {/* No Future Deals Scenario (Solid) */}
+                    <Line type="monotone" dataKey="cumulative_injection_no_prognosis" stroke="#34495e" name="Invested (No Future Deals)" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="total_portfolio_value_no_prognosis" stroke="#27ae60" name="Portfolio Value (No Future Deals)" strokeWidth={2} dot={false} />
+                    
+                    {/* With Future Deals Scenario (Dashed) */}
+                    <Line type="monotone" dataKey="cumulative_injection_with_prognosis" stroke="#34495e" name="Invested (With Prognosis)" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="total_portfolio_value_with_prognosis" stroke="#27ae60" name="Portfolio Value (With Prognosis)" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 3 }} />
+                  </ComposedChart>
+                </ResponsiveContainer>
               </div>
             </div>
           </div>
-
-          <div className="divider-h" style={{margin: '0 auto', width: '80%', opacity: '0.3', borderTop: '1px solid #007bff'}} />
-
-          <div style={{display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: '2rem'}}>
-            <div className="summary-item">
-              <label style={{color: '#0056b3', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>Target MOIC</label>
-              <div className="summary-value" style={{fontSize: '1.6rem', fontWeight: '700', color: '#007bff'}}>
-                {formatMultiple(dashboard.moic)}
-              </div>
-            </div>
-            <div className="summary-item">
-              <label style={{color: '#0056b3', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>Expected IRR</label>
-              <div className="summary-value" style={{fontSize: '1.6rem', fontWeight: '700', color: '#007bff'}}>
-                {formatPercent(dashboard.irr)}
-              </div>
-            </div>
-            <div className="summary-item">
-              <label style={{color: '#0056b3', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>Total Deals to be Made</label>
-              <div className="summary-value" style={{fontSize: '1.6rem', fontWeight: '700', color: '#007bff'}}>
-                {dashboard.total_deals}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Annual Performance Table */}
-      <div className="content-card" style={{marginBottom: '4rem'}}>
-        <h3>Annual Portfolio Performance Data</h3>
-        <div className="table-responsive">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Year</th>
-                <th>Cap Injection (Current)</th>
-                <th>Cap Appr (Current)</th>
-                <th>Cap Injection (Prognosis)</th>
-                <th>Cap Appr (Prognosis)</th>
-                <th>Total Portfolio Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dashboard.performance_table.map((row) => (
-                <tr key={row.year} style={row.year === currentYear ? {backgroundColor: '#f1f5f9', fontWeight: 'bold'} : {}}>
-                  <td>{row.year} {row.year === currentYear && "(Current)"}</td>
-                  <td>{formatCurrencyLong(row.injection_current)}</td>
-                  <td>{formatCurrencyLong(row.appreciation_current)}</td>
-                  <td>{formatCurrencyLong(row.injection_prognosis)}</td>
-                  <td>{formatCurrencyLong(row.appreciation_prognosis)}</td>
-                  <td>{formatCurrencyLong(row.total_portfolio_value_with_prognosis)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Visualizations Grid */}
-      <div className="charts-grid">
-        <div className="chart-container wide">
-          <h3>Annual Portfolio Value Expansion</h3>
-          <ResponsiveContainer width="100%" height={400}>
-            <ComposedChart data={waterfallData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="year" />
-              <YAxis tickFormatter={formatCurrency} />
-              <Tooltip formatter={(value: any) => formatCurrencyLong(Number(value))} />
-              <Legend />
-              <ReferenceLine x={currentYear} stroke="#e74c3c" strokeDasharray="3 3" label={{ position: 'top', value: 'Current Year', fill: '#e74c3c', fontSize: 12 }} />
-              
-              <Bar dataKey="startValue" stackId="a" fill="transparent" legendType="none" />
-              
-              {/* Injections grouped */}
-              <Bar dataKey="injection_current" stackId="a" fill="#3498db" name="Capital Injection (Current)" />
-              <Bar dataKey="injection_prognosis" stackId="a" fill="url(#hash-injection)" name="Capital Injection (Prognosis)" />
-              
-              {/* Appreciations grouped */}
-              <Bar dataKey="appreciation_current" stackId="a" fill="#2ecc71" name="Capital Appreciation (Current)" />
-              {/* <Bar dataKey="appreciation_of_current_after_cutoff" stackId="a" fill="#2ecc71" name="Appreciation of Current Deals" /> */}
-              <Bar dataKey="appreciation_prognosis" stackId="a" fill="url(#hash-appreciation)" name="Capital Appreciation (Prognosis)" />
-              
-              <Line type="stepAfter" dataKey="total_portfolio_value_with_prognosis" stroke="#7f8c8d" strokeWidth={2} dot={false} name="Value Step" legendType="none" />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="chart-container">
-          <h3>Capital Allocation Strategy (Deals)</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={dashboard.performance_table}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="year" />
-              <YAxis yAxisId="left" label={{ value: 'Deals', angle: -90, position: 'insideLeft' }} />
-              <Tooltip />
-              <Legend />
-              <ReferenceLine x={currentYear} stroke="#e74c3c" strokeDasharray="3 3" />
-              
-              <Bar yAxisId="left" dataKey="deals_count_current" fill="#9b59b6" name="Deals (Current)" />
-              <Bar yAxisId="left" dataKey="deals_count_prognosis" fill="url(#hash-deals)" name="Deals (Prognosis)" stroke="#9b59b6" strokeDasharray="5 5" />
-              
-              <Line yAxisId="left" type="monotone" dataKey="cumulative_deals_count_current" stroke="#f1c40f" name="Cum. Deals (Current)" strokeWidth={2} dot={false} />
-              <Line yAxisId="left" type="monotone" dataKey="cumulative_deals_count_prognosis" stroke="#f1c40f" name="Cum. Deals (Total)" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 3 }} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="chart-container">
-          <h3>Capital Allocation Strategy (Amount)</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={dashboard.performance_table}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="year" />
-              <YAxis yAxisId="left" tickFormatter={formatCurrency} />
-              <Tooltip formatter={(v: any) => formatCurrencyLong(Number(v))} />
-              <Legend />
-              <ReferenceLine x={currentYear} stroke="#e74c3c" strokeDasharray="3 3" />
-              
-              <Bar yAxisId="left" dataKey="injection_current" fill="#e67e22" name="Amount (Current)" />
-              <Bar yAxisId="left" dataKey="injection_prognosis" fill="url(#hash-amount)" name="Amount (Prognosis)" stroke="#e67e22" strokeDasharray="5 5" />
-              
-              <Line yAxisId="left" type="monotone" dataKey="cumulative_injection_no_prognosis" stroke="#e74c3c" name="Cum. Invested (Current)" strokeWidth={2} dot={false} />
-              <Line yAxisId="left" type="monotone" dataKey="cumulative_injection_with_prognosis" stroke="#e74c3c" name="Cum. Invested (Total)" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 3 }} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="chart-container wide">
-          <h3>Capital Appreciation: Scenario Comparison</h3>
-          <ResponsiveContainer width="100%" height={400}>
-            <ComposedChart data={dashboard.performance_table}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="year" />
-              <YAxis tickFormatter={formatCurrency} />
-              <Tooltip formatter={(v: any) => formatCurrencyLong(Number(v))} />
-              <Legend />
-              <ReferenceLine x={currentYear - 1} stroke="#e74c3c" strokeDasharray="3 3" label={{ position: 'top', value: 'Last Closed Year', fill: '#e74c3c', fontSize: 12 }} />
-              
-              {/* No Future Deals Scenario (Solid) */}
-              <Line type="monotone" dataKey="cumulative_injection_no_prognosis" stroke="#34495e" name="Invested (No Future Deals)" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="total_portfolio_value_no_prognosis" stroke="#27ae60" name="Portfolio Value (No Future Deals)" strokeWidth={2} dot={false} />
-              
-              {/* With Future Deals Scenario (Dashed) */}
-              <Line type="monotone" dataKey="cumulative_injection_with_prognosis" stroke="#34495e" name="Invested (With Prognosis)" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="total_portfolio_value_with_prognosis" stroke="#27ae60" name="Portfolio Value (With Prognosis)" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 3 }} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
+        )}
       </div>
     </section>
   );

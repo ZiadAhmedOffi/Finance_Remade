@@ -66,7 +66,7 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId, canEdit }) => {
   
   // Pagination for actions table
   const [currentPage, setCurrentPage] = useState(1);
-  const actionsPerPage = 5;
+  const actionsPerPage = 10;
 
   // Pagination for possible capital sources table
   const [currentSourcePage, setCurrentSourcePage] = useState(1);
