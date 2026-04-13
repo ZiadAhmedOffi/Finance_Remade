@@ -20,6 +20,7 @@ from .views import (
     PossibleCapitalSourceListView,
     PossibleCapitalSourceDetailView,
     ReportListView,
+    CapitalCallReportListView,
     ReportDetailView,
     ReportRegenerateView,
     PublicReportView,
@@ -51,6 +52,9 @@ urlpatterns = [
     path("reports/<uuid:report_id>/", ReportDetailView.as_view(), name="report-detail"),
     path("reports/<uuid:report_id>/regenerate/", ReportRegenerateView.as_view(), name="report-regenerate"),
     path("reports/public/<slug:slug>/", PublicReportView.as_view(), name="public-report-view"),
+
+    path("capital-call-reports/", CapitalCallReportListView.as_view(), name="capital-call-report-list"),
+    path("capital-call-reports/<uuid:report_id>/", ReportDetailView.as_view(), name="capital-call-report-detail"),
 
     # Investor Actions & Dashboard
     path("investors/", InvestorListView.as_view(), name="investor-list"),

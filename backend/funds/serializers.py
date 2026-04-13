@@ -374,6 +374,7 @@ class CurrentDealSerializer(serializers.ModelSerializer):
 class FundSerializer(serializers.ModelSerializer):
     created_by_email = serializers.EmailField(source="created_by.email", read_only=True)
     steering_committee = serializers.SerializerMethodField()
+    model_inputs = ModelInputSerializer(read_only=True)
 
     class Meta:
         model = Fund
@@ -382,12 +383,19 @@ class FundSerializer(serializers.ModelSerializer):
             "name",
             "description",
             "tag",
+            "sharia_compliant",
+            "region",
+            "focus",
+            "overview",
+            "strategy_and_fund_lifecycle",
+            "reasons_to_invest",
             "created_by",
             "created_by_email",
             "created_at",
             "status",
             "total_units",
             "steering_committee",
+            "model_inputs",
         ]
         read_only_fields = ["created_by", "created_at", "total_units"]
 
@@ -492,6 +500,7 @@ from .models import Report
 
 class ReportSerializer(serializers.ModelSerializer):
     fund_name = serializers.CharField(source="fund.name", read_only=True)
+    fund_details = FundSerializer(source="fund", read_only=True)
     created_by_email = serializers.EmailField(source="created_by.email", read_only=True)
 
     class Meta:
@@ -500,8 +509,10 @@ class ReportSerializer(serializers.ModelSerializer):
             "id",
             "slug",
             "name",
+            "report_type",
             "fund",
             "fund_name",
+            "fund_details",
             "config_json",
             "status",
             "static_url",

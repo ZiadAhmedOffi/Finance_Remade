@@ -121,6 +121,11 @@ export const fundsApi = {
   deleteReport: (id: string) => api.delete(`/funds/reports/${id}/`),
   regenerateReport: (id: string) => api.post(`/funds/reports/${id}/regenerate/`),
   getPublicReport: (slug: string) => publicApi.get(`/funds/reports/public/${slug}/`),
+
+  getCapitalCallReports: () => api.get("/funds/capital-call-reports/"),
+  createCapitalCallReport: (data: any) => api.post("/funds/capital-call-reports/", data),
+  updateCapitalCallReport: (id: string, data: any) => api.patch(`/funds/capital-call-reports/${id}/`, data),
+  deleteCapitalCallReport: (id: string) => api.delete(`/funds/capital-call-reports/${id}/`),
 };
 
 export { api, publicApi };

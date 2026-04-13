@@ -23,6 +23,11 @@ class Fund(models.Model):
         ("REAL_ESTATE", "Real estate"),
     ]
 
+    FOCUS_CHOICES = [
+        ("GROWTH", "Growth Focused"),
+        ("YIELD", "Yield Focused"),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255, unique=True, db_index=True)
     description = models.TextField(blank=True)
@@ -33,7 +38,20 @@ class Fund(models.Model):
         default="VC",
         db_index=True
     )
+
+    sharia_compliant = models.BooleanField(default=False)
+    region = models.CharField(max_length=255, blank=True)
+    focus = models.CharField(
+        max_length=20, 
+        choices=FOCUS_CHOICES, 
+        blank=True,
+        null=True
+    )
     
+    overview = models.TextField(blank=True)
+    strategy_and_fund_lifecycle = models.TextField(blank=True)
+    reasons_to_invest = models.JSONField(default=list, blank=True)
+
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -513,11 +531,23 @@ class Report(models.Model):
     Model for dynamic fund reports. Stores configuration and metadata
     about generated static reports.
     """
+    REPORT_TYPE_CHOICES = [
+        ("DYNAMIC", "Dynamic Fund Report"),
+        ("CAPITAL_CALL", "Capital Call Report"),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     slug = models.SlugField(unique=True, db_index=True)
     name = models.CharField(max_length=255)
     fund = models.ForeignKey(Fund, on_delete=models.CASCADE, related_name='reports')
     
+    report_type = models.CharField(
+        max_length=20,
+        choices=REPORT_TYPE_CHOICES,
+        default="DYNAMIC",
+        db_index=True
+    )
+
     config_json = models.JSONField(help_text="Metrics selection, chart types, etc.")
     
     status = models.CharField(

@@ -12,11 +12,22 @@ import RiskAssessmentTab from "../components/RiskAssessmentTab";
 import InvestorLogTab from "../components/InvestorLogTab";
 import ReportsTab from "../components/ReportsTab";
 
+interface ReasonToInvest {
+  title: string;
+  brief_desc: string;
+}
+
 interface Fund {
   id: string;
   name: string;
   description: string;
   tag: string;
+  sharia_compliant: boolean;
+  region: string;
+  focus: "GROWTH" | "YIELD" | null;
+  overview: string;
+  strategy_and_fund_lifecycle: string;
+  reasons_to_invest: ReasonToInvest[];
   steering_committee: string[];
   status: "ESTABLISHED" | "FUTURE" | "DEACTIVATED";
 }
@@ -48,6 +59,15 @@ const FundDashboard: React.FC = () => {
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newTag, setNewTag] = useState("VC");
+  
+  // New Fund Fields
+  const [shariaCompliant, setShariaCompliant] = useState(false);
+  const [region, setRegion] = useState("");
+  const [focus, setFocus] = useState<"GROWTH" | "YIELD" | "">("");
+  const [overview, setOverview] = useState("");
+  const [strategy, setStrategy] = useState("");
+  const [reasonsToInvest, setReasonsToInvest] = useState<ReasonToInvest[]>([]);
+  
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isSCMember, setIsSCMember] = useState(false);
 
@@ -77,6 +97,12 @@ const FundDashboard: React.FC = () => {
       setNewName(response.data.name);
       setNewDescription(response.data.description);
       setNewTag(response.data.tag);
+      setShariaCompliant(response.data.sharia_compliant || false);
+      setRegion(response.data.region || "");
+      setFocus(response.data.focus || "");
+      setOverview(response.data.overview || "");
+      setStrategy(response.data.strategy_and_fund_lifecycle || "");
+      setReasonsToInvest(response.data.reasons_to_invest || []);
       checkPermissions(response.data);
       setError(null);
     } catch (err: any) {
@@ -115,7 +141,13 @@ const FundDashboard: React.FC = () => {
       await api.put(`/funds/${fundId}/`, {
         name: newName,
         description: newDescription,
-        tag: newTag
+        tag: newTag,
+        sharia_compliant: shariaCompliant,
+        region: region,
+        focus: focus || null,
+        overview: overview,
+        strategy_and_fund_lifecycle: strategy,
+        reasons_to_invest: reasonsToInvest
       });
       setMessage("Fund information updated successfully.");
       fetchFundData();
@@ -255,45 +287,178 @@ const FundDashboard: React.FC = () => {
               <div className="content-card">
                 {canEdit ? (
                   <form onSubmit={handleUpdateInfo} className="edit-form">
-                    <h3>Edit Fund Information</h3>
-                    <div className="form-group">
-                      <label>Fund Name</label>
-                      <input 
-                        type="text" 
-                        value={newName} 
-                        onChange={(e) => setNewName(e.target.value)} 
-                        required
-                      />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                      <h3 style={{ margin: 0, border: 'none' }}>Edit Fund Information</h3>
+                      <button type="submit" className="btn btn-primary">Update Information</button>
                     </div>
-                    <div className="form-group">
-                      <label>Fund Tag</label>
-                      <select 
-                        value={newTag} 
-                        onChange={(e) => setNewTag(e.target.value)}
-                        className="form-input"
-                      >
-                        <option value="BIC">BIC</option>
-                        <option value="VC">VC</option>
-                        <option value="VS">VS</option>
-                        <option value="AIG">AIG</option>
-                        <option value="SF">SF</option>
-                        <option value="REAL_ESTATE">Real estate</option>
-                      </select>
+
+                    <div className="info-grid-edit" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                      <div className="form-group">
+                        <label>Fund Name</label>
+                        <input 
+                          type="text" 
+                          value={newName} 
+                          onChange={(e) => setNewName(e.target.value)} 
+                          required
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Fund Tag</label>
+                        <select 
+                          value={newTag} 
+                          onChange={(e) => setNewTag(e.target.value)}
+                          className="form-input"
+                        >
+                          <option value="BIC">BIC</option>
+                          <option value="VC">VC</option>
+                          <option value="VS">VS</option>
+                          <option value="AIG">AIG</option>
+                          <option value="SF">SF</option>
+                          <option value="REAL_ESTATE">Real estate</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Region</label>
+                        <input 
+                          type="text" 
+                          value={region} 
+                          onChange={(e) => setRegion(e.target.value)} 
+                          placeholder="e.g. Saudi Arabia"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Focus</label>
+                        <select 
+                          value={focus} 
+                          onChange={(e) => setFocus(e.target.value as any)}
+                          className="form-input"
+                        >
+                          <option value="">Select Focus</option>
+                          <option value="GROWTH">Growth Focused</option>
+                          <option value="YIELD">Yield Focused</option>
+                        </select>
+                      </div>
+                      <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '1.5rem' }}>
+                        <input 
+                          type="checkbox" 
+                          id="sharia-compliant"
+                          checked={shariaCompliant} 
+                          onChange={(e) => setShariaCompliant(e.target.checked)} 
+                        />
+                        <label htmlFor="sharia-compliant" style={{ marginBottom: 0 }}>Sharia Compliant</label>
+                      </div>
                     </div>
-                    <div className="form-group">
-                      <label>Description</label>
+
+                    <div className="form-group" style={{ marginTop: '1.5rem' }}>
+                      <label>Description (Short)</label>
                       <textarea 
                         value={newDescription} 
                         onChange={(e) => setNewDescription(e.target.value)} 
-                        rows={5}
+                        rows={3}
                       />
                     </div>
-                    <button type="submit" className="btn btn-primary">Update Information</button>
+
+                    <div className="form-group" style={{ marginTop: '1.5rem' }}>
+                      <label>Overview (In-depth)</label>
+                      <textarea 
+                        value={overview} 
+                        onChange={(e) => setOverview(e.target.value)} 
+                        rows={5}
+                        placeholder="Provide a detailed overview of the fund for reports..."
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginTop: '1.5rem' }}>
+                      <label>Strategy & Fund Lifecycle</label>
+                      <textarea 
+                        value={strategy} 
+                        onChange={(e) => setStrategy(e.target.value)} 
+                        rows={5}
+                        placeholder="Describe the investment strategy and lifecycle..."
+                      />
+                    </div>
+
+                    <div className="reasons-section" style={{ marginTop: '2.5rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <h4 style={{ margin: 0 }}>Reasons to Invest</h4>
+                        <button 
+                          type="button" 
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => setReasonsToInvest([...reasonsToInvest, { title: "", brief_desc: "" }])}
+                        >
+                          + Add Reason
+                        </button>
+                      </div>
+                      
+                      <div className="table-responsive">
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th style={{ width: '30%' }}>Title</th>
+                              <th>Brief Description</th>
+                              <th style={{ width: '80px' }}>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {reasonsToInvest.map((reason, idx) => (
+                              <tr key={idx}>
+                                <td>
+                                  <input 
+                                    type="text" 
+                                    value={reason.title} 
+                                    onChange={(e) => {
+                                      const newReasons = [...reasonsToInvest];
+                                      newReasons[idx].title = e.target.value;
+                                      setReasonsToInvest(newReasons);
+                                    }}
+                                    placeholder="Title"
+                                    className="form-input-sm"
+                                  />
+                                </td>
+                                <td>
+                                  <textarea 
+                                    value={reason.brief_desc} 
+                                    onChange={(e) => {
+                                      const newReasons = [...reasonsToInvest];
+                                      newReasons[idx].brief_desc = e.target.value;
+                                      setReasonsToInvest(newReasons);
+                                    }}
+                                    placeholder="Brief description..."
+                                    className="form-input-sm"
+                                    rows={2}
+                                  />
+                                </td>
+                                <td>
+                                  <button 
+                                    type="button" 
+                                    className="btn-icon delete"
+                                    onClick={() => setReasonsToInvest(reasonsToInvest.filter((_, i) => i !== idx))}
+                                  >
+                                    🗑️
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                            {reasonsToInvest.length === 0 && (
+                              <tr>
+                                <td colSpan={3} style={{ textAlign: 'center', color: '#64748b', padding: '1rem' }}>
+                                  No reasons added yet.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
                   </form>
                 ) : (
                   <div className="info-display">
-                     <h3>Fund Information</h3>
-                     <div className="info-grid">
+                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                        <h3 style={{ margin: 0, border: 'none' }}>Fund Information</h3>
+                        {fund.sharia_compliant && <span className="status-badge" style={{ background: '#ecfdf5', color: '#059669', border: '1px solid #10b981' }}>Sharia Compliant</span>}
+                     </div>
+                     
+                     <div className="info-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
                        <div className="info-item">
                          <label>Fund Name</label>
                          <p className="value">{fund.name}</p>
@@ -302,11 +467,48 @@ const FundDashboard: React.FC = () => {
                          <label>Tag</label>
                          <p className="value">{fund.tag === "REAL_ESTATE" ? "Real estate" : fund.tag}</p>
                        </div>
-                       <div className="info-item full-width">
-                         <label>Description</label>
-                         <p className="value description">{fund.description || "No description provided."}</p>
+                       <div className="info-item">
+                         <label>Region</label>
+                         <p className="value">{fund.region || "N/A"}</p>
+                       </div>
+                       <div className="info-item">
+                         <label>Focus</label>
+                         <p className="value">{fund.focus === "GROWTH" ? "Growth Focused" : fund.focus === "YIELD" ? "Yield Focused" : "N/A"}</p>
                        </div>
                      </div>
+
+                     <div className="info-item full-width" style={{ marginTop: '1.5rem' }}>
+                         <label>Description</label>
+                         <p className="value description">{fund.description || "No description provided."}</p>
+                     </div>
+
+                     {fund.overview && (
+                       <div className="info-item full-width" style={{ marginTop: '1.5rem' }}>
+                         <label>Overview</label>
+                         <p className="value description">{fund.overview}</p>
+                       </div>
+                     )}
+
+                     {fund.strategy_and_fund_lifecycle && (
+                       <div className="info-item full-width" style={{ marginTop: '1.5rem' }}>
+                         <label>Strategy & Lifecycle</label>
+                         <p className="value description">{fund.strategy_and_fund_lifecycle}</p>
+                       </div>
+                     )}
+
+                     {fund.reasons_to_invest && fund.reasons_to_invest.length > 0 && (
+                       <div className="reasons-display" style={{ marginTop: '2rem' }}>
+                         <label style={{ display: 'block', marginBottom: '1rem', fontWeight: 600, color: '#475569' }}>Reasons to Invest</label>
+                         <div className="reasons-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
+                           {fund.reasons_to_invest.map((reason, idx) => (
+                             <div key={idx} className="reason-card" style={{ padding: '1rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                               <h5 style={{ margin: '0 0 0.5rem 0', color: '#1e293b' }}>{reason.title}</h5>
+                               <p style={{ margin: 0, fontSize: '0.9rem', color: '#64748b' }}>{reason.brief_desc}</p>
+                             </div>
+                           ))}
+                         </div>
+                       </div>
+                     )}
                   </div>
                 )}
               </div>

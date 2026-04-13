@@ -1482,21 +1482,26 @@ class ReportListView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        user = request.user
+    def get_queryset(self, user, report_type="DYNAMIC"):
         if PermissionService.is_super_admin(user):
-            reports = Report.objects.all()
+            return Report.objects.filter(report_type=report_type)
         else:
             from users.models import UserRoleAssignment
             managed_funds = UserRoleAssignment.objects.filter(
                 user=user, role__name="STEERING_COMMITTEE"
             ).values_list("fund_id", flat=True)
-            reports = Report.objects.filter(fund_id__in=managed_funds)
-        
+            return Report.objects.filter(fund_id__in=managed_funds, report_type=report_type)
+
+    def get(self, request):
+        reports = self.get_queryset(request.user, report_type="DYNAMIC")
         serializer = ReportSerializer(reports, many=True)
         return Response(serializer.data)
 
     def post(self, request):
+        # Default to DYNAMIC if not specified
+        if "report_type" not in request.data:
+            request.data["report_type"] = "DYNAMIC"
+            
         serializer = ReportSerializer(data=request.data)
         if serializer.is_valid():
             fund = serializer.validated_data["fund"]
@@ -1511,7 +1516,7 @@ class ReportListView(APIView):
                 actor=request.user,
                 action="REPORT_CREATED",
                 fund=report.fund,
-                metadata={"report_id": str(report.id), "name": report.name},
+                metadata={"report_id": str(report.id), "name": report.name, "type": report.report_type},
                 ip=request.META.get("REMOTE_ADDR")
             )
             
@@ -1535,6 +1540,19 @@ class ReportListView(APIView):
             metadata={"report_id": str(report.id), "slug": report.slug},
             ip=None
         )
+
+class CapitalCallReportListView(ReportListView):
+    """
+    Specialized view for Capital Call Reports.
+    """
+    def get(self, request):
+        reports = self.get_queryset(request.user, report_type="CAPITAL_CALL")
+        serializer = ReportSerializer(reports, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        request.data["report_type"] = "CAPITAL_CALL"
+        return super().post(request)
 
 class ReportDetailView(APIView):
     """
@@ -1703,7 +1721,8 @@ class PublicReportView(APIView):
         if report.status != "ACTIVE":
             from rest_framework_simplejwt.authentication import JWTAuthentication
             auth = JWTAuthentication().authenticate(request)
-            if not auth or not PermissionService.is_super_admin(auth[0]):
+            if not auth or not (PermissionService.is_super_admin(auth[0]) or 
+                                PermissionService.is_sc_member(auth[0], report.fund)):
                 return Response({"error": "Report is not active or available."}, status=status.HTTP_403_FORBIDDEN)
         
         # Include performance data in the response
