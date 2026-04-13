@@ -465,8 +465,10 @@ class CurrentInvestorStats(models.Model):
         related_name="current_investor_stats"
     )
     
-    # Invested amount for the investor in the related fund
+    # Invested amount for the investor in the related fund (BALANCE)
     amount_invested = models.DecimalField(max_digits=30, decimal_places=2, default=0.00)
+    # Total capital injected by the investor in the related fund (CAPITAL DEPLOYED)
+    capital_deployed = models.DecimalField(max_digits=30, decimal_places=2, default=0.00)
     # Realized gain from secondary exits the investor performed in the related fund
     realized_gain = models.DecimalField(max_digits=30, decimal_places=2, default=0.00)
     # Current number of units owned by the investor in the fund
@@ -493,6 +495,7 @@ class CurrentInvestorStats(models.Model):
                 relation.realized_gain = float(relation.realized_gain) + float(action.amount) - (float(relation.amount_invested) / float(relation.units) * float(action.units))
             else: 
                 relation.amount_invested = float(relation.amount_invested) + float(action.amount)
+                relation.capital_deployed = float(relation.capital_deployed) + float(action.amount)
                 relation.units = float(relation.units) + float(action.units)
         elif signal == "delete":
             if action.type == "SECONDARY_EXIT":

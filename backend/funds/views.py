@@ -362,6 +362,7 @@ class InvestorDashboardView(APIView):
 
         realized_gains = sum(float(relation.realized_gain or 0) for relation in relations)
         total_capital_deployed = sum(float(relation.amount_invested or 0) for relation in relations)
+        total_capital_injected = sum(float(relation.capital_deployed or 0) for relation in relations)
 
         unrealized_gains = total_current_portfolio_value - total_capital_deployed
         
@@ -435,7 +436,7 @@ class InvestorDashboardView(APIView):
 
         return Response({
             "metrics": {
-                "total_capital_deployed": total_capital_deployed,
+                "total_capital_deployed": total_capital_injected,
                 "realized_gains": realized_gains,
                 "unrealized_gains": unrealized_gains,
                 "realized_multiple": realized_multiple ,
