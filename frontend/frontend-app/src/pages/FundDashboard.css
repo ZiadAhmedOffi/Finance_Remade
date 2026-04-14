@@ -504,3 +504,20 @@
   .sidebar-header, .sidebar-footer { padding: 1rem; align-items: center; }
   .nav-item { padding: 1rem; justify-content: center; }
 }
+
+/* Reports Tab Toggles */
+.collapsible-section {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease-out, opacity 0.3s ease-in;
+  opacity: 0;
+}
+
+.collapsible-section.open {
+  max-height: 5000px;
+  opacity: 1;
+}
+
+.reports-tab .content-card {
+  transition: all 0.3s ease;
+}

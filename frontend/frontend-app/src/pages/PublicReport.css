@@ -79,6 +79,7 @@
   color: #475569;
   font-size: 1.05rem;
   margin-bottom: 2rem;
+  text-align: justify;
 }
 
 /* Metrics */
@@ -171,7 +172,7 @@
 .section-title-premium h2 { font-size: 2.25rem; font-weight: 800; color: #0f172a; position: relative; display: inline-block; }
 .section-title-premium h2::after { content: ''; position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); width: 60px; height: 4px; background: #2563eb; border-radius: 2px; }
 
-.prose-text-large { font-size: 1.25rem; color: #475569; text-align: center; max-width: 850px; margin: 0 auto; line-height: 1.8; }
+.prose-text-large { font-size: 1.25rem; color: #475569; text-align: justify; max-width: 850px; margin: 0 auto; line-height: 1.8; }
 
 /* Controls */
 .projection-controls {
@@ -207,13 +208,23 @@
 }
 .pill.active { background: #2563eb; color: white; border-color: #2563eb; }
 
+/* Legend Dots */
+.dot.lockup { background: #d97706; }
+.dot.secondary { background: #2563eb; opacity: 0.5; }
+.dot.maturity { background: #1e293b; }
+
 /* Reasons Cards */
 .horizontal-scroll-container {
   display: flex;
   gap: 2rem;
   overflow-x: auto;
-  padding: 2rem 0;
+  padding: 3rem 1rem;
   scroll-behavior: smooth;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.horizontal-scroll-container::-webkit-scrollbar {
+  display: none;
 }
 .reason-card-premium {
   min-width: 320px;
@@ -223,7 +234,32 @@
   border: 1px solid #f1f5f9;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
   position: relative;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  overflow: hidden;
 }
+
+.reason-card-premium::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; width: 4px; height: 100%;
+  background: linear-gradient(to bottom, #2563eb, #10b981);
+}
+
+.reason-card-premium:nth-child(2n)::before {
+  background: linear-gradient(to bottom, #7c3aed, #db2777);
+}
+
+.reason-card-premium:nth-child(3n)::before {
+  background: linear-gradient(to bottom, #f59e0b, #ef4444);
+}
+
+.reason-card-premium:hover {
+  transform: scale(1.05);
+  z-index: 10;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  background: #fdfdfd;
+}
+
 .reason-num { position: absolute; top: 1.5rem; right: 2rem; font-size: 3rem; font-weight: 900; color: #f1f5f9; z-index: 1; }
 .reason-card-premium h3 { position: relative; z-index: 2; margin-bottom: 1rem; font-size: 1.5rem; }
 .reason-card-premium p { position: relative; z-index: 2; color: #64748b; }
@@ -237,11 +273,8 @@
   font-size: 0.875rem;
   font-weight: 600;
 }
-.legend-item { display: flex; alignItems: center; gap: 0.5rem; }
+.legend-item { display: flex; align-items: center; gap: 0.5rem; }
 .dot { width: 12px; height: 12px; border-radius: 2px; }
-.dot.lockup { background: #f59e0b; opacity: 0.2; }
-.dot.secondary { background: #2563eb; opacity: 0.5; }
-.dot.maturity { background: #1e293b; }
 
 /* Footer */
 .capital-call-footer { background: #0f172a; color: white; padding: 5rem 0 3rem; margin-top: 6rem; }

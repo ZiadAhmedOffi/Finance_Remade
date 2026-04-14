@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { fundsApi } from "../api/api";
 import {
@@ -33,6 +33,19 @@ const PublicReportPage: React.FC = () => {
   // Capital Call Specific State
   const [investmentAmount, setInvestmentAmount] = useState<number>(0);
   const [selectedScenario, setSelectedScenario] = useState<string>("Base Case");
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split(".")[1]));
+        setIsAdmin(payload.roles?.some((r: any) => r.role === "SUPER_ADMIN"));
+      } catch (e) {}
+    }
+  }, []);
 
   useEffect(() => {
     const fetchReportData = async () => {
@@ -58,6 +71,38 @@ const PublicReportPage: React.FC = () => {
     fetchReportData();
   }, [slug]);
 
+  // Auto-scroll logic for "Why Invest"
+  useEffect(() => {
+    const scrollContainer = scrollRef.current;
+    if (!scrollContainer || !report?.fund_details?.reasons_to_invest?.length) return;
+
+    let intervalId: any;
+    
+    const startScrolling = () => {
+      intervalId = setInterval(() => {
+        if (scrollContainer.scrollLeft + scrollContainer.clientWidth >= scrollContainer.scrollWidth - 5) {
+          scrollContainer.scrollLeft = 0;
+        } else {
+          scrollContainer.scrollLeft += 1;
+        }
+      }, 30);
+    };
+
+    startScrolling();
+
+    const handleMouseEnter = () => clearInterval(intervalId);
+    const handleMouseLeave = () => startScrolling();
+
+    scrollContainer.addEventListener('mouseenter', handleMouseEnter);
+    scrollContainer.addEventListener('mouseleave', handleMouseLeave);
+
+    return () => {
+      clearInterval(intervalId);
+      scrollContainer.removeEventListener('mouseenter', handleMouseEnter);
+      scrollContainer.removeEventListener('mouseleave', handleMouseLeave);
+    };
+  }, [report]);
+
   const { 
     dashboard, 
     current_deals_metrics, 
@@ -79,9 +124,14 @@ const PublicReportPage: React.FC = () => {
   const formatPercent = (val: number) => (val * 100).toFixed(2) + "%";
   const formatMultiple = (val: number) => val.toFixed(2) + "x";
 
+  const avgMoic = useMemo(() => {
+    const achieved = current_deals_metrics?.moic || 0;
+    const target = dashboard?.moic || 0;
+    return (achieved + target) / 2;
+  }, [current_deals_metrics, dashboard]);
+
   // --- Dynamic Report Logic ---
 
-  // 1. Waterfall Data
   const waterfallData = useMemo(() => {
     if (!dashboard?.performance_table) return [];
     return dashboard.performance_table.map((entry: any, index: number) => {
@@ -94,7 +144,6 @@ const PublicReportPage: React.FC = () => {
     });
   }, [dashboard]);
 
-  // 2. Pie Chart Data
   const { chartDataSectorCount, chartDataSectorCapital } = useMemo(() => {
     const allDeals = [...current_deals, ...investment_deals];
     const sectorCounts: any = {};
@@ -112,7 +161,6 @@ const PublicReportPage: React.FC = () => {
     };
   }, [current_deals, investment_deals]);
 
-  // 3. Base Points Chart
   const basePointsChartData = useMemo(() => {
     if (!admin_fee || !dashboard?.performance_table) return [];
     
@@ -164,7 +212,9 @@ const PublicReportPage: React.FC = () => {
       data.push({
         year: yr,
         value: currentValue,
-        // For Lockup overlay
+        investment: yr === currentYear ? investmentAmount : 0,
+        growth: yr > currentYear ? currentValue - investmentAmount : 0,
+        base: yr > currentYear ? investmentAmount : 0,
         isLockup: yr < (inceptionYear + (report.fund_details?.model_inputs?.lock_up_period || 0))
       });
       currentValue = currentValue * (1 + irr);
@@ -175,6 +225,30 @@ const PublicReportPage: React.FC = () => {
 
   const lockupEndYear = report?.fund_details?.model_inputs?.inception_year + (report?.fund_details?.model_inputs?.lock_up_period || 0);
   const maturityYear = report?.fund_details?.model_inputs?.inception_year + report?.fund_details?.model_inputs?.fund_life;
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // In a real app, you'd upload this to S3/Cloudinary and get a URL
+    // For now, we'll use a FileReader to show it works locally
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64String = reader.result as string;
+      try {
+        await fundsApi.updateCapitalCallReport(report.id, {
+          config_json: {
+            ...report.config_json,
+            cover_image: base64String
+          }
+        });
+        window.location.reload();
+      } catch (err) {
+        alert("Failed to update image.");
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   if (loading) return (
     <div className="report-loading-container">
@@ -196,7 +270,6 @@ const PublicReportPage: React.FC = () => {
   if (report.report_type === 'DYNAMIC') {
     return (
       <div className="public-report-layout">
-        {/* SVG Patterns */}
         <svg width="0" height="0" style={{ position: 'absolute' }}>
           <defs>
             <pattern id="hash-injection" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -356,12 +429,13 @@ const PublicReportPage: React.FC = () => {
     <div className="public-report-layout capital-call-theme">
       
       {/* 1. COVER SECTION */}
-      <section className="cover-section">
-        {report.config_json?.cover_image && (
-          <div className="cover-image-container">
-            <img src={report.config_json.cover_image} alt="Fund Cover" className="cover-image" />
+      <section className="cover-section" style={{ position: 'relative' }}>
+        {(report.fund_details?.cover_image || report.config_json?.cover_image) ? (
+          <div className="cover-image-container" style={{ opacity: 0.4 }}>
+            <img src={report.fund_details?.cover_image || report.config_json?.cover_image} alt="Fund Cover" className="cover-image" />
           </div>
-        )}
+        ) : null}
+        
         <div className="cover-content report-container">
           <div className="badge-row">
             {report.fund_details?.sharia_compliant && <span className="premium-badge sharia">Sharia Compliant</span>}
@@ -370,6 +444,17 @@ const PublicReportPage: React.FC = () => {
           </div>
           <h1 className="capital-call-title">{report.name}</h1>
           <p className="fund-subheadline">{report.fund_details?.description}</p>
+          
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '3rem', marginTop: '3rem' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '2.5rem', fontWeight: '900', color: '#60a5fa' }}>{formatCurrency(report.config_json?.target_capital)}</div>
+              <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', opacity: 0.7, letterSpacing: '0.1em' }}>Target Capital</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '2.5rem', fontWeight: '900', color: '#34d399' }}>{formatCurrency(report.config_json?.capital_raised)}</div>
+              <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', opacity: 0.7, letterSpacing: '0.1em' }}>Already Raised</div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -378,7 +463,9 @@ const PublicReportPage: React.FC = () => {
         <div className="glass-metrics-grid">
           <div className="glass-metric">
             <span className="g-label">Avg. MOIC</span>
-            <span className="g-value">{formatMultiple(dashboard?.moic || 0)}</span>
+            <span className="g-value" title={`Achieved: ${formatMultiple(current_deals_metrics?.moic)} | Target: ${formatMultiple(dashboard?.moic)}`}>
+              {formatMultiple(avgMoic)}
+            </span>
           </div>
           <div className="glass-metric">
             <span className="g-label">Currency</span>
@@ -442,16 +529,20 @@ const PublicReportPage: React.FC = () => {
         </div>
 
         <div className="chart-container-premium">
+          <div style={{ marginBottom: '2rem', padding: '1rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '0.9rem', color: '#64748b' }}>
+            <strong>Understanding the Projection:</strong> This graph illustrates the projected growth of your investment over the fund's lifecycle. 
+            The <strong>Blue Bar</strong> represents your initial investment in the current year. 
+            The <strong>Green Bars</strong> show the projected capital appreciation starting from your initial investment base. 
+            The dashed lines indicate key fund milestones like the end of the lockup period and the secondary market window.
+          </div>
+
           <ResponsiveContainer width="100%" height={450}>
-            <AreaChart data={cashFlowProjectionData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+            <ComposedChart data={cashFlowProjectionData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
               <defs>
                 <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/>
                   <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
                 </linearGradient>
-                <pattern id="lockupPattern" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-                  <rect width="2" height="4" transform="translate(0,0)" fill="rgba(245, 158, 11, 0.1)" />
-                </pattern>
               </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
               <XAxis dataKey="year" axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
@@ -461,21 +552,20 @@ const PublicReportPage: React.FC = () => {
                 formatter={(v: any) => [formatCurrencyLong(v), "Projected Value"]}
               />
               
-              {/* Lockup Zone */}
               <ReferenceArea 
-                x1={report.fund_details?.model_inputs?.inception_year} 
+                x1={currentYear} 
                 x2={lockupEndYear} 
-                fill="rgba(245, 158, 11, 0.05)" 
+                fill="#d97706" 
+                fillOpacity={0.15}
                 strokeOpacity={0}
+                label={{ value: 'Lockup', position: 'top', fill: '#d97706', fontSize: 10, fontWeight: '700', offset: 10 }}
               />
-              <ReferenceLine x={lockupEndYear} stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 5" label={{ position: 'top', value: 'End of Lockup', fill: '#f59e0b', fontSize: 10, fontWeight: '700' }} />
-              
-              {/* Secondary Zone (Year before maturity) */}
-              <ReferenceLine x={maturityYear - 1} stroke="#2563eb" strokeWidth={1} strokeDasharray="3 3" label={{ position: 'top', value: 'Secondary Window', fill: '#2563eb', fontSize: 10, fontWeight: '700' }} />
-
-              {/* Maturity Line */}
               <ReferenceLine x={maturityYear} stroke="#1e293b" strokeWidth={2} label={{ position: 'top', value: 'Maturity', fill: '#1e293b', fontSize: 10, fontWeight: '700' }} />
               
+              <Bar dataKey="investment" stackId="a" fill="#2563eb" name="Initial Investment" />
+              <Bar dataKey="base" stackId="a" fill="transparent" legendType="none" />
+              <Bar dataKey="growth" stackId="a" fill="#10b981" name="Capital Appreciation" />
+
               <Area 
                 type="monotone" 
                 dataKey="value" 
@@ -484,12 +574,14 @@ const PublicReportPage: React.FC = () => {
                 fillOpacity={1} 
                 fill="url(#colorValue)" 
                 animationDuration={1500}
+                isAnimationActive={true}
               />
-            </AreaChart>
+            </ComposedChart>
           </ResponsiveContainer>
           <div className="chart-legend-premium">
+            <div className="legend-item"><span className="dot" style={{ background: '#2563eb' }}></span> Initial Investment</div>
+            <div className="legend-item"><span className="dot" style={{ background: '#10b981' }}></span> Projected Growth</div>
             <div className="legend-item"><span className="dot lockup"></span> Lockup Phase</div>
-            <div className="legend-item"><span className="dot secondary"></span> Secondary Window</div>
             <div className="legend-item"><span className="dot maturity"></span> Maturity</div>
           </div>
         </div>
@@ -509,9 +601,17 @@ const PublicReportPage: React.FC = () => {
       {report.fund_details?.reasons_to_invest?.length > 0 && (
         <section className="reasons-invest-section report-container">
           <div className="section-title-premium"><h2>Why Invest With Us?</h2></div>
-          <div className="horizontal-scroll-container">
+          <div className="horizontal-scroll-container" ref={scrollRef}>
             {report.fund_details.reasons_to_invest.map((reason: any, idx: number) => (
               <div key={idx} className="reason-card-premium">
+                <div className="reason-num">0{idx + 1}</div>
+                <h3>{reason.title}</h3>
+                <p>{reason.brief_desc}</p>
+              </div>
+            ))}
+            {/* Duplicate for circular feel */}
+            {report.fund_details.reasons_to_invest.map((reason: any, idx: number) => (
+              <div key={`dup-${idx}`} className="reason-card-premium">
                 <div className="reason-num">0{idx + 1}</div>
                 <h3>{reason.title}</h3>
                 <p>{reason.brief_desc}</p>
@@ -527,16 +627,6 @@ const PublicReportPage: React.FC = () => {
             <div className="footer-main">
               <h3>FinanceRemade</h3>
               <p>Redefining institutional investment through transparency and technology.</p>
-            </div>
-            <div className="footer-stats">
-              <div className="f-stat">
-                <span className="fs-val">{formatCurrency(report.config_json?.target_capital)}</span>
-                <span className="fs-lab">Target Capital</span>
-              </div>
-              <div className="f-stat">
-                <span className="fs-val">{formatCurrency(report.config_json?.capital_raised)}</span>
-                <span className="fs-lab">Already Raised</span>
-              </div>
             </div>
           </div>
           <div className="footer-bottom">

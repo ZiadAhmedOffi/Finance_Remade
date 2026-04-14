@@ -34,6 +34,17 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ fundId, isAdmin }) => {
   const [targetCapital, setTargetCapital] = useState("");
   const [capitalRaised, setCapitalRaised] = useState("");
 
+  // Toggles and Pagination
+  const [isDynamicOpen, setIsDynamicOpen] = useState(true);
+  const [isCapitalCallOpen, setIsCapitalCallOpen] = useState(false);
+  const [dynamicPage, setDynamicPage] = useState(1);
+  const [capitalCallPage, setCapitalCallPage] = useState(1);
+  const reportsPerPage = 10;
+
+  // Editing state
+  const [editingReportId, setEditingReportId] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<any>({});
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
@@ -140,97 +151,218 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ fundId, isAdmin }) => {
     }
   };
 
-  const renderReportTable = (reports: Report[], title: string, onCreate: () => void, description: string) => (
-    <div className="content-card" style={{ marginBottom: '2.5rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <div>
-          <h3 style={{ border: 'none', margin: 0, padding: 0 }}>{title}</h3>
-          <p className="text-secondary" style={{ marginTop: '0.5rem' }}>{description}</p>
-        </div>
-        {isAdmin && (
-          <button className="btn-primary" onClick={onCreate}>
-            + Create New
-          </button>
-        )}
-      </div>
+  const startEditing = (report: Report) => {
+    setEditingReportId(report.id);
+    setEditValues({
+      name: report.name,
+      target_capital: report.config_json?.target_capital || "",
+      capital_raised: report.config_json?.capital_raised || ""
+    });
+  };
 
-      <div className="table-responsive">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Report Name</th>
-              <th>Status</th>
-              <th>Created By</th>
-              <th>Created At</th>
-              <th>Public Link</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {reports.length > 0 ? (
-              reports.map((report) => (
-                <tr key={report.id}>
-                  <td style={{ fontWeight: 600 }}>{report.name}</td>
-                  <td>
-                    <span className={`status-badge ${report.status.toLowerCase()}`}>
-                      {report.status}
-                    </span>
-                  </td>
-                  <td>{report.created_by_email}</td>
-                  <td>{new Date(report.created_at).toLocaleDateString()}</td>
-                  <td>
-                    {report.status === "ACTIVE" ? (
-                      <a 
-                        href={`/reports/public/${report.slug}`} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="link-primary"
-                      >
-                        View Report ↗
-                      </a>
-                    ) : (
-                      <span className="text-secondary">N/A (Inactive)</span>
-                    )}
-                  </td>
-                  <td>
-                    <div className="action-buttons">
-                      <button 
-                        className="btn-icon" 
-                        onClick={() => handleToggleStatus(report)}
-                        title={report.status === "ACTIVE" ? "Deactivate" : "Activate"}
-                      >
-                        {report.status === "ACTIVE" ? "🚫" : "✅"}
-                      </button>
-                      <button 
-                        className="btn-icon" 
-                        onClick={() => handleRegenerate(report.id)}
-                        title="Regenerate"
-                      >
-                        🔄
-                      </button>
-                      <button 
-                        className="btn-icon delete" 
-                        onClick={() => handleDeleteReport(report)}
-                        title="Delete"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
-                  No reports generated yet.
-                </td>
-              </tr>
+  const handleSaveEdit = async (report: Report) => {
+    try {
+      if (report.report_type === "CAPITAL_CALL") {
+        await fundsApi.updateCapitalCallReport(report.id, {
+          name: editValues.name,
+          config_json: {
+            ...report.config_json,
+            target_capital: parseFloat(editValues.target_capital),
+            capital_raised: parseFloat(editValues.capital_raised)
+          }
+        });
+      } else {
+        await fundsApi.updateReport(report.id, { name: editValues.name });
+      }
+      setEditingReportId(null);
+      fetchData();
+    } catch (err) {
+      alert("Failed to update report.");
+    }
+  };
+
+  const renderReportTable = (
+    reports: Report[], 
+    title: string, 
+    isOpen: boolean, 
+    setIsOpen: (v: boolean) => void,
+    currentPage: number,
+    setCurrentPage: (p: number) => void,
+    onCreate: () => void, 
+    description: string
+  ) => {
+    const totalPages = Math.ceil(reports.length / reportsPerPage);
+    const paginatedReports = reports.slice((currentPage - 1) * reportsPerPage, currentPage * reportsPerPage);
+
+    return (
+      <div className="content-card" style={{ marginBottom: '2.5rem' }}>
+        <div 
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+          onClick={() => setIsOpen(!isOpen)}
+        >
+          <div>
+            <h3 style={{ border: 'none', margin: 0, padding: 0 }}>
+              {isOpen ? "▼" : "▶"} {title}
+            </h3>
+            <p className="text-secondary" style={{ marginTop: '0.5rem' }}>{description}</p>
+          </div>
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+            {isAdmin && (
+              <button className="btn-primary" onClick={onCreate}>
+                + Create New
+              </button>
             )}
-          </tbody>
-        </table>
+          </div>
+        </div>
+
+        <div className={`collapsible-section ${isOpen ? 'open' : ''}`}>
+          <div style={{ marginTop: '2rem' }}>
+            <div className="table-responsive">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Report Name</th>
+                    <th>Status</th>
+                    <th>Created By</th>
+                    <th>Created At</th>
+                    {title.includes("Capital Call") && (
+                      <>
+                        <th>Target</th>
+                        <th>Raised</th>
+                      </>
+                    )}
+                    <th>Public Link</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedReports.length > 0 ? (
+                    paginatedReports.map((report) => (
+                      <tr key={report.id}>
+                        <td style={{ fontWeight: 600 }}>
+                          {editingReportId === report.id ? (
+                            <input 
+                              type="text" 
+                              className="form-input-sm"
+                              value={editValues.name}
+                              onChange={(e) => setEditValues({...editValues, name: e.target.value})}
+                            />
+                          ) : report.name}
+                        </td>
+                        <td>
+                          <span className={`status-badge ${report.status.toLowerCase()}`}>
+                            {report.status}
+                          </span>
+                        </td>
+                        <td>{report.created_by_email}</td>
+                        <td>{new Date(report.created_at).toLocaleDateString()}</td>
+                        {title.includes("Capital Call") && (
+                          <>
+                            <td>
+                              {editingReportId === report.id ? (
+                                <input 
+                                  type="number" 
+                                  className="form-input-sm"
+                                  style={{ width: '100px' }}
+                                  value={editValues.target_capital}
+                                  onChange={(e) => setEditValues({...editValues, target_capital: e.target.value})}
+                                />
+                              ) : `$${(report.config_json?.target_capital || 0).toLocaleString()}`}
+                            </td>
+                            <td>
+                              {editingReportId === report.id ? (
+                                <input 
+                                  type="number" 
+                                  className="form-input-sm"
+                                  style={{ width: '100px' }}
+                                  value={editValues.capital_raised}
+                                  onChange={(e) => setEditValues({...editValues, capital_raised: e.target.value})}
+                                />
+                              ) : `$${(report.config_json?.capital_raised || 0).toLocaleString()}`}
+                            </td>
+                          </>
+                        )}
+                        <td>
+                          {report.status === "ACTIVE" ? (
+                            <a 
+                              href={`/reports/public/${report.slug}`} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="link-primary"
+                            >
+                              View Report ↗
+                            </a>
+                          ) : (
+                            <span className="text-secondary">N/A (Inactive)</span>
+                          )}
+                        </td>
+                        <td>
+                          <div className="action-buttons">
+                            {editingReportId === report.id ? (
+                              <>
+                                <button className="btn-icon" onClick={() => handleSaveEdit(report)} title="Save">💾</button>
+                                <button className="btn-icon" onClick={() => setEditingReportId(null)} title="Cancel">❌</button>
+                              </>
+                            ) : (
+                              <>
+                                <button className="btn-icon" onClick={() => startEditing(report)} title="Edit">✏️</button>
+                                <button 
+                                  className="btn-icon" 
+                                  onClick={() => handleToggleStatus(report)}
+                                  title={report.status === "ACTIVE" ? "Deactivate" : "Activate"}
+                                >
+                                  {report.status === "ACTIVE" ? "🚫" : "✅"}
+                                </button>
+                                <button 
+                                  className="btn-icon" 
+                                  onClick={() => handleRegenerate(report.id)}
+                                  title="Regenerate"
+                                >
+                                  🔄
+                                </button>
+                                <button 
+                                  className="btn-icon delete" 
+                                  onClick={() => handleDeleteReport(report)}
+                                  title="Delete"
+                                >
+                                  🗑️
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={title.includes("Capital Call") ? 8 : 6} style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
+                        No reports generated yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            
+            {totalPages > 1 && (
+              <div className="pagination-controls" style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
+                {Array.from({ length: totalPages }, (_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setCurrentPage(i + 1)}
+                    className={`btn ${currentPage === i + 1 ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ minWidth: '2.5rem', padding: '0.25rem' }}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   if (loading) return <div className="loading-state" style={{ textAlign: 'center', padding: '4rem' }}>Loading reports...</div>;
 
@@ -239,17 +371,25 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ fundId, isAdmin }) => {
       {error && <div className="alert-mini error" style={{ marginBottom: '1.5rem' }}>{error}</div>}
 
       {renderReportTable(
-        capitalCallReports, 
-        "Capital Call Reports", 
-        () => setIsCreatingCapitalCall(true),
-        "Premium, shareable landing pages for fund capital calls and investor cases."
+        dynamicReports, 
+        "Dynamic Fund Reports", 
+        isDynamicOpen,
+        setIsDynamicOpen,
+        dynamicPage,
+        setDynamicPage,
+        () => setIsCreatingDynamic(true),
+        "Interactive static reports showing current fund performance and metrics."
       )}
 
       {renderReportTable(
-        dynamicReports, 
-        "Dynamic Fund Reports", 
-        () => setIsCreatingDynamic(true),
-        "Interactive static reports showing current fund performance and metrics."
+        capitalCallReports, 
+        "Capital Call Reports", 
+        isCapitalCallOpen,
+        setIsCapitalCallOpen,
+        capitalCallPage,
+        setCapitalCallPage,
+        () => setIsCreatingCapitalCall(true),
+        "Premium, shareable landing pages for fund capital calls and investor cases."
       )}
 
       {/* Modal for Dynamic Report */}
