@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { api } from "../api/api";
 import {
   XAxis,
@@ -12,6 +12,7 @@ import {
   Bar,
   ReferenceLine,
   } from "recharts";
+import FundPerformanceRadarChart from "./FundPerformanceRadarChart";
 
   /**
   * Interface representing a single year's entry in the performance table.
@@ -117,8 +118,27 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
     fetchPerformance();
   }, [fundId]);
 
-  if (loading) return <div>Loading Dashboard Data...</div>;
-  if (error) return <div className="alert alert-error">{error}</div>;
+  const fundIrr = useMemo(() => {
+    if (!data) return 0;
+    const dIrr = data.dashboard.irr || 0;
+    const cIrr = data.current_deals_metrics.irr || 0;
+    return Math.max(dIrr, cIrr);
+  }, [data]);
+
+  const waterfallData = useMemo(() => {
+    if (!data) return [];
+    return data.dashboard.performance_table.map((entry, index) => {
+      const prevEntry = index > 0 ? data.dashboard.performance_table[index - 1] : null;
+      const startValue = prevEntry ? prevEntry.total_portfolio_value_with_prognosis : 0;
+      return {
+        ...entry,
+        startValue: startValue
+      };
+    });
+  }, [data]);
+
+  if (loading) return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading Dashboard Data...</div>;
+  if (error) return <div className="alert alert-error" style={{ margin: '2rem' }}>{error}</div>;
   if (!data) return null;
 
   const { dashboard, current_deals_metrics } = data;
@@ -132,15 +152,6 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
   
   const formatPercent = (val: number) => (val * 100).toFixed(2) + "%";
   const formatMultiple = (val: number) => val.toFixed(2) + "x";
-
-  const waterfallData = dashboard.performance_table.map((entry, index) => {
-    const prevEntry = index > 0 ? dashboard.performance_table[index - 1] : null;
-    const startValue = prevEntry ? prevEntry.total_portfolio_value_with_prognosis : 0;
-    return {
-      ...entry,
-      startValue: startValue
-    };
-  });
 
   const currentYear = dashboard.performance_table[0]?.current_year || new Date().getFullYear();
   
@@ -212,7 +223,12 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
           }}>▼</span>
         </button>
 
-        {sections.metrics && (
+        <div style={{ 
+          maxHeight: sections.metrics ? '2000px' : '0', 
+          opacity: sections.metrics ? 1 : 0,
+          overflow: 'hidden',
+          transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+        }}>
           <div className="section-content animate-fade-in">
             {/* Current Deals Metrics Card (Past) */}
             <div className="content-card" style={{background: '#f8fafc', borderColor: '#64748b', marginBottom: '2rem'}}>
@@ -302,7 +318,7 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
               </div>
             </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* SECTION 2: ANNUAL PORTFOLIO PERFORMANCE */}
@@ -349,8 +365,27 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
           }}>▼</span>
         </button>
 
-        {sections.annualPerformance && (
-          <div className="section-content animate-fade-in">
+        <div style={{ 
+          maxHeight: sections.annualPerformance ? '3000px' : '0', 
+          opacity: sections.annualPerformance ? 1 : 0,
+          overflow: 'hidden',
+          transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+        }}>
+          <div className="section-content animate-fade-in" style={{ padding: '1rem 0' }}>
+            {/* Radar Chart Analysis */}
+            <div className="content-card" style={{marginBottom: '2rem', border: 'none'}}>
+              <div style={{ padding: '1.5rem', color: '#94a3b8', fontSize: '0.95rem', textAlign: 'center', maxWidth: '800px', margin: '0 auto' }}>
+                <strong style={{ color: '#0f172a', display: 'block', marginBottom: '0.5rem', fontSize: '1.1rem' }}>Strategic Performance Visualization</strong>
+                This radar chart maps the fund's growth trajectory across three dimensions: 
+                Total Portfolio Value (solid glowing line), MOIC targets (concentric rings), and the Target IRR Path (dashed line). 
+                It provides a multi-dimensional assessment of capital appreciation efficiency over the fund's lifecycle.
+              </div>
+              <FundPerformanceRadarChart 
+                data={dashboard.performance_table} 
+                fundIrr={fundIrr} 
+              />
+            </div>
+
             {/* Annual Performance Table */}
             <div className="content-card" style={{marginBottom: '2rem'}}>
               <h3>Annual Portfolio Performance Data</h3>
@@ -408,7 +443,7 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
               </ResponsiveContainer>
             </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* SECTION 3: STRATEGY & APPRECIATION */}
@@ -455,7 +490,12 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
           }}>▼</span>
         </button>
 
-        {sections.capitalAllocation && (
+        <div style={{ 
+          maxHeight: sections.capitalAllocation ? '2000px' : '0', 
+          opacity: sections.capitalAllocation ? 1 : 0,
+          overflow: 'hidden',
+          transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+        }}>
           <div className="section-content animate-fade-in">
             <div className="charts-grid">
               <div className="chart-container">
@@ -521,7 +561,7 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
               </div>
             </div>
           </div>
-        )}
+        </div>
       </div>
     </section>
   );

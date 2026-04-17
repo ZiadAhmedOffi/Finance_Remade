@@ -312,7 +312,7 @@ const DealPrognosisTab: React.FC<DealPrognosisTabProps> = ({ fundId, canEdit }) 
                 <input type="number" value={formData.exit_year} min={currentYear} onChange={e => setFormData({...formData, exit_year: parseInt(e.target.value)})} required />
               </div>
               <div className="form-group">
-                <label>Amount Invested (USD)</label>
+                <label>Amount to be Invested (USD)</label>
                 <input type="number" value={formData.amount_invested} onChange={e => setFormData({...formData, amount_invested: e.target.value})} required step="any" />
               </div>
               <div className="form-group">

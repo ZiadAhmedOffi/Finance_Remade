@@ -25,6 +25,7 @@ import {
 import "./PublicReport.css";
 import { calculateLiquidityIndex } from "../utils/liquidityUtils";
 import LiquidityGauge from "../components/LiquidityGauge";
+import FundPerformanceRadarChart from "../components/FundPerformanceRadarChart";
 
 const COLORS = ["#2563eb", "#7c3aed", "#db2777", "#ea580c", "#16a34a", "#0891b2"];
 
@@ -103,6 +104,12 @@ const PublicReportPage: React.FC = () => {
     investment_deals = [],
     aggregated_exits = []
   } = performanceData || {};
+
+  const fundIrr = useMemo(() => {
+    const dIrr = dashboard?.irr || 0;
+    const cIrr = current_deals_metrics?.irr || 0;
+    return Math.max(dIrr, cIrr);
+  }, [dashboard, current_deals_metrics]);
 
   const currentYear = dashboard?.current_year || new Date().getFullYear();
 
@@ -333,6 +340,20 @@ const PublicReportPage: React.FC = () => {
           </section>
 
           <section className="report-section">
+            <div className="report-section-header"><h2>Strategic Performance Trajectory</h2></div>
+            <p className="prose-text">
+              The following radar visualization provides an integrated view of the fund's efficiency and growth. 
+              The solid line tracks the <strong>Total Portfolio Value</strong>, while the concentric rings represent 
+              <strong>MOIC multiples</strong>. The dashed line serves as a benchmark for the <strong>Target IRR Path</strong>, 
+              allowing for a multi-dimensional assessment of capital appreciation over time.
+            </p>
+            <FundPerformanceRadarChart 
+              data={dashboard?.performance_table || []} 
+              fundIrr={fundIrr} 
+            />
+          </section>
+
+          <section className="report-section">
             <div className="report-section-header"><h2>Scenario Sensitivity Analysis</h2></div>
             <div className="table-wrapper">
               <table className="modern-table">
@@ -467,10 +488,10 @@ const PublicReportPage: React.FC = () => {
             <div className="metric-card-modern">
               <div className="m-icon">📈</div>
               <span className="m-label">Annualized Return</span>
-              <span className="m-value">{formatPercent(dashboard?.irr)}</span>
+              <span className="m-value">{formatPercent(fundIrr)}</span>
               <div className="m-subvalue">
                 <span>Yield: 0%</span>
-                <span className="highlight">Gain: {formatPercent(dashboard?.irr)}</span>
+                <span className="highlight">Gain: {formatPercent(fundIrr)}</span>
               </div>
             </div>
 
@@ -583,7 +604,16 @@ const PublicReportPage: React.FC = () => {
         </div>
       </section>
 
-      {/* 5. CASH FLOW PROJECTION (CORE) */}
+      {/* 5. STRATEGIC RADAR PERFORMANCE */}
+      <section className="radar-section report-container" style={{ marginTop: '6rem' }}>
+        <div className="section-title-premium"><h2>Performance Dynamics</h2></div>
+        <FundPerformanceRadarChart 
+          data={dashboard?.performance_table || []} 
+          fundIrr={fundIrr} 
+        />
+      </section>
+
+      {/* 6. CASH FLOW PROJECTION (CORE) */}
       <section className="projection-section report-container">
         <div className="section-title-premium"><h2>Cash Flow Projection</h2></div>
         
