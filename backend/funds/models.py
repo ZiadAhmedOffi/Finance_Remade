@@ -49,6 +49,8 @@ class Fund(models.Model):
     )
     
     overview = models.TextField(blank=True)
+    strategy = models.TextField(blank=True)
+    structure = models.TextField(blank=True)
     strategy_and_fund_lifecycle = models.TextField(blank=True)
     reasons_to_invest = models.JSONField(default=list, blank=True)
 
@@ -166,6 +168,12 @@ class ModelInput(models.Model):
     tier_1_carry = models.DecimalField(max_digits=5, decimal_places=2, default=20.00)
     tier_2_carry = models.DecimalField(max_digits=5, decimal_places=2, default=25.00)
     tier_3_carry = models.DecimalField(max_digits=5, decimal_places=2, default=30.00)
+    
+    # Portfolio Outcomes & Rates
+    failure_rate = models.DecimalField(max_digits=5, decimal_places=2, default=20.00)
+    break_even_rate = models.DecimalField(max_digits=5, decimal_places=2, default=30.00)
+    high_growth_rate = models.DecimalField(max_digits=5, decimal_places=2, default=50.00)
+    dilution_rate = models.DecimalField(max_digits=5, decimal_places=2, default=20.00)
     
     updated_at = models.DateTimeField(auto_now=True)
 

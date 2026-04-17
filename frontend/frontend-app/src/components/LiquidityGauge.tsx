@@ -119,7 +119,7 @@ const LiquidityGauge: React.FC<LiquidityGaugeProps> = ({ value, portfolioL, ageF
                 <span style={{ fontWeight: '700', color: '#1e293b' }}>{(portfolioL * 100).toFixed(1)}%</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '2rem', fontSize: '0.8rem' }}>
-                <span style={{ color: '#64748b' }}>Age Adjustment:</span>
+                <span style={{ color: '#64748b' }}>Age Adjustment ({age}y):</span>
                 <span style={{ fontWeight: '700', color: '#10b981' }}>-{((1 - ageFactor) * 100).toFixed(1)}%</span>
               </div>
             </div>

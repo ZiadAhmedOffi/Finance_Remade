@@ -16,8 +16,15 @@ import {
   ReferenceLine,
   ReferenceArea,
   Area,
+  Radar,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
 } from "recharts";
 import "./PublicReport.css";
+import { calculateLiquidityIndex } from "../utils/liquidityUtils";
+import LiquidityGauge from "../components/LiquidityGauge";
 
 const COLORS = ["#2563eb", "#7c3aed", "#db2777", "#ea580c", "#16a34a", "#0891b2"];
 
@@ -178,6 +185,21 @@ const PublicReportPage: React.FC = () => {
 
   const lockupEndYear = report?.fund_details?.model_inputs?.inception_year + (report?.fund_details?.model_inputs?.lock_up_period || 0);
   const maturityYear = report?.fund_details?.model_inputs?.inception_year + report?.fund_details?.model_inputs?.fund_life;
+  const hideLockup = lockupEndYear <= currentYear;
+
+  const liData = performanceData ? calculateLiquidityIndex(
+    performanceData.current_deals || [],
+    performanceData.admin_fee?.inception_year || new Date().getFullYear()
+  ) : null;
+
+  const comparisons = [
+    { name: 'Public Equities (S&P 500)', li: 5 },
+    { name: 'Gold', li: 2 },
+    { name: 'Commodities (ETF)', li: 10 },
+    { name: 'Our Fund', li: liData?.finalLI || 0, isCurrent: true },
+    { name: 'Private Equity (Avg)', li: 75 },
+    { name: 'Real Estate (Direct)', li: 85 },
+  ];
 
   if (loading) return (
     <div className="report-loading-container">
@@ -358,30 +380,50 @@ const PublicReportPage: React.FC = () => {
     <div className="public-report-layout capital-call-theme">
       
       {/* 1. COVER SECTION */}
-      <section className="cover-section" style={{ position: 'relative' }}>
-        {(report.fund_details?.cover_image || report.config_json?.cover_image) ? (
-          <div className="cover-image-container" style={{ opacity: 0.4 }}>
-            <img src={report.fund_details?.cover_image || report.config_json?.cover_image} alt="Fund Cover" className="cover-image" />
-          </div>
-        ) : null}
+      <section className="cover-section" style={{ 
+        position: 'relative', 
+        minHeight: '60vh', 
+        display: 'flex', 
+        alignItems: 'center',
+        background: '#0f172a',
+        overflow: 'hidden'
+      }}>
+        <div className="cover-image-container" style={{ 
+          position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0 
+        }}>
+          <img 
+            src="/Stock-Market-Arrows-iStock.jpg" 
+            alt="Fund Cover" 
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+          />
+          {/* Dark Overlay */}
+          <div style={{ 
+            position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', 
+            background: 'linear-gradient(to bottom, rgba(15, 23, 42, 0.45), rgba(15, 23, 42, 0.55))' 
+          }} />
+        </div>
         
-        <div className="cover-content report-container">
-          <div className="badge-row">
+        <div className="cover-content report-container" style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+          <h1 className="capital-call-title" style={{ fontSize: '4rem', marginBottom: '1rem', color: 'white' }}>{report.name}</h1>
+          
+          <div className="badge-row" style={{ justifyContent: 'center', marginBottom: '2rem' }}>
             {report.fund_details?.sharia_compliant && <span className="premium-badge sharia">Sharia Compliant</span>}
             {report.fund_details?.region && <span className="premium-badge region">{report.fund_details.region}</span>}
-            {report.fund_details?.focus && <span className="premium-badge focus">{report.fund_details.focus === 'GROWTH' ? 'Growth Focused' : 'Yield Focused'}</span>}
+            {report.fund_details?.tag && <span className="premium-badge focus">{report.fund_details.tag}</span>}
           </div>
-          <h1 className="capital-call-title">{report.name}</h1>
-          <p className="fund-subheadline">{report.fund_details?.description}</p>
+
+          <p className="fund-subheadline" style={{ maxWidth: '800px', margin: '0 auto 3rem', fontSize: '1.2rem', opacity: 0.9, color: 'white' }}>
+            {report.fund_details?.description}
+          </p>
           
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '3rem', marginTop: '3rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '4rem' }}>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '2.5rem', fontWeight: '900', color: '#60a5fa' }}>{formatCurrency(report.config_json?.target_capital)}</div>
-              <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', opacity: 0.7, letterSpacing: '0.1em' }}>Target Capital</div>
+              <div style={{ fontSize: '3rem', fontWeight: '900', color: '#60a5fa' }}>{formatCurrency(report.config_json?.target_capital)}</div>
+              <div style={{ fontSize: '0.9rem', textTransform: 'uppercase', opacity: 0.8, letterSpacing: '0.15em', marginTop: '0.5rem', color: 'white' }}>Target Capital</div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '2.5rem', fontWeight: '900', color: '#34d399' }}>{formatCurrency(report.config_json?.capital_raised)}</div>
-              <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', opacity: 0.7, letterSpacing: '0.1em' }}>Already Raised</div>
+              <div style={{ fontSize: '3rem', fontWeight: '900', color: '#34d399' }}>{formatCurrency(report.config_json?.capital_raised)}</div>
+              <div style={{ fontSize: '0.9rem', textTransform: 'uppercase', opacity: 0.8, letterSpacing: '0.15em', marginTop: '0.5rem', color: 'white' }}>Already Raised</div>
             </div>
           </div>
         </div>
@@ -389,24 +431,60 @@ const PublicReportPage: React.FC = () => {
 
       {/* 2. KEY FUND METRICS */}
       <section className="metrics-section report-container">
-        <div className="glass-metrics-grid">
-          <div className="glass-metric">
-            <span className="g-label">Avg. MOIC</span>
-            <span className="g-value" title={`Achieved: ${formatMultiple(current_deals_metrics?.moic)} | Target: ${formatMultiple(dashboard?.moic)}`}>
-              {formatMultiple(avgMoic)}
-            </span>
+        <div className="modern-metrics-container">
+          
+          {/* Row 1: Core Performance & Timing */}
+          <div className="metrics-row">
+            <div className="metric-card-modern">
+              <div className="m-icon">📊</div>
+              <span className="m-label">Avg. MOIC</span>
+              <span className="m-value">{formatMultiple(avgMoic)}</span>
+            </div>
+            
+            <div className="metric-card-modern">
+              <div className="m-icon">⏳</div>
+              <span className="m-label">Investment Period</span>
+              <span className="m-value">{report.fund_details?.model_inputs?.investment_period} Years</span>
+            </div>
+            
+            {!hideLockup && (
+              <div className="metric-card-modern">
+                <div className="m-icon">🔒</div>
+                <span className="m-label">Lockup Period</span>
+                <span className="m-value">{report.fund_details?.model_inputs?.lock_up_period} Years</span>
+              </div>
+            )}
+            
+            <div className="metric-card-modern">
+              <div className="m-icon">💱</div>
+              <span className="m-label">Currency</span>
+              <span className="m-value">USD</span>
+            </div>
           </div>
-          <div className="glass-metric">
-            <span className="g-label">Currency</span>
-            <span className="g-value">USD</span>
-          </div>
-          <div className="glass-metric">
-            <span className="g-label">Investment Period</span>
-            <span className="g-value">{report.fund_details?.model_inputs?.investment_period} Years</span>
-          </div>
-          <div className="glass-metric">
-            <span className="g-label">Lockup Period</span>
-            <span className="g-value">{report.fund_details?.model_inputs?.lock_up_period} Years</span>
+
+          {/* Row 2: Strategy, Structure & Return */}
+          <div className="metrics-row secondary">
+            <div className="metric-card-modern">
+              <div className="m-icon">📈</div>
+              <span className="m-label">Annualized Return</span>
+              <span className="m-value">{formatPercent(dashboard?.irr)}</span>
+              <div className="m-subvalue">
+                <span>Yield: 0%</span>
+                <span className="highlight">Gain: {formatPercent(dashboard?.irr)}</span>
+              </div>
+            </div>
+
+            <div className="metric-card-modern">
+              <div className="m-icon">🎯</div>
+              <span className="m-label">Strategy</span>
+              <span className="m-value" style={{ fontSize: '1.1rem' }}>{report.fund_details?.strategy || 'N/A'}</span>
+            </div>
+
+            <div className="metric-card-modern">
+              <div className="m-icon">🏗️</div>
+              <span className="m-label">Structure</span>
+              <span className="m-value" style={{ fontSize: '1.1rem' }}>{report.fund_details?.structure || 'N/A'}</span>
+            </div>
           </div>
         </div>
       </section>
@@ -421,7 +499,91 @@ const PublicReportPage: React.FC = () => {
         </section>
       )}
 
-      {/* 4. CASH FLOW PROJECTION (CORE) */}
+      {/* 4. INTRINSIC VALUE & LIQUIDITY SECTION */}
+      <section className="stability-section report-container" style={{ marginTop: '4rem' }}>
+        <div className="section-title-premium"><h2>Portfolio Stability & Liquidity</h2></div>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem', marginBottom: '3rem' }}>
+          <div className="content-card" style={{ padding: '2rem' }}>
+            <h3 style={{ textAlign: 'center', marginBottom: '2rem', border: 'none' }}>Intrinsic Value Radar</h3>
+            <div style={{ width: '100%', height: 400 }}>
+              <ResponsiveContainer>
+                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={(() => {
+                  const currentDeals = performanceData.current_deals || [];
+                  const companyMap = new Map();
+                  currentDeals.forEach((d: any) => {
+                    if (!companyMap.has(d.company_name)) {
+                      const entryVal = parseFloat(d.entry_valuation);
+                      const currentVal = parseFloat(d.latest_valuation);
+                      const exitMultiple = parseFloat(d.expected_exit_multiple || 5.0);
+                      const targetVal = entryVal * exitMultiple;
+                      companyMap.set(d.company_name, {
+                        subject: d.company_name,
+                        entry: targetVal > 0 ? (entryVal / targetVal) * 100 : 0,
+                        current: targetVal > 0 ? (currentVal / targetVal) * 100 : 0,
+                        expected: 100
+                      });
+                    }
+                  });
+                  return Array.from(companyMap.values());
+                })()}>
+                  <PolarGrid />
+                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: '0.7rem' }} />
+                  <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
+                  <Radar name="Entry" dataKey="entry" stroke="#3498db" fill="#3498db" fillOpacity={0.4} />
+                  <Radar name="Current" dataKey="current" stroke="#2ecc71" fill="#2ecc71" fillOpacity={0.5} />
+                  <Radar name="Target" dataKey="expected" stroke="#10b981" fill="transparent" strokeDasharray="5 5" />
+                  <Tooltip />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+            <p style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: '#64748b', lineHeight: '1.6', textAlign: 'center' }}>
+              The Intrinsic Value graph visualizes each portfolio company's journey from entry valuation towards its target exit valuation. 
+              The solid areas show historical and current progress, while the dashed line represents the strategic exit objective.
+            </p>
+          </div>
+
+          <div className="content-card" style={{ padding: '2rem' }}>
+            <h3 style={{ textAlign: 'center', marginBottom: '1rem', border: 'none' }}>Liquidity Index</h3>
+            <p style={{ textAlign: 'center', color: '#64748b', fontSize: '0.85rem', marginBottom: '2rem' }}>Path to realization & market benchmark</p>
+            
+            <div style={{ height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {liData && (
+                <LiquidityGauge 
+                  value={liData.finalLI} 
+                  portfolioL={liData.portfolioL} 
+                  ageFactor={liData.ageFactor} 
+                  age={liData.age} 
+                />
+              )}
+            </div>
+
+            <div style={{ marginTop: '2rem' }}>
+              <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: '#1e293b', marginBottom: '1rem', border: 'none' }}>Liquidity Benchmarks</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {comparisons.sort((a, b) => a.li - b.li).map((comp) => (
+                  <div key={comp.name} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#64748b', width: '140px' }}>{comp.name}</span>
+                    <div style={{ flex: 1, height: '4px', backgroundColor: '#e2e8f0', borderRadius: '2px', overflow: 'hidden' }}>
+                      <div style={{ 
+                        width: `${comp.li}%`, height: '100%', 
+                        background: comp.isCurrent ? '#3b82f6' : '#94a3b8'
+                      }} />
+                    </div>
+                    <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#1e293b', width: '35px' }}>{comp.li.toFixed(0)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <p style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: '#64748b', lineHeight: '1.6', textAlign: 'center' }}>
+              Our Liquidity Index assesses the portfolio's maturity and realization potential. 
+              A lower percentage indicates higher liquidity (easier to exit), comparing our fund against standard asset classes.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* 5. CASH FLOW PROJECTION (CORE) */}
       <section className="projection-section report-container">
         <div className="section-title-premium"><h2>Cash Flow Projection</h2></div>
         
@@ -431,13 +593,7 @@ const PublicReportPage: React.FC = () => {
             <input 
               type="number" 
               value={investmentAmount} 
-              onChange={(e) => {
-                const val = parseFloat(e.target.value);
-                const min = parseFloat(report.fund_details?.model_inputs?.min_investor_ticket || 0);
-                const max = parseFloat(report.fund_details?.model_inputs?.max_investor_ticket || 100000000);
-                if (val >= min && val <= max) setInvestmentAmount(val);
-                else if (val < min) setInvestmentAmount(min);
-              }}
+              onChange={(e) => setInvestmentAmount(parseFloat(e.target.value) || 0)}
               className="premium-input"
             />
           </div>
@@ -481,14 +637,16 @@ const PublicReportPage: React.FC = () => {
                 formatter={(v: any) => [formatCurrencyLong(v), "Projected Value"]}
               />
               
-              <ReferenceArea 
-                x1={currentYear} 
-                x2={lockupEndYear} 
-                fill="#d97706" 
-                fillOpacity={0.15}
-                strokeOpacity={0}
-                label={{ value: 'Lockup', position: 'top', fill: '#d97706', fontSize: 10, fontWeight: '700', offset: 10 }}
-              />
+              {!hideLockup && (
+                <ReferenceArea 
+                  x1={currentYear} 
+                  x2={lockupEndYear} 
+                  fill="#d97706" 
+                  fillOpacity={0.15}
+                  strokeOpacity={0}
+                  label={{ value: 'Lockup', position: 'top', fill: '#d97706', fontSize: 10, fontWeight: '700', offset: 10 }}
+                />
+              )}
               <ReferenceLine x={maturityYear} stroke="#1e293b" strokeWidth={2} label={{ position: 'top', value: 'Maturity', fill: '#1e293b', fontSize: 10, fontWeight: '700' }} />
               
               <Bar dataKey="investment" stackId="a" fill="#2563eb" name="Initial Investment" />
@@ -510,13 +668,13 @@ const PublicReportPage: React.FC = () => {
           <div className="chart-legend-premium">
             <div className="legend-item"><span className="dot" style={{ background: '#2563eb' }}></span> Initial Investment</div>
             <div className="legend-item"><span className="dot" style={{ background: '#10b981' }}></span> Projected Growth</div>
-            <div className="legend-item"><span className="dot lockup"></span> Lockup Phase</div>
+            {!hideLockup && <div className="legend-item"><span className="dot lockup"></span> Lockup Phase</div>}
             <div className="legend-item"><span className="dot maturity"></span> Maturity</div>
           </div>
         </div>
       </section>
 
-      {/* 5. STRATEGY & LIFECYCLE */}
+      {/* 6. STRATEGY & LIFECYCLE */}
       {report.fund_details?.strategy_and_fund_lifecycle && (
         <section className="strategy-section report-container">
           <div className="section-title-premium"><h2>Strategy & Lifecycle</h2></div>
@@ -526,7 +684,7 @@ const PublicReportPage: React.FC = () => {
         </section>
       )}
 
-      {/* 6. REASONS TO INVEST */}
+      {/* 7. REASONS TO INVEST */}
       {report.fund_details?.reasons_to_invest?.length > 0 && (
         <section className="reasons-invest-section report-container">
           <div className="section-title-premium"><h2>Why Invest With Us?</h2></div>

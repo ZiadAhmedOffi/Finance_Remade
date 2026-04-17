@@ -11,14 +11,7 @@ import {
   Line,
   Bar,
   ReferenceLine,
-  Radar,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
   } from "recharts";
-  import { calculateLiquidityIndex } from "../utils/liquidityUtils";
-  import LiquidityGauge from "./LiquidityGauge";
 
   /**
   * Interface representing a single year's entry in the performance table.
@@ -100,7 +93,6 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
     metrics: true,
     annualPerformance: false,
     capitalAllocation: false,
-    intrinsicValue: false,
   });
 
   const toggleSection = (section: keyof typeof sections) => {
@@ -140,12 +132,6 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
   
   const formatPercent = (val: number) => (val * 100).toFixed(2) + "%";
   const formatMultiple = (val: number) => val.toFixed(2) + "x";
-
-  /* --- Liquidity Index Calculations --- */
-  const liData = calculateLiquidityIndex(
-    (data as any).current_deals || [],
-    data.admin_fee.inception_year || new Date().getFullYear()
-  );
 
   const waterfallData = dashboard.performance_table.map((entry, index) => {
     const prevEntry = index > 0 ? dashboard.performance_table[index - 1] : null;
@@ -533,194 +519,6 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
-            </div>
-          </div>
-        )}
-        {/* Intrinsic Value and Liquidity Index Section */}
-        <button 
-          onClick={() => toggleSection('intrinsicValue')}
-          style={{
-            width: '100%', 
-            padding: '1.25rem 1.5rem', 
-            background: 'linear-gradient(to right, #f8fafc, #f1f5f9)', 
-            border: '1px solid #e2e8f0', 
-            borderRadius: '0.75rem',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            cursor: 'pointer',
-            fontWeight: '700',
-            fontSize: '1.1rem',
-            color: '#1e293b',
-            marginBottom: '1rem',
-            transition: 'all 0.2s ease',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-          }}
-          className="section-header-btn"
-        >
-          <span style={{display: 'flex', alignItems: 'center', gap: '0.75rem'}}>
-            <span style={{
-              background: '#2563eb', 
-              color: 'white', 
-              width: '24px', 
-              height: '24px', 
-              borderRadius: '6px', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              fontSize: '0.8rem'
-            }}>4</span>
-            INTRINSIC VALUE AND LIQUIDITY INDEX
-          </span>
-          <span style={{ 
-            transition: 'transform 0.3s ease', 
-            transform: sections.intrinsicValue ? 'rotate(180deg)' : 'rotate(0deg)',
-            fontSize: '1.2rem'
-          }}>▼</span>
-        </button>
-
-        {sections.intrinsicValue && (
-          <div className="section-content animate-fade-in">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '2rem', marginBottom: '2rem' }}>
-              
-              {/* Intrinsic Value Radar Chart */}
-              <div className="content-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column' }}>
-                <h3 style={{ marginBottom: '2rem', textAlign: 'center', border: 'none' }}>Intrinsic Value</h3>
-                <div style={{ width: '100%', height: 450 }}>
-                  <ResponsiveContainer>
-                    <RadarChart cx="50%" cy="50%" outerRadius="80%" data={(() => {
-                      const currentDeals = (data as any).current_deals || [];
-                      
-                      // Group by company name to handle multiple deals per company
-                      const companyMap = new Map();
-                      
-                      currentDeals.forEach((d: any) => {
-                        if (!companyMap.has(d.company_name)) {
-                          const entryVal = parseFloat(d.entry_valuation);
-                          const currentVal = parseFloat(d.latest_valuation);
-                          const exitMultiple = parseFloat(d.expected_exit_multiple || 5.0);
-                          const ownership = parseFloat(d.ownership_after_dilution || 0);
-                          
-                          // Target = Entry Valuation * Multiple
-                          const targetVal = entryVal * exitMultiple;
-                          
-                          companyMap.set(d.company_name, {
-                            subject: d.company_name,
-                            entry: targetVal > 0 ? (entryVal / targetVal) * 100 : 0,
-                            current: targetVal > 0 ? (currentVal / targetVal) * 100 : 0,
-                            expected: 100,
-                            full_name: d.company_name,
-                            raw_entry: entryVal,
-                            raw_current: currentVal,
-                            raw_expected: targetVal,
-                            ownership: ownership
-                          });
-                        }
-                      });
-                      
-                      return Array.from(companyMap.values());
-                    })()}>
-                      <PolarGrid />
-                      <PolarAngleAxis 
-                        dataKey="subject" 
-                        tick={(() => {
-                          const currentDeals = (data as any).current_deals || [];
-                          const uniqueCompanies = new Set(currentDeals.map((d: any) => d.company_name));
-                          // Hide labels if there are too many companies to avoid clutter
-                          return uniqueCompanies.size > 15 ? false : { fill: '#64748b', fontSize: '0.8rem' };
-                        })()}
-                      />
-                      <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                      <Radar
-                        name="Entry Valuation"
-                        dataKey="entry"
-                        stroke="#3498db"
-                        fill="#3498db"
-                        fillOpacity={0.4}
-                      />
-                      <Radar
-                        name="Current Valuation"
-                        dataKey="current"
-                        stroke="#2ecc71"
-                        fill="#2ecc71"
-                        fillOpacity={0.5}
-                      />
-                      <Radar
-                        name="Expected Final Valuation"
-                        dataKey="expected"
-                        stroke="#10b981"
-                        fill="transparent"
-                        strokeDasharray="5 5"
-                      />
-                      <Tooltip content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          const d = payload[0].payload;
-                          return (
-                            <div className="custom-tooltip" style={{ 
-                              backgroundColor: '#fff', 
-                              padding: '12px', 
-                              border: '1px solid #e2e8f0',
-                              borderRadius: '8px',
-                              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                              fontSize: '0.85rem',
-                              lineHeight: '1.5'
-                            }}>
-                              <p style={{ fontWeight: 'bold', marginBottom: '8px', color: '#1e293b', borderBottom: '1px solid #f1f5f9', paddingBottom: '4px' }}>{d.full_name}</p>
-                              <p style={{ margin: '2px 0' }}><span style={{ color: '#64748b' }}>Ownership:</span> <strong>{d.ownership.toFixed(2)}%</strong></p>
-                              <p style={{ margin: '2px 0' }}><span style={{ color: '#3498db' }}>Entry Val:</span> <strong>{formatCurrencyLong(d.raw_entry)}</strong> ({d.entry.toFixed(1)}%)</p>
-                              <p style={{ margin: '2px 0' }}><span style={{ color: '#2ecc71' }}>Current Val:</span> <strong>{formatCurrencyLong(d.raw_current)}</strong> ({d.current.toFixed(1)}%)</p>
-                              <p style={{ margin: '2px 0' }}><span style={{ color: '#10b981' }}>Expected Exit:</span> <strong>{formatCurrencyLong(d.raw_expected)}</strong> (100%)</p>
-                              <p style={{ margin: '8px 0 0', fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>Scenario: Base Case</p>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }} />
-                      <Legend />
-                    </RadarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Liquidity Index Gauge */}
-              <div className="content-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <div style={{ textAlign: 'center' }}>
-                  <h3 style={{ marginBottom: '0.5rem', border: 'none' }}>Liquidity Index</h3>
-                  <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '2.5rem' }}>Measures the portfolio's path to realization</p>
-                </div>
-                
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <LiquidityGauge 
-                    value={liData.finalLI} 
-                    portfolioL={liData.portfolioL} 
-                    ageFactor={liData.ageFactor} 
-                    age={liData.age} 
-                  />
-                </div>
-
-                <div style={{ marginTop: '2rem', padding: '1.25rem', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                  <h4 style={{ fontSize: '0.9rem', color: '#1e293b', marginBottom: '0.75rem', border: 'none' }}>Index Interpretation</h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '4px' }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#10b981' }}></div> 0-20%: Highly Liquid
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#34d399' }}></div> 20-40%: Good
-                      </div>
-                    </div>
-                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '4px' }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#fbbf24' }}></div> 40-60%: Moderate
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#ef4444' }}></div> 60%+: Illiquid
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
             </div>
           </div>
         )}

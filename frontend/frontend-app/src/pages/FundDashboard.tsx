@@ -26,6 +26,8 @@ interface Fund {
   region: string;
   focus: "GROWTH" | "YIELD" | null;
   overview: string;
+  strategy: string;
+  structure: string;
   strategy_and_fund_lifecycle: string;
   reasons_to_invest: ReasonToInvest[];
   steering_committee: string[];
@@ -66,6 +68,8 @@ const FundDashboard: React.FC = () => {
   const [focus, setFocus] = useState<"GROWTH" | "YIELD" | "">("");
   const [overview, setOverview] = useState("");
   const [strategy, setStrategy] = useState("");
+  const [structure, setStructure] = useState("");
+  const [strategyAndLifecycle, setStrategyAndLifecycle] = useState("");
   const [reasonsToInvest, setReasonsToInvest] = useState<ReasonToInvest[]>([]);
   
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
@@ -101,7 +105,9 @@ const FundDashboard: React.FC = () => {
       setRegion(response.data.region || "");
       setFocus(response.data.focus || "");
       setOverview(response.data.overview || "");
-      setStrategy(response.data.strategy_and_fund_lifecycle || "");
+      setStrategy(response.data.strategy || "");
+      setStructure(response.data.structure || "");
+      setStrategyAndLifecycle(response.data.strategy_and_fund_lifecycle || "");
       setReasonsToInvest(response.data.reasons_to_invest || []);
       checkPermissions(response.data);
       setError(null);
@@ -146,7 +152,9 @@ const FundDashboard: React.FC = () => {
         region: region,
         focus: focus || null,
         overview: overview,
-        strategy_and_fund_lifecycle: strategy,
+        strategy: strategy,
+        structure: structure,
+        strategy_and_fund_lifecycle: strategyAndLifecycle,
         reasons_to_invest: reasonsToInvest
       });
       setMessage("Fund information updated successfully.");
@@ -368,11 +376,30 @@ const FundDashboard: React.FC = () => {
                       />
                     </div>
 
+                    <div className="info-grid-edit" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', marginTop: '1.5rem' }}>
+                      <div className="form-group">
+                        <label>Strategy</label>
+                        <textarea 
+                          value={strategy} 
+                          onChange={(e) => setStrategy(e.target.value)} 
+                          rows={3}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Structure</label>
+                        <textarea 
+                          value={structure} 
+                          onChange={(e) => setStructure(e.target.value)} 
+                          rows={3}
+                        />
+                      </div>
+                    </div>
+
                     <div className="form-group" style={{ marginTop: '1.5rem' }}>
                       <label>Strategy & Fund Lifecycle</label>
                       <textarea 
-                        value={strategy} 
-                        onChange={(e) => setStrategy(e.target.value)} 
+                        value={strategyAndLifecycle} 
+                        onChange={(e) => setStrategyAndLifecycle(e.target.value)} 
                         rows={5}
                         placeholder="Describe the investment strategy and lifecycle..."
                       />
@@ -488,6 +515,17 @@ const FundDashboard: React.FC = () => {
                          <p className="value description">{fund.overview}</p>
                        </div>
                      )}
+
+                     <div className="info-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginTop: '1.5rem' }}>
+                       <div className="info-item">
+                         <label>Strategy</label>
+                         <p className="value">{fund.strategy || "N/A"}</p>
+                       </div>
+                       <div className="info-item">
+                         <label>Structure</label>
+                         <p className="value">{fund.structure || "N/A"}</p>
+                       </div>
+                     </div>
 
                      {fund.strategy_and_fund_lifecycle && (
                        <div className="info-item full-width" style={{ marginTop: '1.5rem' }}>

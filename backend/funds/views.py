@@ -1310,7 +1310,22 @@ def get_fund_performance_data(fund):
             "total_admin_cost": (float(model_inputs.admin_cost) / 100.0) * float(model_inputs.target_fund_size),
             "operations_fee": (management_fee_pct / 100.0) * float(model_inputs.target_fund_size),
             "management_fees": (management_fee_pct / 100.0) * float(model_inputs.target_fund_size) * fund_life,
-            "total_costs": 0, "inception_year": inception_year, "fund_life": fund_life
+            "total_costs": 0, "inception_year": inception_year, "fund_life": fund_life,
+            "investment_period": model_inputs.investment_period,
+            "lock_up_period": model_inputs.lock_up_period,
+            "failure_rate": float(model_inputs.failure_rate),
+            "break_even_rate": float(model_inputs.break_even_rate),
+            "high_growth_rate": float(model_inputs.high_growth_rate),
+            "dilution_rate": float(model_inputs.dilution_rate),
+        },
+        "fund_details": {
+            "name": fund.name,
+            "tag": fund.tag,
+            "sharia_compliant": fund.sharia_compliant,
+            "region": fund.region,
+            "focus": fund.focus,
+            "strategy": fund.strategy,
+            "structure": fund.structure,
         },
         "investment_deals": deals_data,
         "current_deals": c_deals_data

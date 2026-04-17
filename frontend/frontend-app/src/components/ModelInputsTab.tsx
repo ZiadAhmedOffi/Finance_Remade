@@ -26,6 +26,10 @@ interface ModelInputData {
   tier_1_carry: number;
   tier_2_carry: number;
   tier_3_carry: number;
+  failure_rate: number;
+  break_even_rate: number;
+  high_growth_rate: number;
+  dilution_rate: number;
 }
 
 /**
@@ -86,6 +90,15 @@ const ModelInputsTab: React.FC<ModelInputsTabProps> = ({ fundId, canEdit }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!data) return;
+
+    // Validation: Rates must sum to 100
+    const sum = Number(data.failure_rate) + Number(data.break_even_rate) + Number(data.high_growth_rate);
+    if (Math.abs(sum - 100) > 0.01) {
+      setError("Failure, Break-even, and High Growth rates must sum to exactly 100%.");
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     try {
       await fundsApi.updateModelInputs(fundId, data);
       setMessage("Model inputs updated successfully.");
@@ -312,6 +325,34 @@ const ModelInputsTab: React.FC<ModelInputsTabProps> = ({ fundId, canEdit }) => {
             <div className="form-group">
               <label>Tier 3 Carry [%]</label>
               <input type="number" name="tier_3_carry" value={data.tier_3_carry} onChange={handleChange} disabled={!canEdit} step="any" />
+            </div>
+          </div>
+        </div>
+
+        <div className="divider-h" />
+
+        <div className="form-section">
+          <h3>Portfolio Outcomes & Rates</h3>
+          <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '0.9rem', color: '#64748b' }}>
+            <strong>Note:</strong> Failure, Break-even, and High Growth rates represent the expected distribution of portfolio company outcomes. 
+            These three rates <strong>must sum to exactly 100%</strong>.
+          </div>
+          <div className="input-grid" style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.5rem'}}>
+            <div className="form-group">
+              <label>Failure Rate [%]</label>
+              <input type="number" name="failure_rate" value={data.failure_rate} onChange={handleChange} disabled={!canEdit} step="any" />
+            </div>
+            <div className="form-group">
+              <label>Break-even Rate [%]</label>
+              <input type="number" name="break_even_rate" value={data.break_even_rate} onChange={handleChange} disabled={!canEdit} step="any" />
+            </div>
+            <div className="form-group">
+              <label>High Growth Rate [%]</label>
+              <input type="number" name="high_growth_rate" value={data.high_growth_rate} onChange={handleChange} disabled={!canEdit} step="any" />
+            </div>
+            <div className="form-group">
+              <label>Dilution Rate [%]</label>
+              <input type="number" name="dilution_rate" value={data.dilution_rate} onChange={handleChange} disabled={!canEdit} step="any" />
             </div>
           </div>
         </div>
