@@ -591,26 +591,41 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
                     <RadarChart cx="50%" cy="50%" outerRadius="80%" data={(() => {
                       const currentDeals = (data as any).current_deals || [];
                       
-                      return currentDeals.map((d: any) => {
-                        const entryVal = parseFloat(d.entry_valuation);
-                        const currentVal = parseFloat(d.latest_valuation);
-                        const exitMultiple = parseFloat(d.expected_exit_multiple || 5.0);
-                        
-                        // Target = Entry Valuation * Multiple
-                        const targetVal = entryVal * exitMultiple;
-                        
-                        return {
-                          subject: d.company_name,
-                          entry: targetVal > 0 ? (entryVal / targetVal) * 100 : 0,
-                          current: targetVal > 0 ? (currentVal / targetVal) * 100 : 0,
-                          expected: 100,
-                          full_name: d.company_name
-                        };
+                      // Group by company name to handle multiple deals per company
+                      const companyMap = new Map();
+                      
+                      currentDeals.forEach((d: any) => {
+                        if (!companyMap.has(d.company_name)) {
+                          const entryVal = parseFloat(d.entry_valuation);
+                          const currentVal = parseFloat(d.latest_valuation);
+                          const exitMultiple = parseFloat(d.expected_exit_multiple || 5.0);
+                          
+                          // Target = Entry Valuation * Multiple
+                          const targetVal = entryVal * exitMultiple;
+                          
+                          companyMap.set(d.company_name, {
+                            subject: d.company_name,
+                            entry: targetVal > 0 ? (entryVal / targetVal) * 100 : 0,
+                            current: targetVal > 0 ? (currentVal / targetVal) * 100 : 0,
+                            expected: 100,
+                            full_name: d.company_name
+                          });
+                        }
                       });
+                      
+                      return Array.from(companyMap.values());
                     })()}>
                       <PolarGrid />
-                      <PolarAngleAxis dataKey="subject" />
-                      <PolarRadiusAxis angle={30} domain={[0, 100]} />
+                      <PolarAngleAxis 
+                        dataKey="subject" 
+                        tick={(() => {
+                          const currentDeals = (data as any).current_deals || [];
+                          const uniqueCompanies = new Set(currentDeals.map((d: any) => d.company_name));
+                          // Hide labels if there are too many companies to avoid clutter
+                          return uniqueCompanies.size > 15 ? false : { fill: '#64748b', fontSize: '0.8rem' };
+                        })()}
+                      />
+                      <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
                       <Radar
                         name="Entry Valuation"
                         dataKey="entry"
