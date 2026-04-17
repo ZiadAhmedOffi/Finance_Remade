@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
-import * as echarts from 'echarts';
 
 interface PerformanceEntry {
   year: number;
@@ -42,7 +41,7 @@ const FundPerformanceRadarChart: React.FC<FundPerformanceRadarChartProps> = ({ d
     // Scale IRR to 70% of radius for clear layering
     const normalizedIrr = irrPath.map(v => (v / maxIrrPath) * 70);
 
-    const lastAchievedIndex = data.findLastIndex(d => !d.is_future);
+    const lastAchievedIndex = data.findLastIndex((d: PerformanceEntry) => !d.is_future);
 
     // Data for split portfolio line
     const portfolioAchieved = normalizedPortfolio.map((v, i) => i <= lastAchievedIndex ? v : '-');
