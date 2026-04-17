@@ -599,6 +599,7 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
                           const entryVal = parseFloat(d.entry_valuation);
                           const currentVal = parseFloat(d.latest_valuation);
                           const exitMultiple = parseFloat(d.expected_exit_multiple || 5.0);
+                          const ownership = parseFloat(d.ownership_after_dilution || 0);
                           
                           // Target = Entry Valuation * Multiple
                           const targetVal = entryVal * exitMultiple;
@@ -608,7 +609,11 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
                             entry: targetVal > 0 ? (entryVal / targetVal) * 100 : 0,
                             current: targetVal > 0 ? (currentVal / targetVal) * 100 : 0,
                             expected: 100,
-                            full_name: d.company_name
+                            full_name: d.company_name,
+                            raw_entry: entryVal,
+                            raw_current: currentVal,
+                            raw_expected: targetVal,
+                            ownership: ownership
                           });
                         }
                       });
@@ -643,25 +648,29 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
                       <Radar
                         name="Expected Final Valuation"
                         dataKey="expected"
-                        stroke="#e74c3c"
+                        stroke="#10b981"
                         fill="transparent"
                         strokeDasharray="5 5"
                       />
                       <Tooltip content={({ active, payload }) => {
                         if (active && payload && payload.length) {
-                          const data = payload[0].payload;
+                          const d = payload[0].payload;
                           return (
                             <div className="custom-tooltip" style={{ 
                               backgroundColor: '#fff', 
-                              padding: '10px', 
-                              border: '1px solid #ccc',
-                              borderRadius: '4px',
-                              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                              padding: '12px', 
+                              border: '1px solid #e2e8f0',
+                              borderRadius: '8px',
+                              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                              fontSize: '0.85rem',
+                              lineHeight: '1.5'
                             }}>
-                              <p style={{ fontWeight: 'bold', marginBottom: '5px', color: '#1e293b' }}>{data.full_name}</p>
-                              <p style={{ color: '#3498db', margin: '2px 0' }}>Entry: {data.entry.toFixed(1)}%</p>
-                              <p style={{ color: '#2ecc71', margin: '2px 0' }}>Current: {data.current.toFixed(1)}%</p>
-                              <p style={{ color: '#e74c3c', margin: '2px 0' }}>Target: 100%</p>
+                              <p style={{ fontWeight: 'bold', marginBottom: '8px', color: '#1e293b', borderBottom: '1px solid #f1f5f9', paddingBottom: '4px' }}>{d.full_name}</p>
+                              <p style={{ margin: '2px 0' }}><span style={{ color: '#64748b' }}>Ownership:</span> <strong>{d.ownership.toFixed(2)}%</strong></p>
+                              <p style={{ margin: '2px 0' }}><span style={{ color: '#3498db' }}>Entry Val:</span> <strong>{formatCurrencyLong(d.raw_entry)}</strong> ({d.entry.toFixed(1)}%)</p>
+                              <p style={{ margin: '2px 0' }}><span style={{ color: '#2ecc71' }}>Current Val:</span> <strong>{formatCurrencyLong(d.raw_current)}</strong> ({d.current.toFixed(1)}%)</p>
+                              <p style={{ margin: '2px 0' }}><span style={{ color: '#10b981' }}>Expected Exit:</span> <strong>{formatCurrencyLong(d.raw_expected)}</strong> (100%)</p>
+                              <p style={{ margin: '8px 0 0', fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>Scenario: Base Case</p>
                             </div>
                           );
                         }
