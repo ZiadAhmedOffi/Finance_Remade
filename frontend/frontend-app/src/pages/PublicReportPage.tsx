@@ -9,7 +9,6 @@ import {
   Legend,
   ResponsiveContainer,
   ComposedChart,
-  Line,
   Bar,
   PieChart,
   Pie,
@@ -17,7 +16,6 @@ import {
   ReferenceLine,
   ReferenceArea,
   Area,
-  AreaChart,
 } from "recharts";
 import "./PublicReport.css";
 
@@ -34,18 +32,6 @@ const PublicReportPage: React.FC = () => {
   const [investmentAmount, setInvestmentAmount] = useState<number>(0);
   const [selectedScenario, setSelectedScenario] = useState<string>("Base Case");
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split(".")[1]));
-        setIsAdmin(payload.roles?.some((r: any) => r.role === "SUPER_ADMIN"));
-      } catch (e) {}
-    }
-  }, []);
 
   useEffect(() => {
     const fetchReportData = async () => {
@@ -108,8 +94,7 @@ const PublicReportPage: React.FC = () => {
     current_deals_metrics, 
     current_deals = [], 
     investment_deals = [],
-    aggregated_exits = [],
-    admin_fee 
+    aggregated_exits = []
   } = performanceData || {};
 
   const currentYear = dashboard?.current_year || new Date().getFullYear();
@@ -161,38 +146,6 @@ const PublicReportPage: React.FC = () => {
     };
   }, [current_deals, investment_deals]);
 
-  const basePointsChartData = useMemo(() => {
-    if (!admin_fee || !dashboard?.performance_table) return [];
-    
-    const { inception_year, fund_life, total_admin_cost, operations_fee, management_fees } = admin_fee;
-    const years_arr = Array.from({ length: fund_life }, (_, i) => inception_year + i);
-
-    const gaPerYear = (total_admin_cost + operations_fee + (management_fees || 0)) / fund_life;
-    const gaMap: Record<number, number> = {};
-    years_arr.forEach(year => { gaMap[year] = gaPerYear; });
-
-    const totalInvested = current_deals_metrics?.total_invested || 1;
-    let pBase = 0, pUpside = 0, pHigh = 0;
-
-    return dashboard.performance_table.map((row: any) => {
-      const inj = row.injection_current || 0;
-      const appr = row.appreciation_current || 0;
-      const ga = gaMap[row.year] || 0;
-
-      pBase += inj + appr;
-      pUpside += inj + (appr * 1.2);
-      pHigh += inj + (appr * 1.5);
-
-      return {
-        year: row.year,
-        investedBP: (inj / totalInvested) * 100,
-        "Base Case": ((pBase - ga) / totalInvested) * 100,
-        "Upside Case": ((pUpside - ga) / totalInvested) * 100,
-        "High Growth Case": ((pHigh - ga) / totalInvested) * 100
-      };
-    });
-  }, [admin_fee, dashboard, current_deals_metrics]);
-
   // --- Capital Call Report Logic ---
 
   const cashFlowProjectionData = useMemo(() => {
@@ -225,30 +178,6 @@ const PublicReportPage: React.FC = () => {
 
   const lockupEndYear = report?.fund_details?.model_inputs?.inception_year + (report?.fund_details?.model_inputs?.lock_up_period || 0);
   const maturityYear = report?.fund_details?.model_inputs?.inception_year + report?.fund_details?.model_inputs?.fund_life;
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // In a real app, you'd upload this to S3/Cloudinary and get a URL
-    // For now, we'll use a FileReader to show it works locally
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64String = reader.result as string;
-      try {
-        await fundsApi.updateCapitalCallReport(report.id, {
-          config_json: {
-            ...report.config_json,
-            cover_image: base64String
-          }
-        });
-        window.location.reload();
-      } catch (err) {
-        alert("Failed to update image.");
-      }
-    };
-    reader.readAsDataURL(file);
-  };
 
   if (loading) return (
     <div className="report-loading-container">

@@ -11,7 +11,6 @@ import {
   Line,
   Bar,
   ReferenceLine,
-  Cell,
   Radar,
   RadarChart,
   PolarGrid,
