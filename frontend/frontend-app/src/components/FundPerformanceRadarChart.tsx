@@ -31,16 +31,6 @@ const FundPerformanceRadarChart: React.FC<FundPerformanceRadarChartProps> = ({ d
     const maxPortfolio = Math.max(...portfolioValues, 1);
     const normalizedPortfolio = portfolioValues.map(v => (v / maxPortfolio) * 100);
     
-    const maxMoic = Math.max(...moicValues, 1);
-    // Scale MOIC to 85% of radius to prevent it from overlapping perfectly with portfolio peak
-    const normalizedMoic = moicValues.map(v => (v / maxMoic) * 85);
-
-    // IRR Path (simulated growth) - though line is removed, we keep calculation for potential future use or tooltip
-    const irrPath = data.map((_, idx) => Math.pow(1 + irr, idx));
-    const maxIrrPath = Math.max(...irrPath, 1);
-    // Scale IRR to 70% of radius for clear layering
-    const normalizedIrr = irrPath.map(v => (v / maxIrrPath) * 70);
-
     const lastAchievedIndex = data.findLastIndex((d: PerformanceEntry) => !d.is_future);
 
     // Data for split portfolio line

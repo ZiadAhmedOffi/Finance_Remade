@@ -117,13 +117,6 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
     fetchPerformance();
   }, [fundId]);
 
-  const fundIrr = useMemo(() => {
-    if (!data) return 0;
-    const dIrr = data.dashboard.irr || 0;
-    const cIrr = data.current_deals_metrics.irr || 0;
-    return Math.max(dIrr, cIrr);
-  }, [data]);
-
   const waterfallData = useMemo(() => {
     if (!data) return [];
     return data.dashboard.performance_table.map((entry, index) => {
