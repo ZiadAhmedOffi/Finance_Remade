@@ -10,10 +10,10 @@ interface PerformanceEntry {
 
 interface FundPerformanceRadarChartProps {
   data: PerformanceEntry[];
-  fundIrr: number;
+  irr: number;
 }
 
-const FundPerformanceRadarChart: React.FC<FundPerformanceRadarChartProps> = ({ data, fundIrr }) => {
+const FundPerformanceRadarChart: React.FC<FundPerformanceRadarChartProps> = ({ data, irr }) => {
   const chartOptions = useMemo(() => {
     if (!data || data.length === 0) return {};
 
@@ -35,8 +35,8 @@ const FundPerformanceRadarChart: React.FC<FundPerformanceRadarChartProps> = ({ d
     // Scale MOIC to 85% of radius to prevent it from overlapping perfectly with portfolio peak
     const normalizedMoic = moicValues.map(v => (v / maxMoic) * 85);
 
-    // Target IRR Path (simulated growth)
-    const irrPath = data.map((_, idx) => Math.pow(1 + fundIrr, idx));
+    // IRR Path (simulated growth) - though line is removed, we keep calculation for potential future use or tooltip
+    const irrPath = data.map((_, idx) => Math.pow(1 + irr, idx));
     const maxIrrPath = Math.max(...irrPath, 1);
     // Scale IRR to 70% of radius for clear layering
     const normalizedIrr = irrPath.map(v => (v / maxIrrPath) * 70);
@@ -65,7 +65,7 @@ const FundPerformanceRadarChart: React.FC<FundPerformanceRadarChartProps> = ({ d
               <div style="font-weight: 800; margin-bottom: 5px; color: #64748b;">${entry.year} ${entry.is_future ? '(Projected)' : '(Achieved)'}</div>
               <div style="color: #2563eb;">Portfolio: <b>${val}</b></div>
               <div style="color: #f59e0b;">MOIC: <b>${moic}x</b></div>
-              <div style="color: #8b5cf6;">IRR Target: <b>${(fundIrr * 100).toFixed(2)}%</b></div>
+              <div style="color: #8b5cf6;">IRR: <b>${(irr * 100).toFixed(2)}%</b></div>
             </div>
           `;
         }
@@ -144,43 +144,10 @@ const FundPerformanceRadarChart: React.FC<FundPerformanceRadarChartProps> = ({ d
             color: 'rgba(16, 185, 129, 0.05)'
           },
           zIndex: 5
-        },
-        {
-          name: 'MOIC Path',
-          type: 'line',
-          coordinateSystem: 'polar',
-          smooth: true,
-          data: normalizedMoic,
-          symbol: 'diamond',
-          symbolSize: 6,
-          lineStyle: {
-            width: 3,
-            color: '#f59e0b',
-            type: 'solid'
-          },
-          itemStyle: {
-            color: '#f59e0b'
-          },
-          zIndex: 15
-        },
-        {
-          name: 'IRR Performance',
-          type: 'line',
-          coordinateSystem: 'polar',
-          smooth: true,
-          data: normalizedIrr,
-          symbol: 'none',
-          lineStyle: {
-            width: 2,
-            color: '#8b5cf6',
-            type: 'solid',
-            opacity: 0.6
-          },
-          zIndex: 3
         }
       ]
     };
-  }, [data, fundIrr]);
+  }, [data, irr]);
 
   return (
     <div className="radar-chart-wrapper" style={{ 
@@ -197,7 +164,7 @@ const FundPerformanceRadarChart: React.FC<FundPerformanceRadarChartProps> = ({ d
     }}>
       <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
         <h3 style={{ color: '#1e293b', fontSize: '1.75rem', fontWeight: '800', margin: 0 }}>Strategic Performance Trajectory</h3>
-        <p style={{ color: '#64748b', fontSize: '1rem', marginTop: '0.5rem' }}>Portfolio, MOIC & IRR Projections</p>
+        <p style={{ color: '#64748b', fontSize: '1rem', marginTop: '0.5rem' }}>Portfolio Valuation Growth</p>
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
         <ReactECharts 
@@ -225,14 +192,6 @@ const FundPerformanceRadarChart: React.FC<FundPerformanceRadarChartProps> = ({ d
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <div style={{ width: '16px', height: '0', borderTop: '3px dashed #10b981' }}></div>
           <span style={{ color: '#475569', fontSize: '0.85rem', fontWeight: '700' }}>Portfolio (Projected)</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <div style={{ width: '14px', height: '14px', transform: 'rotate(45deg)', background: '#f59e0b' }}></div>
-          <span style={{ color: '#475569', fontSize: '0.85rem', fontWeight: '700' }}>MOIC Path</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <div style={{ width: '14px', height: '3px', background: '#8b5cf6', opacity: 0.6 }}></div>
-          <span style={{ color: '#475569', fontSize: '0.85rem', fontWeight: '700' }}>IRR Target</span>
         </div>
       </div>
     </div>

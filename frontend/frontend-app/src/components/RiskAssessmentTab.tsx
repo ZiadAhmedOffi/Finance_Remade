@@ -24,6 +24,7 @@ import {
 import { fundsApi } from '../api/api';
 import { calculateLiquidityIndex } from "../utils/liquidityUtils";
 import LiquidityGauge from "./LiquidityGauge";
+import FundPerformanceRadarChart from "./FundPerformanceRadarChart";
 
 interface RiskAssessmentTabProps {
   fundId: string;
@@ -639,6 +640,19 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
                 </div>
               </div>
             </div>
+
+            {performanceData?.dashboard?.performance_table && (
+              <div className="content-card" style={{marginTop: '2rem', border: 'none'}}>
+                <div style={{ padding: '1.5rem', color: '#94a3b8', fontSize: '0.95rem', textAlign: 'center', maxWidth: '800px', margin: '0 auto' }}>
+                  <strong style={{ color: '#0f172a', display: 'block', marginBottom: '0.5rem', fontSize: '1.1rem' }}>Strategic Performance Visualization</strong>
+                  This radar chart maps the fund's growth trajectory based on Total Portfolio Value. It provides a multi-dimensional assessment of capital appreciation efficiency over the fund's lifecycle, with MOIC and IRR visible on hover.
+                </div>
+                <FundPerformanceRadarChart 
+                  data={performanceData.dashboard.performance_table} 
+                  irr={performanceData.current_deals_metrics?.irr || 0} 
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>

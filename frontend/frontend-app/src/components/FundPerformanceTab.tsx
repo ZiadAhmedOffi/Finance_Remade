@@ -12,7 +12,6 @@ import {
   Bar,
   ReferenceLine,
   } from "recharts";
-import FundPerformanceRadarChart from "./FundPerformanceRadarChart";
 
   /**
   * Interface representing a single year's entry in the performance table.
@@ -372,20 +371,6 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
           transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
         }}>
           <div className="section-content animate-fade-in" style={{ padding: '1rem 0' }}>
-            {/* Radar Chart Analysis */}
-            <div className="content-card" style={{marginBottom: '2rem', border: 'none'}}>
-              <div style={{ padding: '1.5rem', color: '#94a3b8', fontSize: '0.95rem', textAlign: 'center', maxWidth: '800px', margin: '0 auto' }}>
-                <strong style={{ color: '#0f172a', display: 'block', marginBottom: '0.5rem', fontSize: '1.1rem' }}>Strategic Performance Visualization</strong>
-                This radar chart maps the fund's growth trajectory across three dimensions: 
-                Total Portfolio Value (solid glowing line), MOIC targets (concentric rings), and the Target IRR Path (dashed line). 
-                It provides a multi-dimensional assessment of capital appreciation efficiency over the fund's lifecycle.
-              </div>
-              <FundPerformanceRadarChart 
-                data={dashboard.performance_table} 
-                fundIrr={fundIrr} 
-              />
-            </div>
-
             {/* Annual Performance Table */}
             <div className="content-card" style={{marginBottom: '2rem'}}>
               <h3>Annual Portfolio Performance Data</h3>

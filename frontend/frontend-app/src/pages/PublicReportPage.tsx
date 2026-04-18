@@ -105,11 +105,12 @@ const PublicReportPage: React.FC = () => {
     aggregated_exits = []
   } = performanceData || {};
 
+  const cIrr = current_deals_metrics?.irr || 0;
+
   const fundIrr = useMemo(() => {
     const dIrr = dashboard?.irr || 0;
-    const cIrr = current_deals_metrics?.irr || 0;
     return Math.max(dIrr, cIrr);
-  }, [dashboard, current_deals_metrics]);
+  }, [dashboard, cIrr]);
 
   const currentYear = dashboard?.current_year || new Date().getFullYear();
 
@@ -343,13 +344,13 @@ const PublicReportPage: React.FC = () => {
             <div className="report-section-header"><h2>Strategic Performance Trajectory</h2></div>
             <p className="prose-text">
               The following radar visualization provides an integrated view of the fund's efficiency and growth. 
-              The solid line tracks the <strong>Total Portfolio Value</strong>, while the concentric rings represent 
-              <strong>MOIC multiples</strong>. The dashed line serves as a benchmark for the <strong>Target IRR Path</strong>, 
-              allowing for a multi-dimensional assessment of capital appreciation over time.
+              The solid line tracks the <strong>Total Portfolio Value</strong>, while 
+              <strong>MOIC multiples</strong> and <strong>IRR performance</strong> are integrated into the 
+              multi-dimensional assessment, visible on hover for each year.
             </p>
             <FundPerformanceRadarChart 
               data={dashboard?.performance_table || []} 
-              fundIrr={fundIrr} 
+              irr={cIrr} 
             />
           </section>
 
@@ -609,7 +610,7 @@ const PublicReportPage: React.FC = () => {
         <div className="section-title-premium"><h2>Performance Dynamics</h2></div>
         <FundPerformanceRadarChart 
           data={dashboard?.performance_table || []} 
-          fundIrr={fundIrr} 
+          irr={cIrr} 
         />
       </section>
 
