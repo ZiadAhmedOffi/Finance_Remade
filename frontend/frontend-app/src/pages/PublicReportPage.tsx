@@ -583,18 +583,22 @@ const PublicReportPage: React.FC = () => {
             <div style={{ marginTop: '2rem' }}>
               <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: '#1e293b', marginBottom: '1rem', border: 'none' }}>Liquidity Benchmarks</h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                {comparisons.sort((a, b) => a.li - b.li).map((comp) => (
-                  <div key={comp.name} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#64748b', width: '140px' }}>{comp.name}</span>
-                    <div style={{ flex: 1, height: '4px', backgroundColor: '#e2e8f0', borderRadius: '2px', overflow: 'hidden' }}>
-                      <div style={{ 
-                        width: `${comp.li}%`, height: '100%', 
-                        background: comp.isCurrent ? '#3b82f6' : '#94a3b8'
-                      }} />
+                {comparisons.sort((a, b) => a.li - b.li).map((comp) => {
+                  const barColor = comp.li <= 40 ? '#10b981' : comp.li <= 60 ? '#fbbf24' : '#ef4444';
+                  return (
+                    <div key={comp.name} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#64748b', width: '140px' }}>{comp.name} {comp.isCurrent && "(Current)"}</span>
+                      <div style={{ flex: 1, height: '6px', backgroundColor: '#e2e8f0', borderRadius: '3px', overflow: 'hidden', border: comp.isCurrent ? '1px solid #1e293b' : 'none' }}>
+                        <div style={{ 
+                          width: `${comp.li}%`, height: '100%', 
+                          background: barColor,
+                          opacity: comp.isCurrent ? 1 : 0.7
+                        }} />
+                      </div>
+                      <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#1e293b', width: '35px' }}>{comp.li.toFixed(0)}%</span>
                     </div>
-                    <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#1e293b', width: '35px' }}>{comp.li.toFixed(0)}%</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
             <p style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: '#64748b', lineHeight: '1.6', textAlign: 'center' }}>

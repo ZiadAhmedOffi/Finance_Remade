@@ -600,10 +600,7 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                     <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '4px' }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#10b981' }}></div> 0-20%: Highly Liquid
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#34d399' }}></div> 20-40%: Good
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#10b981' }}></div> 0-40%: Liquid / Good
                       </div>
                     </div>
                     <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
@@ -620,22 +617,33 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
 
                   <h4 style={{ fontSize: '0.9rem', color: '#1e293b', marginBottom: '1rem', border: 'none' }}>Liquidity Comparison</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {comparisons.sort((a, b) => a.li - b.li).map((comp) => (
-                      <div key={comp.name} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: comp.isCurrent ? '#1e293b' : '#64748b', fontWeight: comp.isCurrent ? '700' : '400' }}>
-                          <span>{comp.name}</span>
-                          <span>{comp.li.toFixed(1)}%</span>
-                        </div>
-                        <div style={{ width: '100%', height: '6px', backgroundColor: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+                    {comparisons.sort((a, b) => a.li - b.li).map((comp) => {
+                      const barColor = comp.li <= 40 ? '#10b981' : comp.li <= 60 ? '#fbbf24' : '#ef4444';
+                      return (
+                        <div key={comp.name} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: comp.isCurrent ? '#1e293b' : '#64748b', fontWeight: comp.isCurrent ? '700' : '400' }}>
+                            <span>{comp.name} {comp.isCurrent && "(Current)"}</span>
+                            <span>{comp.li.toFixed(1)}%</span>
+                          </div>
                           <div style={{ 
-                            width: `${comp.li}%`, 
-                            height: '100%', 
-                            background: comp.isCurrent ? 'linear-gradient(to right, #3b82f6, #2563eb)' : '#94a3b8',
-                            borderRadius: '3px'
-                          }} />
+                            width: '100%', 
+                            height: '8px', 
+                            backgroundColor: '#e2e8f0', 
+                            borderRadius: '4px', 
+                            overflow: 'hidden',
+                            border: comp.isCurrent ? '1px solid #1e293b' : 'none'
+                          }}>
+                            <div style={{ 
+                              width: `${comp.li}%`, 
+                              height: '100%', 
+                              background: barColor,
+                              borderRadius: '4px',
+                              opacity: comp.isCurrent ? 1 : 0.7
+                            }} />
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
