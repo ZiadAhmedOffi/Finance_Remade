@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import ReactECharts from 'echarts-for-react';
 import { fundsApi } from "../api/api";
 import {
   XAxis,
@@ -48,10 +49,13 @@ interface InvestorLogData {
     total_capital_required: number;
     total_capital_with_possible: number;
     portfolio_value: number;
+    units_at_year: number;
+    price_per_unit: number;
   }[];
   actions: InvestorAction[];
   possible_capital_sources: PossibleCapitalSource[];
   total_units: number;
+  stage_data: { name: string; value: number }[];
 }
 
 interface InvestorLogTabProps {
@@ -279,6 +283,15 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId, canEdit }) => {
     }).format(value);
   };
 
+  const formatCurrencyWithDecimals = (value: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+  };
+
   const formatNumber = (value: number) => {
     return new Intl.NumberFormat("en-US", {
       minimumFractionDigits: 2,
@@ -422,13 +435,46 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId, canEdit }) => {
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       
-      {/* Metrics Summary (Total Units) */}
+      {/* Metrics Summary (Total Units & Price per Unit) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-xl flex flex-col items-center justify-center">
           <span className="text-gray-500 text-sm uppercase tracking-wider mb-2 font-medium">Total Fund Units</span>
           <span className="text-3xl font-bold text-emerald-600 font-mono">
             {formatNumber(data.total_units || 0)}
           </span>
+        </div>
+        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-xl flex flex-col items-center justify-center">
+          <span className="text-gray-500 text-sm uppercase tracking-wider mb-2 font-medium">Price per Unit (FY {new Date().getFullYear() - 1})</span>
+          <span className="text-3xl font-bold text-emerald-600 font-mono">
+            {(() => {
+              const targetYear = new Date().getFullYear() - 1;
+              const latestData = data.graph_data.find(d => d.year === targetYear) || 
+                                data.graph_data.filter(d => d.year <= targetYear).slice(-1)[0] ||
+                                data.graph_data[0];
+              return formatCurrencyWithDecimals(latestData?.price_per_unit || 0);
+            })()}
+          </span>
+        </div>
+      </div>
+
+      {/* Price per Unit Graph */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-xl">
+        <h3 className="text-lg font-semibold text-gray-900 mb-6">Price per Unit Trajectory</h3>
+        <div className="h-[300px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={data.graph_data.filter(d => d.year < new Date().getFullYear())}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+              <XAxis dataKey="year" stroke="#374151" fontSize={12} tickLine={false} axisLine={false} />
+              <YAxis stroke="#374151" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val.toFixed(0)}`} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} 
+                itemStyle={{ fontSize: "12px", color: "#111827" }} 
+                formatter={(value: any) => [formatCurrencyWithDecimals(value), "Price per Unit"]} 
+              />
+              <Area type="monotone" dataKey="price_per_unit" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={3} />
+              <Line type="monotone" dataKey="price_per_unit" stroke="#059669" strokeWidth={3} dot={{ r: 4, fill: "#059669" }} activeDot={{ r: 6 }} name="Price per Unit" />
+            </ComposedChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
@@ -464,6 +510,136 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId, canEdit }) => {
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Cap Table Visualization */}
+      <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-2 h-full bg-emerald-500"></div>
+        <div className="flex flex-col md:flex-row items-center justify-between gap-8 relative">
+          
+          {/* Equity Cap Table (Left) */}
+          <div className="flex-1 w-full">
+            <div className="text-center mb-4">
+              <h3 className="text-xl font-bold text-gray-900">Equity Cap Table</h3>
+              <p className="text-sm text-gray-500 mt-1">Investment division across company stages</p>
+            </div>
+            <div className="h-[400px]">
+              <ReactECharts 
+                option={{
+                  tooltip: {
+                    trigger: 'item',
+                    formatter: '{b}: ${c} ({d}%)'
+                  },
+                  legend: {
+                    bottom: '0%',
+                    left: 'center',
+                    icon: 'circle'
+                  },
+                  series: [
+                    {
+                      name: 'Stage Allocation',
+                      type: 'pie',
+                      radius: ['40%', '70%'],
+                      avoidLabelOverlap: false,
+                      itemStyle: {
+                        borderRadius: 10,
+                        borderColor: '#fff',
+                        borderWidth: 2
+                      },
+                      label: {
+                        show: false,
+                        position: 'center'
+                      },
+                      emphasis: {
+                        label: {
+                          show: true,
+                          fontSize: 20,
+                          fontWeight: 'bold'
+                        }
+                      },
+                      labelLine: {
+                        show: false
+                      },
+                      data: data.stage_data || [],
+                      color: ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4']
+                    }
+                  ]
+                }}
+                style={{ height: '100%', width: '100%' }}
+              />
+            </div>
+          </div>
+
+          {/* Connection Arrow (Middle) */}
+          <div className="hidden md:flex flex-col items-center justify-center px-4 flex-shrink-0">
+             <div className="bg-emerald-50 px-4 py-2 rounded-full mb-4 border border-emerald-100 flex items-center justify-center min-w-[140px]">
+                <span className="text-emerald-700 font-bold text-xs uppercase tracking-widest text-center w-full">Ownership Flow</span>
+             </div>
+             <svg width="100" height="40" viewBox="0 0 100 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-emerald-500">
+                <path d="M95 20H15M15 20L30 10M15 20L30 30" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M95 20H15" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeDasharray="8 8" className="animate-pulse" />
+             </svg>
+          </div>
+
+          {/* Unit Cap Table (Right) */}
+          <div className="flex-1 w-full">
+            <div className="text-center mb-4">
+              <h3 className="text-xl font-bold text-gray-900">Unit Cap Table</h3>
+              <p className="text-sm text-gray-500 mt-1">Fund ownership across investors</p>
+            </div>
+            <div className="h-[400px]">
+              <ReactECharts 
+                option={{
+                  tooltip: {
+                    trigger: 'item',
+                    formatter: (params: any) => {
+                       return `${params.name}: ${params.value.toFixed(2)} units (${params.percent}%)`;
+                    }
+                  },
+                  legend: {
+                    bottom: '0%',
+                    left: 'center',
+                    icon: 'circle'
+                  },
+                  series: [
+                    {
+                      name: 'Investor Ownership',
+                      type: 'pie',
+                      radius: ['40%', '70%'],
+                      avoidLabelOverlap: false,
+                      itemStyle: {
+                        borderRadius: 10,
+                        borderColor: '#fff',
+                        borderWidth: 2
+                      },
+                      label: {
+                        show: false,
+                        position: 'center'
+                      },
+                      emphasis: {
+                        label: {
+                          show: true,
+                          fontSize: 20,
+                          fontWeight: 'bold'
+                        }
+                      },
+                      labelLine: {
+                        show: false
+                      },
+                      data: data.investors.map(inv => ({
+                        name: `${inv.first_name} ${inv.last_name}`,
+                        value: inv.units
+                      })),
+                      color: ['#059669', '#2563eb', '#d97706', '#7c3aed', '#db2777', '#0891b2']
+                    }
+                  ]
+                }}
+                style={{ height: '100%', width: '100%' }}
+              />
+            </div>
+          </div>
+
         </div>
       </div>
 

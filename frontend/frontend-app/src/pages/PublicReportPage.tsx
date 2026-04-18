@@ -200,11 +200,13 @@ const PublicReportPage: React.FC = () => {
     performanceData.admin_fee?.inception_year || new Date().getFullYear()
   ) : null;
 
+  const fundName = report?.fund_details?.name || 'Our Fund';
+
   const comparisons = [
     { name: 'Public Equities (S&P 500)', li: 5 },
     { name: 'Gold', li: 2 },
     { name: 'Commodities (ETF)', li: 10 },
-    { name: 'Our Fund', li: liData?.finalLI || 0, isCurrent: true },
+    { name: fundName, li: liData?.finalLI || 0, isCurrent: true },
     { name: 'Private Equity (Avg)', li: 75 },
     { name: 'Real Estate (Direct)', li: 85 },
   ];
@@ -576,12 +578,13 @@ const PublicReportPage: React.FC = () => {
                   portfolioL={liData.portfolioL} 
                   ageFactor={liData.ageFactor} 
                   age={liData.age} 
+                  fundName={fundName}
                 />
               )}
             </div>
 
-            <div style={{ marginTop: '2rem' }}>
-              <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: '#1e293b', marginBottom: '1rem', border: 'none' }}>Liquidity Benchmarks</h4>
+            <div style={{ marginTop: '0.75rem' }}>
+            <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: '#1e293b', marginBottom: '1rem', border: 'none' }}>Liquidity Benchmarks</h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                 {comparisons.sort((a, b) => a.li - b.li).map((comp) => {
                   const barColor = comp.li <= 40 ? '#10b981' : comp.li <= 60 ? '#fbbf24' : '#ef4444';

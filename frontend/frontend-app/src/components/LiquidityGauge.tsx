@@ -5,6 +5,7 @@ interface LiquidityGaugeProps {
   portfolioL: number;
   ageFactor: number;
   age: number;
+  fundName?: string;
 }
 
 /**
@@ -14,7 +15,7 @@ interface LiquidityGaugeProps {
  * - 40-60%: Yellow gradient
  * - 60-100%: Red gradient
  */
-const LiquidityGauge: React.FC<LiquidityGaugeProps> = ({ value, portfolioL, ageFactor, age }) => {
+const LiquidityGauge: React.FC<LiquidityGaugeProps> = ({ value, portfolioL, ageFactor, age, fundName }) => {
   // Clamp value between 0 and 100
   const clampedValue = Math.min(Math.max(value, 0), 100);
 
@@ -27,7 +28,7 @@ const LiquidityGauge: React.FC<LiquidityGaugeProps> = ({ value, portfolioL, ageF
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', padding: '1.5rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', padding: '1.5rem 1.5rem 0' }}>
       <div style={{ marginBottom: '2.5rem', textAlign: 'center' }}>
         <span style={{ 
           fontSize: '3.5rem', 
@@ -101,56 +102,66 @@ const LiquidityGauge: React.FC<LiquidityGaugeProps> = ({ value, portfolioL, ageF
           <div style={{
             position: 'absolute',
             left: `${clampedValue}%`,
-            top: '-15px',
-            bottom: '-15px',
-            transform: 'translateX(-50%)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
+            top: 0,
+            bottom: 0,
+            width: '0px',
             zIndex: 10,
             transition: 'left 1.5s cubic-bezier(0.4, 0, 0.2, 1)'
           }}>
             {/* The Indicator Line (through the bar) */}
             <div style={{ 
+              position: 'absolute',
+              top: '-15px',
+              bottom: '-15px',
+              left: '50%',
+              transform: 'translateX(-50%)',
               width: '6px', 
-              height: '100%', 
               backgroundColor: '#1e293b', 
               borderRadius: '3px',
               boxShadow: '0 0 10px rgba(0,0,0,0.3)',
               border: '2px solid #fff'
             }} />
             
-            {/* Label Below */}
-            <div style={{
-              marginTop: '8px',
-              backgroundColor: '#1e293b',
-              color: 'white',
-              padding: '4px 10px',
-              borderRadius: '6px',
-              fontSize: '0.8rem',
-              fontWeight: '900',
-              whiteSpace: 'nowrap',
-              boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-            }}>
-              OUR FUND
-            </div>
-
-            {/* Triangle pointing UP at the marker */}
+            {/* Triangle pointing DOWN towards the text */}
             <div style={{
               position: 'absolute',
-              top: '-12px',
+              bottom: '-45px',
+              left: '50%',
+              transform: 'translateX(-50%)',
               width: 0,
               height: 0,
-              borderLeft: '8px solid transparent',
-              borderRight: '8px solid transparent',
-              borderBottom: '10px solid #1e293b'
+              borderLeft: '10px solid transparent',
+              borderRight: '10px solid transparent',
+              borderTop: '12px solid #1e293b',
+              zIndex: 11
             }} />
+
+            {/* Label Below */}
+            <div style={{
+              position: 'absolute',
+              bottom: '-85px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              backgroundColor: '#1e293b',
+              color: 'white',
+              padding: '6px 14px',
+              borderRadius: '8px',
+              fontSize: '0.85rem',
+              fontWeight: '900',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.04)',
+              zIndex: 11,
+              letterSpacing: '0.025em',
+              border: '1px solid rgba(255,255,255,0.1)'
+            }}>
+              {fundName || "OUR FUND"}
+            </div>
           </div>
         </div>
       </div>
 
       <div style={{ 
-        marginTop: '2rem', 
+        marginTop: '6.5rem', 
         width: '100%',
         display: 'grid', 
         gridTemplateColumns: '1fr 1fr', 

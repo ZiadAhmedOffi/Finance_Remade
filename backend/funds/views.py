@@ -1462,14 +1462,23 @@ class InvestorLogView(APIView):
             amount = float(source.amount)
             possible_by_year[yr] = possible_by_year.get(yr, 0.0) + amount
 
+        # Pre-calculate units by year (only primary investments increase fund total units)
+        primary_units_by_year = {}
+        for action in investor_actions:
+            if action.type == "PRIMARY_INVESTMENT":
+                yr = action.year
+                primary_units_by_year[yr] = primary_units_by_year.get(yr, 0.0) + float(action.units)
+
         cumulative_invested = 0.0
         cumulative_required = 0.0
         cumulative_possible = 0.0
+        cumulative_units = 0.0
 
         for yr in range(inception_year, end_year + 1):
             cumulative_invested += invested_by_year.get(yr, 0.0)
             cumulative_required += required_by_year.get(yr, 0.0)
             cumulative_possible += possible_by_year.get(yr, 0.0)
+            cumulative_units += primary_units_by_year.get(yr, 0.0)
             
             # Get actual portfolio value for this year
             portfolio_val = get_total_fund_portfolio(fund, yr)
@@ -1479,15 +1488,31 @@ class InvestorLogView(APIView):
                 "total_capital_invested": cumulative_invested,
                 "total_capital_required": cumulative_required,
                 "total_capital_with_possible": cumulative_invested + cumulative_possible,
-                "portfolio_value": portfolio_val
+                "portfolio_value": portfolio_val,
+                "units_at_year": cumulative_units,
+                "price_per_unit": (portfolio_val / cumulative_units) if cumulative_units > 0 else 0
             })
+
+        # 3. Company Stage Data (for Equity Cap Table)
+        stage_data = {}
+        # Current deals
+        for deal in current_deals:
+            stage = deal.company_type or "Unknown"
+            stage_data[stage] = stage_data.get(stage, 0.0) + float(deal.amount_invested)
+        # Future deals
+        for deal in future_deals:
+            stage = deal.company_type or "Unknown"
+            stage_data[stage] = stage_data.get(stage, 0.0) + float(deal.amount_invested)
+            
+        stage_list = [{"name": name, "value": val} for name, val in stage_data.items()]
 
         return Response({
             "investors": investors_list,
             "graph_data": graph_data,
             "actions": InvestorActionSerializer(investor_actions, many=True).data,
             "possible_capital_sources": PossibleCapitalSourceSerializer(possible_sources, many=True).data,
-            "total_units": total_fund_units
+            "total_units": total_fund_units,
+            "stage_data": stage_list
         })
 
 class ReportListView(APIView):
