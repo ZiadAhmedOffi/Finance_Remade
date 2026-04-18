@@ -25,10 +25,14 @@ from .views import (
     ReportRegenerateView,
     PublicReportView,
     ExcelTemplateView,
-    ExcelIngestView
+    ExcelIngestView,
+    InvestorRequestListView,
+    InvestorHoldingsView
 )
 
 urlpatterns = [
+    path("requests/", InvestorRequestListView.as_view(), name="investor-request-list"),
+    path("my-holdings/", InvestorHoldingsView.as_view(), name="investor-holdings"),
     path("", FundListView.as_view(), name="fund-list"),
     path("<uuid:fund_id>/", FundDetailView.as_view(), name="fund-detail"),
     path("<uuid:fund_id>/logs/", FundLogListView.as_view(), name="fund-logs"),

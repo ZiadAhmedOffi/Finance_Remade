@@ -126,6 +126,11 @@ export const fundsApi = {
   createCapitalCallReport: (data: any) => api.post("/funds/capital-call-reports/", data),
   updateCapitalCallReport: (id: string, data: any) => api.patch(`/funds/capital-call-reports/${id}/`, data),
   deleteCapitalCallReport: (id: string) => api.delete(`/funds/capital-call-reports/${id}/`),
+
+  // Investor Requests
+  getInvestorRequests: () => api.get("/funds/requests/"),
+  createInvestorRequest: (data: any) => api.post("/funds/requests/", data),
+  getMyHoldings: () => api.get("/funds/my-holdings/"),
 };
 
 export { api, publicApi };

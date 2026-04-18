@@ -1,6 +1,18 @@
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
-from .models import Fund, ModelInput, InvestmentRound, CurrentDeal, InvestorAction, CurrentInvestorStats
+from .models import Fund, ModelInput, InvestmentRound, CurrentDeal, InvestorAction, CurrentInvestorStats, InvestorRequest, PossibleCapitalSource
+from datetime import datetime
+
+@receiver(post_save, sender=InvestorRequest)
+def investor_request_created(sender, instance, created, **kwargs):
+    """Automatically create a PossibleCapitalSource entry for investment requests."""
+    if created and instance.type == 'INVESTMENT':
+        PossibleCapitalSource.objects.create(
+            fund=instance.fund,
+            name=f"Req: {instance.user.first_name} {instance.user.last_name} ({instance.user.email})",
+            amount=instance.requested_amount,
+            year=datetime.now().year
+        )
 
 @receiver(post_save, sender=Fund)
 def create_fund_model_inputs(sender, instance, created, **kwargs):

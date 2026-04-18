@@ -1,6 +1,6 @@
 import math
 from rest_framework import serializers
-from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, RiskAssessment, PossibleCapitalSource, InvestorAction
+from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, RiskAssessment, PossibleCapitalSource, InvestorAction, InvestorRequest
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -534,3 +534,46 @@ class ReportSerializer(serializers.ModelSerializer):
         # Generate a unique slug if not provided (though read_only above)
         validated_data['slug'] = str(uuid.uuid4())[:8]
         return super().create(validated_data)
+
+class InvestorRequestSerializer(serializers.ModelSerializer):
+    user_email = serializers.EmailField(source="user.email", read_only=True)
+    fund_name = serializers.CharField(source="fund.name", read_only=True)
+
+    class Meta:
+        model = InvestorRequest
+        fields = [
+            "id",
+            "user",
+            "user_email",
+            "fund",
+            "fund_name",
+            "type",
+            "status",
+            "requested_amount",
+            "liquidation_percentage",
+            "units_to_sell",
+            "expected_value",
+            "admin_notes",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "user", "status", "created_at", "updated_at"]
+
+    def validate(self, data):
+        # Prevent liquidation requests during lockup period
+        request_type = data.get('type')
+        fund = data.get('fund')
+
+        if request_type == 'LIQUIDATION' and fund:
+            from datetime import datetime
+            model_inputs = getattr(fund, 'model_inputs', None)
+            if model_inputs:
+                inception_year = model_inputs.inception_year
+                lockup_period = model_inputs.lock_up_period
+                current_year = datetime.now().year
+                if current_year < (inception_year + lockup_period):
+                    raise serializers.ValidationError(
+                        f"This fund is in a lockup period until {inception_year + lockup_period}. "
+                        "Liquidation requests are not permitted at this time."
+                    )
+        return data

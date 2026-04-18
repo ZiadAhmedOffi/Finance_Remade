@@ -4,10 +4,11 @@ import { fundsApi } from "../api/api";
 import "./FundDashboard.css"; // Reuse dashboard styles
 import InvestorOverviewTab from "../components/InvestorOverviewTab";
 import InvestorPortfolioTab from "../components/InvestorPortfolioTab";
+import InvestorRequestsTab from "../components/InvestorRequestsTab";
 
 const InvestorDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<"overview" | "portfolio">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "portfolio" | "requests">("overview");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +42,7 @@ const InvestorDashboard: React.FC = () => {
   const menuItems = [
     { id: "overview", label: "Overview", icon: "📊" },
     { id: "portfolio", label: "Investor Portfolio", icon: "📁" },
+    { id: "requests", label: "Requests", icon: "📨" },
   ];
 
   return (
@@ -97,6 +99,10 @@ const InvestorDashboard: React.FC = () => {
               portfolio={data.portfolio} 
               pieChartData={data.pie_chart} 
             />
+          )}
+
+          {activeTab === "requests" && (
+            <InvestorRequestsTab />
           )}
         </div>
       </main>

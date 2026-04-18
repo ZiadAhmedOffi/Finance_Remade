@@ -507,7 +507,7 @@ class CurrentInvestorStats(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.investor.email} - {self.fund.name} - ({self.amount})"
+        return f"{self.investor.email} - {self.fund.name} - ({self.amount_invested})"
     
     @staticmethod
     def recalculate_investor_stats(action, investor, fund, signal):
@@ -584,3 +584,46 @@ class Report(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.fund.name}"
+
+class InvestorRequest(models.Model):
+    REQUEST_TYPE_CHOICES = [
+        ('INVESTMENT', 'Investment'),
+        ('LIQUIDATION', 'Liquidation'),
+    ]
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE, 
+        related_name="investor_requests"
+    )
+    fund = models.ForeignKey(
+        Fund, 
+        on_delete=models.CASCADE, 
+        related_name="investor_requests"
+    )
+    type = models.CharField(max_length=20, choices=REQUEST_TYPE_CHOICES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+    
+    # Investment Fields
+    requested_amount = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    
+    # Liquidation Fields
+    liquidation_percentage = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    units_to_sell = models.DecimalField(max_digits=30, decimal_places=4, null=True, blank=True)
+    expected_value = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    
+    admin_notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.type} Req - {self.user.email} - {self.fund.name} ({self.status})"

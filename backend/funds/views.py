@@ -1,11 +1,13 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from datetime import datetime
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from .logic import get_total_fund_portfolio, get_total_units_at_year, solve_implied_return_rate, compute_nav_by_year
-from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, InvestorAction, RiskAssessment, CurrentInvestorStats, PossibleCapitalSource, Report
+from .utils.liquidityUtils import calculateLiquidityIndex
+from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, InvestorAction, RiskAssessment, CurrentInvestorStats, PossibleCapitalSource, Report, InvestorRequest
 from .serializers import (
     FundSerializer, 
     FundLogSerializer, 
@@ -16,12 +18,13 @@ from .serializers import (
     InvestorActionSerializer,
     RiskAssessmentSerializer,
     PossibleCapitalSourceSerializer,
-    ReportSerializer
+    ReportSerializer,
+    InvestorRequestSerializer
 )
 import math # Import math module
 from django.contrib.auth import get_user_model
-
-from django.contrib.auth import get_user_model
+from users.services.permission_service import PermissionService
+from users.services.audit_service import AuditService
 
 User = get_user_model()
 
@@ -446,11 +449,6 @@ class InvestorDashboardView(APIView):
             "pie_chart": pie_chart_data,
             "line_graph": line_graph_data
         })
-from users.services.permission_service import PermissionService
-from users.services.audit_service import AuditService
-from datetime import datetime
-
-
 import json
 
 class ModelInputDetailView(APIView):
@@ -1772,3 +1770,82 @@ class PublicReportView(APIView):
         data["performance_data"] = performance_data
         
         return Response(data)
+
+class InvestorRequestListView(APIView):
+    """
+    Investors can view their own requests and submit new ones.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        requests = InvestorRequest.objects.filter(user=request.user)
+        serializer = InvestorRequestSerializer(requests, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = InvestorRequestSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(user=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class InvestorHoldingsView(APIView):
+    """
+    Returns funds where the user has active holdings, 
+    including metrics needed for the liquidation UI.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Find all funds where this investor has actions
+        fund_ids = InvestorAction.objects.filter(investor=request.user).values_list('fund_id', flat=True).distinct()
+        funds = Fund.objects.filter(id__in=fund_ids)
+        
+        current_year = datetime.now().year
+        holdings_data = []
+
+        for fund in funds:
+            # Get stats for this investor in this fund
+            stats = CurrentInvestorStats.objects.filter(investor=request.user, fund=fund).first()
+            if not stats or stats.units <= 0:
+                continue
+
+            model_inputs = getattr(fund, "model_inputs", None)
+            if not model_inputs:
+                continue
+
+            total_fund_units = get_total_units_at_year(fund, current_year)
+            total_portfolio_value = get_total_fund_portfolio(fund, current_year)
+            
+            price_per_unit = float(total_portfolio_value / total_fund_units) if total_fund_units > 0 else 1.0
+            
+            # Liquidity Index (simplified lookup from performance data or calculated)
+            current_deals = fund.current_deals.all()
+            li_data = calculateLiquidityIndex(current_deals, model_inputs.inception_year)
+            li_index = li_data['finalLI'] if li_data else 0
+
+            # Lockup Logic
+            inception_year = model_inputs.inception_year
+            lockup_period = model_inputs.lock_up_period
+            is_locked_for_liquidation = current_year < (inception_year + lockup_period)
+            is_locked_for_investment = False # Lockup period does not matter for investment
+
+            # Calculate ownership percentage
+            ownership_percentage = (float(stats.units) / total_fund_units * 100) if total_fund_units > 0 else 0.0
+
+            holdings_data.append({
+                "fund_id": fund.id,
+                "fund_name": fund.name,
+                "units_owned": float(stats.units),
+                "ownership_percentage": ownership_percentage,
+                "price_per_unit": price_per_unit,
+                "total_value": float(stats.units) * price_per_unit,
+                "liquidity_index": li_index,
+                "is_locked": is_locked_for_liquidation,
+                "is_locked_for_liquidation": is_locked_for_liquidation,
+                "is_locked_for_investment": is_locked_for_investment,
+                "lockup_until": inception_year + lockup_period,
+                "min_ticket": float(model_inputs.min_investor_ticket)
+            })
+
+        return Response(holdings_data)
