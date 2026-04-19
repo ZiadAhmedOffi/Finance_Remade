@@ -53,7 +53,7 @@ export const calculateLiquidityIndex = (
   const age = Math.max(0, currentYear - inceptionYear);
   const ageFactor = Math.exp(-decayConstant * age);
 
-  const finalLI = portfolioL * ageFactor * 100;
+  const finalLI = 100 - (portfolioL * ageFactor * 100);
 
   return { 
     finalLI: Math.min(100, Math.max(0, finalLI)), 

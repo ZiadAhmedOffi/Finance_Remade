@@ -138,8 +138,8 @@ const InvestorRequestsTab: React.FC = () => {
   };
 
   const getLIColor = (li: number) => {
-    if (li <= 40) return "#10b981"; // Green
-    if (li <= 60) return "#f59e0b"; // Orange
+    if (li >= 60) return "#10b981"; // Emerald
+    if (li >= 40) return "#f59e0b"; // Orange
     return "#ef4444"; // Red
   };
 

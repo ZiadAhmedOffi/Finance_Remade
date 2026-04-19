@@ -466,12 +466,14 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
   const fundName = performanceData?.fund_details?.name || 'Our Fund';
 
   const comparisons = [
-    { name: 'Public Equities (S&P 500)', li: 5 },
-    { name: 'Gold', li: 2 },
-    { name: 'Commodities (ETF)', li: 10 },
+    { name: 'Public Equities (S&P 500)', li: 96 },
+    { name: 'Gold', li: 91 },
+    { name: 'US Treasuries', li: 88 },
     { name: fundName, li: liData?.finalLI || 0, isCurrent: true },
-    { name: 'Private Equity (Avg)', li: 75 },
-    { name: 'Real Estate (Direct)', li: 85 },
+    { name: 'MENA Real Estate', li: 62 },
+    { name: 'MENA VC/PE', li: 54 },
+    { name: 'Global PE', li: 32 },
+    { name: 'Venture Capital', li: 22 },
   ];
 
   return (
@@ -964,7 +966,7 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
                         <Tooltip content={({ active, payload }) => {
                           if (active && payload && payload.length) {
                             const d = payload[0].payload;
-                            let achievedScenario = "none";
+                            let achievedScenario = "In Progress";
                             if (d.current >= 150) achievedScenario = "High Growth Scenario";
                             else if (d.current >= 120) achievedScenario = "Upward Scenario";
                             else if (d.current >= 100) achievedScenario = "Base Scenario";
@@ -1047,7 +1049,7 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                     <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '4px' }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#10b981' }}></div> 0-40%: Liquid / Good
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#10b981' }}></div> 60-100%: Liquid / Good
                       </div>
                     </div>
                     <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
@@ -1055,7 +1057,7 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
                         <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#fbbf24' }}></div> 40-60%: Moderate
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#ef4444' }}></div> 60%+: Illiquid
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#ef4444' }}></div> 0-40%: Illiquid
                       </div>
                     </div>
                   </div>
@@ -1064,8 +1066,8 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
 
                   <h4 style={{ fontSize: '0.9rem', color: '#1e293b', marginBottom: '1rem', border: 'none' }}>Liquidity Comparison</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {comparisons.sort((a, b) => a.li - b.li).map((comp) => {
-                      const barColor = comp.li <= 40 ? '#10b981' : comp.li <= 60 ? '#fbbf24' : '#ef4444';
+                    {comparisons.sort((a, b) => b.li - a.li).map((comp) => {
+                      const barColor = comp.li >= 60 ? '#10b981' : comp.li >= 40 ? '#fbbf24' : '#ef4444';
                       return (
                         <div key={comp.name} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: comp.isCurrent ? '#1e293b' : '#64748b', fontWeight: comp.isCurrent ? '700' : '400' }}>
@@ -1085,7 +1087,8 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
                               height: '100%', 
                               background: barColor,
                               borderRadius: '4px',
-                              opacity: comp.isCurrent ? 1 : 0.7
+                              opacity: comp.isCurrent ? 1 : 0.7,
+                              transition: 'width 1s ease-out'
                             }} />
                           </div>
                         </div>

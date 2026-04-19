@@ -203,12 +203,12 @@ const PublicReportPage: React.FC = () => {
   const fundName = report?.fund_details?.name || 'Our Fund';
 
   const comparisons = [
-    { name: 'Public Equities (S&P 500)', li: 5 },
-    { name: 'Gold', li: 2 },
-    { name: 'Commodities (ETF)', li: 10 },
+    { name: 'Public Equities (S&P 500)', li: 95 },
+    { name: 'Gold', li: 98 },
+    { name: 'Commodities (ETF)', li: 90 },
     { name: fundName, li: liData?.finalLI || 0, isCurrent: true },
-    { name: 'Private Equity (Avg)', li: 75 },
-    { name: 'Real Estate (Direct)', li: 85 },
+    { name: 'Private Equity (Avg)', li: 25 },
+    { name: 'Real Estate (Direct)', li: 15 },
   ];
 
   if (loading) return (
@@ -586,8 +586,8 @@ const PublicReportPage: React.FC = () => {
             <div style={{ marginTop: '0.75rem' }}>
             <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: '#1e293b', marginBottom: '1rem', border: 'none' }}>Liquidity Benchmarks</h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                {comparisons.sort((a, b) => a.li - b.li).map((comp) => {
-                  const barColor = comp.li <= 40 ? '#10b981' : comp.li <= 60 ? '#fbbf24' : '#ef4444';
+                {comparisons.sort((a, b) => b.li - a.li).map((comp) => {
+                  const barColor = comp.li >= 60 ? '#10b981' : comp.li >= 40 ? '#fbbf24' : '#ef4444';
                   return (
                     <div key={comp.name} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                       <span style={{ fontSize: '0.7rem', color: '#64748b', width: '140px' }}>{comp.name} {comp.isCurrent && "(Current)"}</span>
@@ -606,7 +606,7 @@ const PublicReportPage: React.FC = () => {
             </div>
             <p style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: '#64748b', lineHeight: '1.6', textAlign: 'center' }}>
               Our Liquidity Index assesses the portfolio's maturity and realization potential. 
-              A lower percentage indicates higher liquidity (easier to exit), comparing our fund against standard asset classes.
+              A higher percentage indicates higher liquidity (easier to exit), comparing our fund against standard asset classes.
             </p>
           </div>
         </div>

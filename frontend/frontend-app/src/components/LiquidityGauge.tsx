@@ -20,10 +20,10 @@ const LiquidityGauge: React.FC<LiquidityGaugeProps> = ({ value, portfolioL, ageF
   const clampedValue = Math.min(Math.max(value, 0), 100);
 
   const getStatus = (v: number) => {
-    if (v <= 20) return "Highly Liquid";
-    if (v <= 40) return "Good Liquidity";
-    if (v <= 60) return "Moderate";
-    if (v <= 80) return "Illiquid";
+    if (v >= 80) return "Highly Liquid";
+    if (v >= 60) return "Good Liquidity";
+    if (v >= 40) return "Moderate";
+    if (v >= 20) return "Illiquid";
     return "Highly Illiquid";
   };
 
@@ -77,8 +77,8 @@ const LiquidityGauge: React.FC<LiquidityGaugeProps> = ({ value, portfolioL, ageF
           height: '40px',
           width: '100%',
           borderRadius: '20px',
-          // Smoother gradient transition
-          background: 'linear-gradient(to right, #10b981 0%, #22c55e 30%, #facc15 50%, #f97316 70%, #ef4444 100%)',
+          // Reversed gradient: Red (Illiquid) to Green (Liquid)
+          background: 'linear-gradient(to right, #ef4444 0%, #f97316 30%, #facc15 50%, #22c55e 70%, #10b981 100%)',
           boxShadow: 'inset 0 4px 6px rgba(0,0,0,0.15)',
           position: 'relative',
           border: '1px solid rgba(0,0,0,0.05)'
@@ -168,12 +168,12 @@ const LiquidityGauge: React.FC<LiquidityGaugeProps> = ({ value, portfolioL, ageF
         gap: '1rem' 
       }}>
         <div style={{ padding: '1rem', background: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-          <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Portfolio Weighted</div>
-          <div style={{ fontSize: '1.25rem', fontWeight: '900', color: '#1e293b' }}>{(portfolioL * 100).toFixed(1)}%</div>
+          <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Portfolio Weighted Base</div>
+          <div style={{ fontSize: '1.25rem', fontWeight: '900', color: '#1e293b' }}>{(100 - portfolioL * 100).toFixed(1)}%</div>
         </div>
         <div style={{ padding: '1rem', background: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-          <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Age Adjustment ({age}y)</div>
-          <div style={{ fontSize: '1.25rem', fontWeight: '900', color: '#10b981' }}>-{((1 - ageFactor) * 100).toFixed(1)}%</div>
+          <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Time-to-Exit Benefit ({age}y)</div>
+          <div style={{ fontSize: '1.25rem', fontWeight: '900', color: '#10b981' }}>+{( (portfolioL * 100) * (1 - ageFactor) ).toFixed(1)}%</div>
         </div>
       </div>
     </div>
