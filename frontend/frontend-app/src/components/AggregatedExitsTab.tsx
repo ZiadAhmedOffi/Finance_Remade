@@ -64,8 +64,10 @@ interface PerformanceData {
     moic: number;
     irr: number;
     total_deals: number;
+    total_companies: number;
   };
   aggregated_exits: CaseData[];
+  end_of_life_exits: CaseData[];
   admin_fee: {
     total_admin_cost: number;
     operations_fee: number;
@@ -115,7 +117,7 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
   if (error) return <div className="error-state">{error}</div>;
   if (!data) return null;
 
-  const { dashboard, current_deals_metrics, aggregated_exits, admin_fee } = data;
+  const { dashboard, current_deals_metrics, aggregated_exits, end_of_life_exits = [], admin_fee } = data;
 
   // Formatting Utilities
   const formatCurrency = (val: number) => 
@@ -129,12 +131,18 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
   const formatMultiple = (val: number) => val.toFixed(2) + "x";
 
   // Data mapping for Recharts
-  const chartData = aggregated_exits.map(c => ({
-    name: c.case,
-    invested: current_deals_metrics.total_invested,
-    gev: c.gev,
-    irr: c.irr * 100 
-  }));
+  const chartData = aggregated_exits.map((c, idx) => {
+    const eolCase = end_of_life_exits.find(e => e.case === c.case) || end_of_life_exits[idx];
+    return {
+      name: c.case,
+      invested: current_deals_metrics.total_invested,
+      gev: c.gev,
+      irr: c.irr * 100,
+      eol_gev: eolCase?.gev || 0,
+      eol_irr: (eolCase?.irr || 0) * 100,
+      eol_invested: dashboard.total_invested + current_deals_metrics.total_invested
+    };
+  });
 
   const currentYear = dashboard.performance_table[0]?.current_year || new Date().getFullYear();
 
@@ -151,7 +159,7 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
     const { inception_year, fund_life, total_admin_cost, operations_fee, management_fees } = admin_fee;
     const years_arr = Array.from({ length: fund_life }, (_, i) => inception_year + i);
 
-    // ... (G&A logic remains same as it's based on fund constants)
+    // G&A calculations
     const estLicensingY1 = total_admin_cost * 0.05;
     const estLicensingLater = estLicensingY1 * 0.5;
     const row1Vals = years_arr.map((_, i) => i === 0 ? estLicensingY1 : estLicensingLater);
@@ -197,41 +205,51 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
     const gaMap: Record<number, number> = {};
     years_arr.forEach((year, i) => { gaMap[year] = totalGAVals[i]; });
 
-    const totalInvested = current_deals_metrics.total_invested;
-    
-    // Multipliers for cases
-    const multipliers: Record<string, number> = {
-        "Base Case": 1.0,
-        "Upside Case": 1.2,
-        "High Growth Case": 1.5
-    };
+    const totalInvested = current_deals_metrics.total_invested + dashboard.total_invested;
+    const currentYear = dashboard.performance_table[0]?.current_year || new Date().getFullYear();
 
-    let portfolioBase = 0;
-    let portfolioUpside = 0;
-    let portfolioHighGrowth = 0;
+    const irrBase = end_of_life_exits?.find((c: any) => c.case === "Base Case")?.irr || 0;
+    const irrUpside = end_of_life_exits?.find((c: any) => c.case === "Upside Case")?.irr || 0;
+    const irrHighGrowth = end_of_life_exits?.find((c: any) => c.case === "High Growth Case")?.irr || 0;
+
+    let pBase = 0;
+    let pUpside = 0;
+    let pHighGrowth = 0;
 
     return dashboard.performance_table.map((row) => {
-      // Logic: Use only Current Deals (injection_current and appreciation_current)
-      const injection = row.injection_current || 0;
-      const baseAppreciation = row.appreciation_current || 0;
-      
-      const gaYearly = gaMap[row.year] || 0;
+      const year = row.year;
+      const injection = (row.injection_current || 0) + (row.injection_prognosis || 0);
+      const gaYearly = gaMap[year] || 0;
 
-      portfolioBase += injection + (baseAppreciation * multipliers["Base Case"]);
-      portfolioUpside += injection + (baseAppreciation * multipliers["Upside Case"]);
-      portfolioHighGrowth += injection + (baseAppreciation * multipliers["High Growth Case"]);
+      // Until current_year - 1, they use the same IRR (irrBase)
+      // From current_year onwards, they use their respective scenario IRRs
+      const useScenarioIRR = year >= currentYear;
+      
+      const effectiveIRRBase = irrBase;
+      const effectiveIRRUpside = useScenarioIRR ? irrUpside : irrBase;
+      const effectiveIRRHighGrowth = useScenarioIRR ? irrHighGrowth : irrBase;
+
+      // Compounding: portfolio = portfolio * (1+r) + injection
+      // Appreciation part is portfolio * r
+      const currentApprBase = pBase * effectiveIRRBase;
+      const currentApprUpside = pUpside * effectiveIRRUpside;
+      const currentApprHighGrowth = pHighGrowth * effectiveIRRHighGrowth;
+
+      pBase += injection + currentApprBase;
+      pUpside += injection + currentApprUpside;
+      pHighGrowth += injection + currentApprHighGrowth;
 
       const investedBP = totalInvested > 0 ? (injection / totalInvested) * 100 : 0;
-      const lineBase = totalInvested > 0 ? ((portfolioBase - gaYearly) / totalInvested) * 100 : 0;
-      const lineUpside = totalInvested > 0 ? ((portfolioUpside - gaYearly) / totalInvested) * 100 : 0;
-      const lineHighGrowth = totalInvested > 0 ? ((portfolioHighGrowth - gaYearly) / totalInvested) * 100 : 0;
-
+      
       return {
-        year: row.year,
+        year: year,
         investedBP: investedBP,
-        "Base Case": lineBase,
-        "Upside Case": lineUpside,
-        "High Growth Case": lineHighGrowth
+        "Base Case (Current)": totalInvested > 0 ? ((pBase - gaYearly) / totalInvested) * 100 : 0,
+        "Upside Case (Current)": totalInvested > 0 ? ((pUpside - gaYearly) / totalInvested) * 100 : 0,
+        "High Growth Case (Current)": totalInvested > 0 ? ((pHighGrowth - gaYearly) / totalInvested) * 100 : 0,
+        "Base Case (EOL)": totalInvested > 0 ? ((pBase - gaYearly) / totalInvested) * 100 : 0,
+        "Upside Case (EOL)": totalInvested > 0 ? ((pUpside - gaYearly) / totalInvested) * 100 : 0,
+        "High Growth Case (EOL)": totalInvested > 0 ? ((pHighGrowth - gaYearly) / totalInvested) * 100 : 0,
       };
     });
   };
@@ -272,22 +290,55 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Metric</th>
-                {aggregated_exits.map(c => <th key={c.case}>{c.case}</th>)}
+                <th rowSpan={2} style={{ verticalAlign: 'middle' }}>Metric</th>
+                {aggregated_exits.map(c => (
+                  <th key={c.case} colSpan={2} style={{ textAlign: 'center' }}>{c.case}</th>
+                ))}
+              </tr>
+              <tr>
+                {aggregated_exits.map(c => (
+                  <React.Fragment key={`sub-${c.case}`}>
+                    <th style={{ fontSize: '0.75rem', textAlign: 'center', background: '#f8fafc' }}>Current</th>
+                    <th style={{ fontSize: '0.75rem', textAlign: 'center', background: '#f0f9ff' }}>End of Life</th>
+                  </React.Fragment>
+                ))}
               </tr>
             </thead>
             <tbody>
               {rows.map(row => (
                 <tr key={row.key}>
                   <td><strong>{row.label}</strong></td>
-                  {aggregated_exits.map(c => {
-                      const val = (c as any)[row.key];
-                      let formatted = val;
-                      if (row.type === "currency") formatted = formatCurrency(val);
-                      if (row.type === "multiple") formatted = formatMultiple(val);
-                      if (row.type === "percent") formatted = formatPercent(val);
-                      if (row.type === "raw_percent") formatted = formatRawPercent(val);
-                      return <td key={c.case}>{formatted}</td>;
+                  {aggregated_exits.map((c, idx) => {
+                      const currentVal = (c as any)[row.key];
+                      const eolCase = end_of_life_exits.find(e => e.case === c.case) || end_of_life_exits[idx];
+                      const eolVal = eolCase ? (eolCase as any)[row.key] : 0;
+
+                      let formattedCurrent = currentVal;
+                      let formattedEOL = eolVal;
+
+                      if (row.type === "currency") {
+                        formattedCurrent = formatCurrency(currentVal);
+                        formattedEOL = formatCurrency(eolVal);
+                      }
+                      if (row.type === "multiple") {
+                        formattedCurrent = formatMultiple(currentVal);
+                        formattedEOL = formatMultiple(eolVal);
+                      }
+                      if (row.type === "percent") {
+                        formattedCurrent = formatPercent(currentVal);
+                        formattedEOL = formatPercent(eolVal);
+                      }
+                      if (row.type === "raw_percent") {
+                        formattedCurrent = formatRawPercent(currentVal);
+                        formattedEOL = formatRawPercent(eolVal);
+                      }
+
+                      return (
+                        <React.Fragment key={`${c.case}-${row.key}`}>
+                          <td style={{ textAlign: 'center' }}>{formattedCurrent}</td>
+                          <td style={{ textAlign: 'center', fontWeight: '600', color: '#0369a1', background: '#f0f9ff' }}>{formattedEOL}</td>
+                        </React.Fragment>
+                      );
                   })}
                 </tr>
               ))}
@@ -308,14 +359,17 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
               <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} label={{ value: 'IRR (%)', angle: 90, position: 'insideRight' }} />
               <Tooltip 
                 formatter={(value: any, name: any) => {
-                  if (name === "irr") return [`${Number(value).toFixed(2)}%`, "IRR"];
-                  return [formatCurrency(Number(value)), name === "invested" ? "Total Invested" : "Gross Exit Value"];
+                  if (name.includes("IRR")) return [`${Number(value).toFixed(2)}%`, name];
+                  return [formatCurrency(Number(value)), name];
                 }}
               />
               <Legend />
-              <Bar yAxisId="left" dataKey="invested" fill="#34495e" name="Total Invested Amount" barSize={40} />
-              <Bar yAxisId="left" dataKey="gev" fill="#3498db" name="Gross Exit Value" barSize={40} />
-              <Line yAxisId="right" type="monotone" dataKey="irr" stroke="#e74c3c" name="IRR (%)" strokeWidth={3} dot={{ r: 6 }} />
+              <Bar yAxisId="left" dataKey="invested" fill="#34495e" name="Invested (Current)" barSize={30} />
+              <Bar yAxisId="left" dataKey="eol_invested" fill="#1e293b" name="Invested (EOL)" barSize={30} />
+              <Bar yAxisId="left" dataKey="gev" fill="#3498db" name="GEV (Current)" barSize={30} />
+              <Bar yAxisId="left" dataKey="eol_gev" fill="#0369a1" name="GEV (EOL)" barSize={30} />
+              <Line yAxisId="right" type="monotone" dataKey="irr" stroke="#e74c3c" name="IRR (Current) %" strokeWidth={2} dot={{ r: 4 }} />
+              <Line yAxisId="right" type="monotone" dataKey="eol_irr" stroke="#b91c1c" name="IRR (EOL) %" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 4 }} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -329,11 +383,18 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
               <YAxis label={{ value: 'Base Points', angle: -90, position: 'insideLeft' }} />
               <Tooltip formatter={(value: any) => Number(value).toFixed(2)} />
               <Legend />
-              <ReferenceLine x={currentYear} stroke="#e74c3c" strokeDasharray="3 3" label={{ position: 'top', value: 'Current Year', fill: '#e74c3c', fontSize: 12 }} />
+              <ReferenceLine x={currentYear - 1} stroke="#e74c3c" strokeDasharray="3 3" label={{ position: 'top', value: 'Current Year - 1', fill: '#e74c3c', fontSize: 12 }} />
               <Bar dataKey="investedBP" fill="#e67e22" name="Invested Capital (BP)" barSize={40} />
-              <Line type="monotone" dataKey="Base Case" stroke="#2ecc71" strokeWidth={3} dot={{ r: 4 }} />
-              <Line type="monotone" dataKey="Upside Case" stroke="#3498db" strokeWidth={3} dot={{ r: 4 }} />
-              <Line type="monotone" dataKey="High Growth Case" stroke="#9b59b6" strokeWidth={3} dot={{ r: 4 }} />
+              
+              {/* Current (Solid Lines) */}
+              <Line type="monotone" dataKey="Base Case (Current)" stroke="#6ee7b7" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="Upside Case (Current)" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="High Growth Case (Current)" stroke="#065f46" strokeWidth={2} dot={{ r: 3 }} />
+
+              {/* EOL (Dashed Lines) */}
+              <Line type="monotone" dataKey="Base Case (EOL)" stroke="#6ee7b7" strokeDasharray="5 5" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="Upside Case (EOL)" stroke="#10b981" strokeDasharray="5 5" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="High Growth Case (EOL)" stroke="#065f46" strokeDasharray="5 5" strokeWidth={2} dot={{ r: 3 }} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>

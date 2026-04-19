@@ -48,13 +48,13 @@ interface PerformanceData {
     performance_table: PerformanceTableEntry[];
   };
   current_deals_metrics: {
-    total_invested: number;
-    gross_exit_value: number;
-    moic: number;
-    irr: number;
-    total_deals: number;
-  };
-  aggregated_exits: {
+  total_invested: number;
+  gross_exit_value: number;
+  moic: number;
+  irr: number;
+  total_deals: number;
+  total_companies: number;
+  };  aggregated_exits: {
     case: string;
     irr: number;
     [key: string]: any;
@@ -257,12 +257,17 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
                     </div>
                   </div>
                   <div className="summary-item">
-                    <label style={{color: '#64748b', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>Number of Deals Made</label>
-                    <div className="summary-value" style={{fontSize: '1.6rem', fontWeight: '700', color: '#1e293b'}}>
-                      {current_deals_metrics.total_deals}
-                    </div>
+                   <label style={{color: '#64748b', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>Number of Deals Made</label>
+                   <div className="summary-value" style={{fontSize: '1.6rem', fontWeight: '700', color: '#1e293b'}}>
+                     {current_deals_metrics.total_deals}
+                   </div>
                   </div>
-                </div>
+                  <div className="summary-item">
+                   <label style={{color: '#64748b', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', marginBottom: '0.3rem', display: 'block'}}>Number of Ventures</label>
+                   <div className="summary-value" style={{fontSize: '1.6rem', fontWeight: '700', color: '#1e293b'}}>
+                     {current_deals_metrics.total_companies}
+                   </div>
+                  </div>                </div>
               </div>
             </div>
 
@@ -372,10 +377,10 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
                   <thead>
                     <tr>
                       <th>Year</th>
-                      <th>Cap Injection (Current)</th>
-                      <th>Cap Appr (Current)</th>
-                      <th>Cap Injection (Prognosis)</th>
-                      <th>Cap Appr (Prognosis)</th>
+                      <th>Capital Injection (Current)</th>
+                      <th>Annualized Capital Gain</th>
+                      <th>Capital Injection (Prognosis)</th>
+                      <th>Capital Appreciation (Prognosis)</th>
                       <th>Total Portfolio Value</th>
                     </tr>
                   </thead>

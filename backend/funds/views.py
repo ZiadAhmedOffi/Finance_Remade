@@ -1244,7 +1244,7 @@ def get_fund_performance_data(fund):
             "cumulative_deals_count_prognosis": cum_deals_total,
         })
 
-    # Aggregated Exits
+    # Aggregated Exits (Current Deals)
     cases = [{"name": "Base Case", "m": 1.0}, {"name": "Upside Case", "m": 1.2}, {"name": "High Growth Case", "m": 1.5}]
     aggregated_exits = []
     for case in cases:
@@ -1257,6 +1257,28 @@ def get_fund_performance_data(fund):
             "irr": solve_implied_return_rate(c_injections_by_year, historical_final_year, case_gev)
         })
 
+    # End of Life Exits (Full Fund: Current + Prognosis)
+    # GEV base at EOL is the total portfolio value at fund_end_year from the trajectory
+    eol_point = next((p for p in trajectory if p["year"] == fund_end_year), trajectory[-1] if trajectory else None)
+    total_expected_gev_at_eol = (eol_point["c_pv"] + eol_point["p_pv"]) if eol_point else 0.0
+    total_invested_all = c_total_invested_float + total_invested_float
+    
+    # Combined injections for IRR
+    all_injections = c_injections_by_year.copy()
+    for yr, amt in p_injections_by_year.items():
+        all_injections[yr] = all_injections.get(yr, 0.0) + amt
+
+    end_of_life_exits = []
+    for case in cases:
+        case_gev = total_expected_gev_at_eol * case["m"]
+        m, cp, ca, fe, net, rm = calculate_metrics(case_gev, total_invested_all, p_tier1_moic, p_tier2_moic, model_inputs)
+        end_of_life_exits.append({
+            "case": case["name"], "gev": case_gev, "profit_before_carry": case_gev - total_invested_all, 
+            "gross_moic": m, "carry_pct": cp, "carry_amount": ca, "total_fees": fe, "net_to_investors": net,
+            "real_moic": rm,
+            "irr": solve_implied_return_rate(all_injections, fund_end_year, case_gev)
+        })
+
     return {
         "dashboard": {
             "total_invested": total_invested_float, "gross_exit_value": gross_exit_value,
@@ -1267,9 +1289,11 @@ def get_fund_performance_data(fund):
         "current_deals_metrics": {
             "total_invested": c_total_invested_float, "gross_exit_value": c_gross_exit_value,
             "moic": c_moic, "irr": c_irr, "real_moic": c_real_moic,
-            "total_deals": fund.current_deals.count()
+            "total_deals": fund.current_deals.count(),
+            "total_companies": fund.current_deals.values('company_name').distinct().count()
         },
         "aggregated_exits": aggregated_exits,
+        "end_of_life_exits": end_of_life_exits,
         "admin_fee": {
             "total_admin_cost": (float(model_inputs.admin_cost) / 100.0) * float(model_inputs.target_fund_size),
             "operations_fee": (float(model_inputs.management_fee) / 100.0) * float(model_inputs.target_fund_size),

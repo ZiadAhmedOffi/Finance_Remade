@@ -178,8 +178,9 @@ const FundCard: React.FC<FundCardProps> = ({ fund }) => {
     years_arr.forEach((year, i) => { gaMap[year] = totalGAVals[i]; });
 
     // For BP calculations, we use combined metrics
-    const totalInvested = dashboard.total_invested;
+    const totalInvested = dashboard.total_invested + current_deals_metrics.total_invested;
     const { fund_end_year } = dashboard.performance_table[0] || {};
+    const currentYear = dashboard.performance_table[0]?.current_year || new Date().getFullYear();
     
     const irrBase = aggregated_exits?.find((c: any) => c.case === "Base Case")?.irr || 0;
     const irrUpside = aggregated_exits?.find((c: any) => c.case === "Upside Case")?.irr || 0;
@@ -195,9 +196,17 @@ const FundCard: React.FC<FundCardProps> = ({ fund }) => {
       const gaYearly = gaMap[row.year] || 0;
       const year = row.year;
 
-      const apprBase = pBase * irrBase;
-      const apprUpside = pUpside * irrUpside;
-      const apprHighGrowth = pHighGrowth * irrHighGrowth;
+      // Until current_year - 1, they use the same IRR (irrBase)
+      // From current_year onwards, they use their respective scenario IRRs
+      const useScenarioIRR = year >= currentYear;
+
+      const effectiveIRRBase = irrBase;
+      const effectiveIRRUpside = useScenarioIRR ? irrUpside : irrBase;
+      const effectiveIRRHighGrowth = useScenarioIRR ? irrHighGrowth : irrBase;
+
+      const apprBase = pBase * effectiveIRRBase;
+      const apprUpside = pUpside * effectiveIRRUpside;
+      const apprHighGrowth = pHighGrowth * effectiveIRRHighGrowth;
 
       // Appreciation applies until fund_end_year
       const currentApprBase = year <= fund_end_year ? apprBase : 0;
@@ -279,6 +288,7 @@ const FundCard: React.FC<FundCardProps> = ({ fund }) => {
                 <XAxis dataKey="year" tick={{fontSize: 10}} />
                 <YAxis label={{ value: 'BP', angle: -90, position: 'insideLeft', fontSize: 10 }} tick={{fontSize: 10}} width={30} />
                 <Tooltip formatter={(value: any) => Number(value).toFixed(2)} />
+                <ReferenceLine x={dashboard.performance_table[0]?.current_year - 1} stroke="#e74c3c" strokeDasharray="3 3" />
                 <Bar dataKey="investedBP" fill="#e67e22" name="Inv. Cap (BP)" />
                 <Line type="monotone" dataKey="Base Case" stroke="#2ecc71" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="Upside Case" stroke="#3498db" strokeWidth={2} dot={false} />
@@ -329,6 +339,10 @@ const FundCard: React.FC<FundCardProps> = ({ fund }) => {
               <div className="stat" style={{display: 'flex', flexDirection: 'column'}}>
                 <span className="stat-label" style={{fontSize: '0.65rem', color: '#94a3b8'}}>Deals</span>
                 <span className="stat-value" style={{fontSize: '0.85rem', fontWeight: '600'}}>{current_deals_metrics?.total_deals}</span>
+              </div>
+              <div className="stat" style={{display: 'flex', flexDirection: 'column'}}>
+                <span className="stat-label" style={{fontSize: '0.65rem', color: '#94a3b8'}}>Ventures</span>
+                <span className="stat-value" style={{fontSize: '0.85rem', fontWeight: '600'}}>{current_deals_metrics?.total_companies}</span>
               </div>
               <div className="stat" style={{display: 'flex', flexDirection: 'column'}}>
                 <span className="stat-label" style={{fontSize: '0.65rem', color: '#94a3b8'}}>IRR</span>
