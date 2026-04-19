@@ -924,7 +924,7 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
                         });
                         
                         const result: any[] = [];
-                        farthestDealsMap.forEach((d, name) => {
+                        farthestDealsMap.forEach((d) => {
                           const entryVal = parseFloat(d.entry_valuation);
                           const currentVal = parseFloat(d.latest_valuation);
                           const exitMultiple = parseFloat(d.expected_exit_multiple || 5.0);
