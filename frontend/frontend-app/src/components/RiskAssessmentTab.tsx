@@ -387,10 +387,13 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
         const perfRes = await fundsApi.getFundPerformance(fundId);
         setPerformanceData(perfRes.data);
         
-        // Find the oldest deal for each company (farthest from current year)
+        // Find the deal farthest from the current year for each company
+        const currentYear = new Date().getFullYear();
         const oldestDealsMap: Record<string, any> = {};
         deals.forEach((d: any) => {
-          if (!oldestDealsMap[d.company_name] || d.entry_year < oldestDealsMap[d.company_name].entry_year) {
+          const dist = Math.abs(d.entry_year - currentYear);
+          const existingDist = oldestDealsMap[d.company_name] ? Math.abs(oldestDealsMap[d.company_name].entry_year - currentYear) : -1;
+          if (!oldestDealsMap[d.company_name] || dist > existingDist) {
             oldestDealsMap[d.company_name] = d;
           }
         });
@@ -905,33 +908,43 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
                   <h3 style={{ marginBottom: '2rem', textAlign: 'center', border: 'none' }}>Intrinsic Value</h3>
                   <div style={{ width: '100%', height: 450 }}>
                     <ResponsiveContainer>
-                      <RadarChart cx="50%" cy="50%" outerRadius="80%" data={(() => {
+                        <RadarChart cx="50%" cy="50%" outerRadius="80%" data={(() => {
                         const currentDeals = performanceData.current_deals || [];
-                        const companyMap = new Map();
+                        const currentYear = performanceData.dashboard?.current_year || new Date().getFullYear();
+                        const farthestDealsMap = new Map();
                         
                         currentDeals.forEach((d: any) => {
-                          if (!companyMap.has(d.company_name)) {
-                            const entryVal = parseFloat(d.entry_valuation);
-                            const currentVal = parseFloat(d.latest_valuation);
-                            const exitMultiple = parseFloat(d.expected_exit_multiple || 5.0);
-                            const ownership = parseFloat(d.ownership_after_dilution || 0);
-                            const targetVal = entryVal * exitMultiple;
-                            
-                            companyMap.set(d.company_name, {
-                              subject: d.company_name,
-                              entry: targetVal > 0 ? (entryVal / targetVal) * 100 : 0,
-                              current: targetVal > 0 ? (currentVal / targetVal) * 100 : 0,
-                              expected: 100,
-                              full_name: d.company_name,
-                              raw_entry: entryVal,
-                              raw_current: currentVal,
-                              raw_expected: targetVal,
-                              ownership: ownership
-                            });
+                          const dist = Math.abs(d.entry_year - currentYear);
+                          const existingDeal = farthestDealsMap.get(d.company_name);
+                          if (!existingDeal || dist > Math.abs(existingDeal.entry_year - currentYear)) {
+                            farthestDealsMap.set(d.company_name, d);
                           }
                         });
                         
-                        return Array.from(companyMap.values());
+                        const result: any[] = [];
+                        farthestDealsMap.forEach((d, name) => {
+                          const entryVal = parseFloat(d.entry_valuation);
+                          const currentVal = parseFloat(d.latest_valuation);
+                          const exitMultiple = parseFloat(d.expected_exit_multiple || 5.0);
+                          const ownership = parseFloat(d.ownership_after_dilution || 0);
+                          const targetVal = entryVal * exitMultiple;
+                          
+                          result.push({
+                            subject: d.company_name,
+                            entry: targetVal > 0 ? (entryVal / targetVal) * 100 : 0,
+                            current: targetVal > 0 ? (currentVal / targetVal) * 100 : 0,
+                            expected: 100,
+                            upside: 120,
+                            highGrowth: 150,
+                            full_name: d.company_name,
+                            raw_entry: entryVal,
+                            raw_current: currentVal,
+                            raw_expected: targetVal,
+                            ownership: ownership
+                          });
+                        });
+                        
+                        return result;
                       })()}>
                         <PolarGrid />
                         <PolarAngleAxis 
@@ -942,13 +955,20 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
                             return uniqueCompanies.size > 15 ? false : { fill: '#64748b', fontSize: '0.8rem' };
                           })()}
                         />
-                        <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                        <PolarRadiusAxis angle={30} domain={[0, 150]} tick={false} axisLine={false} />
                         <Radar name="Entry Valuation" dataKey="entry" stroke="#3498db" fill="#3498db" fillOpacity={0.4} />
                         <Radar name="Current Valuation" dataKey="current" stroke="#2ecc71" fill="#2ecc71" fillOpacity={0.5} />
-                        <Radar name="Expected Final Valuation" dataKey="expected" stroke="#10b981" fill="transparent" strokeDasharray="5 5" />
+                        <Radar name="Base Case" dataKey="expected" stroke="#6ee7b7" fill="transparent" strokeDasharray="5 5" />
+                        <Radar name="Upside Case" dataKey="upside" stroke="#10b981" fill="transparent" strokeDasharray="5 5" />
+                        <Radar name="High Growth Case" dataKey="highGrowth" stroke="#065f46" fill="transparent" strokeDasharray="5 5" />
                         <Tooltip content={({ active, payload }) => {
                           if (active && payload && payload.length) {
                             const d = payload[0].payload;
+                            let achievedScenario = "none";
+                            if (d.current >= 150) achievedScenario = "High Growth Scenario";
+                            else if (d.current >= 120) achievedScenario = "Upward Scenario";
+                            else if (d.current >= 100) achievedScenario = "Base Scenario";
+
                             return (
                               <div className="custom-tooltip" style={{ 
                                 backgroundColor: '#fff', padding: '12px', border: '1px solid #e2e8f0',
@@ -959,8 +979,7 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
                                 <p style={{ margin: '2px 0' }}><span style={{ color: '#64748b' }}>Ownership:</span> <strong>{d.ownership.toFixed(2)}%</strong></p>
                                 <p style={{ margin: '2px 0' }}><span style={{ color: '#3498db' }}>Entry Val:</span> <strong>{formatCurrencyLong(d.raw_entry)}</strong> ({d.entry.toFixed(1)}%)</p>
                                 <p style={{ margin: '2px 0' }}><span style={{ color: '#2ecc71' }}>Current Val:</span> <strong>{formatCurrencyLong(d.raw_current)}</strong> ({d.current.toFixed(1)}%)</p>
-                                <p style={{ margin: '2px 0' }}><span style={{ color: '#10b981' }}>Expected Exit:</span> <strong>{formatCurrencyLong(d.raw_expected)}</strong> (100%)</p>
-                                <p style={{ margin: '8px 0 0', fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>Scenario: Base Case</p>
+                                <p style={{ margin: '8px 0 0', fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>Achieved Scenario: {achievedScenario}</p>
                               </div>
                             );
                           }

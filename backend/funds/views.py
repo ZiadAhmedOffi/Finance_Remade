@@ -5,7 +5,14 @@ from datetime import datetime
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.shortcuts import get_object_or_404
 from django.db import transaction
-from .logic import get_total_fund_portfolio, get_total_units_at_year, solve_implied_return_rate, compute_nav_by_year
+from .logic import (
+    get_total_fund_portfolio, 
+    get_total_units_at_year, 
+    solve_implied_return_rate, 
+    get_prognosis_injections, 
+    get_current_injections, 
+    calculate_nav_trajectory
+)
 from .utils.liquidityUtils import calculateLiquidityIndex
 from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, InvestorAction, RiskAssessment, CurrentInvestorStats, PossibleCapitalSource, Report, InvestorRequest
 from .serializers import (
@@ -1137,82 +1144,66 @@ def get_fund_performance_data(fund):
     fund_life = int(model_inputs.fund_life)
     fund_end_year = inception_year + fund_life
     current_year = datetime.now().year
-    historical_final_year = current_year - 1
+    historical_final_year = current_year
 
     # 1. Deal Prognosis Metrics
-    total_invested = sum(deal.amount_invested for deal in deals)
     deal_serializer = InvestmentDealSerializer(deals, many=True)
     deals_data = deal_serializer.data
-    deals_data_lookup = {d["id"]: d for d in deals_data}
-
-    total_expected_pro_rata = 0.0
-    p_injections_by_year = {}
-    for d_data in deals_data:
-        yr = d_data["entry_year"]
-        p_injections_by_year[yr] = p_injections_by_year.get(yr, 0.0) + float(d_data.get("amount_invested", 0))
-        total_expected_pro_rata += float(d_data.get("expected_pro_rata_investments", 0))
-        
-    for deal_obj in deals:
-        if deal_obj.pro_rata_rights and deal_obj.expected_number_of_rounds > 0:
-            d_data = deals_data_lookup.get(str(deal_obj.id))
-            if d_data:
-                total_pro_rata_deal = float(d_data.get("expected_pro_rata_investments", 0))
-                round_amt = total_pro_rata_deal / deal_obj.expected_number_of_rounds
-                for i in range(1, deal_obj.expected_number_of_rounds + 1):
-                    yr = deal_obj.entry_year + i
-                    p_injections_by_year[yr] = p_injections_by_year.get(yr, 0.0) + round_amt
     
-    total_invested_float = float(total_invested) + total_expected_pro_rata
+    p_injections_by_year = get_prognosis_injections(deals_data, deals)
+    
+    total_expected_pro_rata = sum(float(d.get("expected_pro_rata_investments", 0)) for d in deals_data)
+    total_invested_float = float(sum(deal.amount_invested for deal in deals)) + total_expected_pro_rata
+    
     gross_exit_value = sum(float(d["exit_value"]) for d in deals_data)
     gross_exit_value_future = sum(float(d["exit_value"]) for d in deals_data if d["entry_year"] >= current_year)
     
     p_injections_future = {yr: amt for yr, amt in p_injections_by_year.items() if yr >= current_year}
-    irr = solve_implied_return_rate(p_injections_future, fund_end_year, gross_exit_value_future)
+    p_solver_injections = p_injections_future if p_injections_future else p_injections_by_year
+    irr = solve_implied_return_rate(p_solver_injections, fund_end_year, gross_exit_value_future)
 
     # 2. Current Deals Metrics
-    c_total_invested = sum(d.amount_invested for d in current_deals)
     c_deal_serializer = CurrentDealSerializer(current_deals, many=True)
     c_deals_data = c_deal_serializer.data
-    c_gross_exit_value = sum(float(d["final_exit_amount"]) for d in c_deals_data)
+    c_injections_by_year = get_current_injections(c_deals_data)
     
-    c_total_invested_float = float(c_total_invested)
-    c_injections_by_year = {}
-    for d in c_deals_data:
-        yr = d["entry_year"]
-        c_injections_by_year[yr] = c_injections_by_year.get(yr, 0.0) + float(d["amount_invested"])
-        
+    c_total_invested_float = float(sum(d.amount_invested for d in current_deals))
+    c_gross_exit_value = sum(float(d["final_exit_amount"]) for d in c_deals_data)
     c_irr = solve_implied_return_rate(c_injections_by_year, historical_final_year, c_gross_exit_value)
 
+    # MOIC and Carry Logic
     p_tier1_moic = float(model_inputs.least_expected_moic_tier_1)
     p_tier2_moic = float(model_inputs.least_expected_moic_tier_2)
     
-    moic = gross_exit_value / total_invested_float if total_invested_float > 0 else 0
-    if moic < p_tier1_moic: p_carry_pct = 0.0
-    elif moic < p_tier2_moic: p_carry_pct = float(model_inputs.tier_1_carry)
-    else: p_carry_pct = float(model_inputs.tier_2_carry)
-    p_profit = gross_exit_value - total_invested_float
-    p_carry_amount = p_profit * (p_carry_pct / 100.0) if p_profit > 0 else 0
-    p_total_fees = total_invested_float * (float(model_inputs.management_fee) / 100.0)
-    p_net_to_investors = gross_exit_value - (p_total_fees + p_carry_amount)
-    p_real_moic = p_net_to_investors / total_invested_float if total_invested_float > 0 else 0
+    def calculate_metrics(gev, total_inv, tier1, tier2, model_inputs):
+        moic = gev / total_inv if total_inv > 0 else 0
+        if moic < tier1: cp = 0.0
+        elif moic < tier2: cp = float(model_inputs.tier_1_carry)
+        else: cp = float(model_inputs.tier_2_carry)
+        profit = gev - total_inv
+        ca = profit * (cp / 100.0) if profit > 0 else 0
+        fe = total_inv * (float(model_inputs.management_fee) / 100.0)
+        net = gev - (fe + ca)
+        real_moic = net / total_inv if total_inv > 0 else 0
+        return moic, cp, ca, fe, net, real_moic
 
-    c_moic = c_gross_exit_value / c_total_invested_float if c_total_invested_float > 0 else 0
-    if c_moic < p_tier1_moic: c_carry_pct = 0.0
-    elif c_moic < p_tier2_moic: c_carry_pct = float(model_inputs.tier_1_carry)
-    else: c_carry_pct = float(model_inputs.tier_2_carry)
-    c_profit = c_gross_exit_value - c_total_invested_float
-    c_carry_amount = c_profit * (c_carry_pct / 100.0) if c_profit > 0 else 0
-    c_total_fees = c_total_invested_float * (float(model_inputs.management_fee) / 100.0)
-    c_net_to_investors = c_gross_exit_value - (c_total_fees + c_carry_amount)
-    c_real_moic = c_net_to_investors / c_total_invested_float if c_total_invested_float > 0 else 0
+    moic, _, _, _, _, p_real_moic = calculate_metrics(gross_exit_value, total_invested_float, p_tier1_moic, p_tier2_moic, model_inputs)
+    c_moic, c_carry_pct, c_carry_amount, c_total_fees, c_net_to_investors, c_real_moic = calculate_metrics(c_gross_exit_value, c_total_invested_float, p_tier1_moic, p_tier2_moic, model_inputs)
 
     # 3. Performance Table
-    start_year = inception_year
-    end_year = fund_end_year
     all_entry_years = [d["entry_year"] for d in deals_data] + [d["entry_year"] for d in c_deals_data]
     all_exit_years = [d["exit_year"] for d in deals_data] + [d["latest_valuation_year"] for d in c_deals_data]
-    if all_entry_years: start_year = min(start_year, min(all_entry_years))
-    if all_exit_years: end_year = max(end_year, max(all_exit_years))
+    start_year = min(inception_year, min(all_entry_years)) if all_entry_years else inception_year
+    end_year = max(fund_end_year, max(all_exit_years)) if all_exit_years else fund_end_year
+
+    safe_c_irr = c_irr if c_irr and c_irr > -1 else 0.0
+    safe_p_irr = irr if irr and irr > -1 else 0.0
+
+    trajectory = calculate_nav_trajectory(
+        start_year, end_year, current_year, fund_end_year,
+        c_injections_by_year, p_injections_by_year,
+        safe_c_irr, safe_p_irr
+    )
 
     current_deals_by_year = {}
     for d in c_deals_data: current_deals_by_year.setdefault(d["entry_year"], []).append(d)
@@ -1220,48 +1211,31 @@ def get_fund_performance_data(fund):
     for d in deals_data: prognosis_deals_by_year.setdefault(d["entry_year"], []).append(d)
     
     performance_table = []
-    current_portfolio_value = 0.0
-    prognosis_portfolio_value = 0.0
-    safe_c_irr = c_irr if c_irr and c_irr > -1 else 0.0
-    safe_p_irr = irr if irr and irr > -1 else 0.0
-    
     cum_inj_no_p = 0.0
     cum_inj_with_p = 0.0
     cum_deals_c = 0
     cum_deals_total = 0
 
-    for year in range(start_year, end_year + 1):
-        year_current_deals = current_deals_by_year.get(year, [])
-        c_inj = sum(float(d["amount_invested"]) for d in year_current_deals)
-        year_prognosis_deals = prognosis_deals_by_year.get(year, [])
-        p_inj = sum(float(d["amount_invested"]) for d in year_prognosis_deals)
+    for point in trajectory:
+        year = point["year"]
+        year_c_deals = current_deals_by_year.get(year, [])
+        year_p_deals = prognosis_deals_by_year.get(year, [])
         
-        for deal_obj in deals:
-            if deal_obj.pro_rata_rights and deal_obj.expected_number_of_rounds > 0:
-                d_data = deals_data_lookup.get(str(deal_obj.id))
-                if d_data and deal_obj.entry_year < year <= deal_obj.entry_year + deal_obj.expected_number_of_rounds:
-                    p_inj += float(d_data.get("expected_pro_rata_investments", 0)) / deal_obj.expected_number_of_rounds
-
-        c_appreciation = current_portfolio_value * safe_c_irr if year <= fund_end_year else 0.0
-        p_appreciation = prognosis_portfolio_value * safe_p_irr if year <= fund_end_year else 0.0
-        current_portfolio_value += c_inj + c_appreciation
-        prognosis_portfolio_value += p_inj + p_appreciation
-        
-        cum_inj_no_p += c_inj if year <= current_year else 0
-        cum_inj_with_p += c_inj + p_inj
-        cum_deals_c += len(year_current_deals) if year <= current_year else 0
-        cum_deals_total += len(year_current_deals) + len(year_prognosis_deals)
+        cum_inj_no_p += point["c_inj"] if year <= current_year else 0
+        cum_inj_with_p += point["c_inj"] + point["p_inj"]
+        cum_deals_c += len(year_c_deals) if year <= current_year else 0
+        cum_deals_total += len(year_c_deals) + len(year_p_deals)
         
         performance_table.append({
             "year": year,
-            "total_portfolio_value_with_prognosis": current_portfolio_value + prognosis_portfolio_value,
-            "total_portfolio_value_no_prognosis": current_portfolio_value,
-            "injection_current": c_inj,
-            "injection_prognosis": p_inj,
-            "appreciation_current": c_appreciation,
-            "appreciation_prognosis": p_appreciation,
-            "deals_count_current": len(year_current_deals),
-            "deals_count_prognosis": len(year_prognosis_deals),
+            "total_portfolio_value_with_prognosis": point["c_pv"] + point["p_pv"],
+            "total_portfolio_value_no_prognosis": point["c_pv"],
+            "injection_current": point["c_inj"],
+            "injection_prognosis": point["p_inj"],
+            "appreciation_current": point["c_appr"],
+            "appreciation_prognosis": point["p_appr"],
+            "deals_count_current": len(year_c_deals),
+            "deals_count_prognosis": len(year_p_deals),
             "current_year": current_year,
             "is_future": year > current_year,
             "cumulative_injection_no_prognosis": cum_inj_no_p,
@@ -1273,21 +1247,13 @@ def get_fund_performance_data(fund):
     # Aggregated Exits
     cases = [{"name": "Base Case", "m": 1.0}, {"name": "Upside Case", "m": 1.2}, {"name": "High Growth Case", "m": 1.5}]
     aggregated_exits = []
-    management_fee_pct = float(model_inputs.management_fee)
     for case in cases:
         case_gev = c_gross_exit_value * case["m"]
-        profit = case_gev - c_total_invested_float
-        case_moic = case_gev / c_total_invested_float if c_total_invested_float > 0 else 0
-        if case_moic < p_tier1_moic: cp = 0.0
-        elif case_moic < p_tier2_moic: cp = float(model_inputs.tier_1_carry)
-        else: cp = float(model_inputs.tier_2_carry)
-        ca = profit * (cp / 100.0) if profit > 0 else 0
-        fe = c_total_invested_float * (management_fee_pct / 100.0)
-        net = case_gev - (fe + ca)
+        m, cp, ca, fe, net, rm = calculate_metrics(case_gev, c_total_invested_float, p_tier1_moic, p_tier2_moic, model_inputs)
         aggregated_exits.append({
-            "case": case["name"], "gev": case_gev, "profit_before_carry": profit, "gross_moic": case_moic,
-            "carry_pct": cp, "carry_amount": ca, "total_fees": fe, "net_to_investors": net,
-            "real_moic": net / c_total_invested_float if c_total_invested_float > 0 else 0,
+            "case": case["name"], "gev": case_gev, "profit_before_carry": case_gev - c_total_invested_float, 
+            "gross_moic": m, "carry_pct": cp, "carry_amount": ca, "total_fees": fe, "net_to_investors": net,
+            "real_moic": rm,
             "irr": solve_implied_return_rate(c_injections_by_year, historical_final_year, case_gev)
         })
 
@@ -1306,8 +1272,8 @@ def get_fund_performance_data(fund):
         "aggregated_exits": aggregated_exits,
         "admin_fee": {
             "total_admin_cost": (float(model_inputs.admin_cost) / 100.0) * float(model_inputs.target_fund_size),
-            "operations_fee": (management_fee_pct / 100.0) * float(model_inputs.target_fund_size),
-            "management_fees": (management_fee_pct / 100.0) * float(model_inputs.target_fund_size) * fund_life,
+            "operations_fee": (float(model_inputs.management_fee) / 100.0) * float(model_inputs.target_fund_size),
+            "management_fees": (float(model_inputs.management_fee) / 100.0) * float(model_inputs.target_fund_size) * fund_life,
             "total_costs": 0, "inception_year": inception_year, "fund_life": fund_life,
             "investment_period": model_inputs.investment_period,
             "lock_up_period": model_inputs.lock_up_period,

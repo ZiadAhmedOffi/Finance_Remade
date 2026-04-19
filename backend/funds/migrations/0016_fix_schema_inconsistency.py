@@ -29,14 +29,4 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.RunPython(rename_columns_if_exists),
-        migrations.AddField(
-            model_name='investoraction',
-            name='original_value',
-            field=models.DecimalField(blank=True, decimal_places=2, max_digits=30, null=True),
-        ),
-        migrations.AddField(
-            model_name='investoraction',
-            name='exit_value',
-            field=models.DecimalField(blank=True, decimal_places=2, max_digits=30, null=True),
-        ),
     ]

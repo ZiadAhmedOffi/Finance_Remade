@@ -227,9 +227,10 @@ class InvestmentDealSerializer(serializers.ModelSerializer):
         return total
 
     def get_exit_valuation(self, obj):
-        """Calculated by multiplying the factor of the selected scenario by the entry valuation."""
-        factor = getattr(obj, f"{obj.selected_scenario.lower()}_factor", 1.00)
-        return obj.entry_valuation * factor
+        """Calculated by multiplying the factor of the selected scenario by the post-money entry valuation."""
+        factor = float(getattr(obj, f"{obj.selected_scenario.lower()}_factor", 1.00))
+        post_money_valuation = float(obj.entry_valuation) + float(obj.amount_invested)
+        return post_money_valuation * factor
 
     def get_exit_value(self, obj):
         """Calculated by multiplying the expected ownership percentage after dilution by the exit valuation."""
