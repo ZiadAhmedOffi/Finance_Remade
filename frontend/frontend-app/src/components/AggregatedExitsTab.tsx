@@ -244,12 +244,9 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
       return {
         year: year,
         investedBP: investedBP,
-        "Base Case (Current)": totalInvested > 0 ? ((pBase - gaYearly) / totalInvested) * 100 : 0,
-        "Upside Case (Current)": totalInvested > 0 ? ((pUpside - gaYearly) / totalInvested) * 100 : 0,
-        "High Growth Case (Current)": totalInvested > 0 ? ((pHighGrowth - gaYearly) / totalInvested) * 100 : 0,
-        "Base Case (EOL)": totalInvested > 0 ? ((pBase - gaYearly) / totalInvested) * 100 : 0,
-        "Upside Case (EOL)": totalInvested > 0 ? ((pUpside - gaYearly) / totalInvested) * 100 : 0,
-        "High Growth Case (EOL)": totalInvested > 0 ? ((pHighGrowth - gaYearly) / totalInvested) * 100 : 0,
+        "Base Case": totalInvested > 0 ? ((pBase - gaYearly) / totalInvested) * 100 : 0,
+        "Upside Case": totalInvested > 0 ? ((pUpside - gaYearly) / totalInvested) * 100 : 0,
+        "High Growth Case": totalInvested > 0 ? ((pHighGrowth - gaYearly) / totalInvested) * 100 : 0,
       };
     });
   };
@@ -385,16 +382,9 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
               <Legend />
               <ReferenceLine x={currentYear - 1} stroke="#e74c3c" strokeDasharray="3 3" label={{ position: 'top', value: 'Current Year - 1', fill: '#e74c3c', fontSize: 12 }} />
               <Bar dataKey="investedBP" fill="#e67e22" name="Invested Capital (BP)" barSize={40} />
-              
-              {/* Current (Solid Lines) */}
-              <Line type="monotone" dataKey="Base Case (Current)" stroke="#6ee7b7" strokeWidth={2} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="Upside Case (Current)" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="High Growth Case (Current)" stroke="#065f46" strokeWidth={2} dot={{ r: 3 }} />
-
-              {/* EOL (Dashed Lines) */}
-              <Line type="monotone" dataKey="Base Case (EOL)" stroke="#6ee7b7" strokeDasharray="5 5" strokeWidth={2} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="Upside Case (EOL)" stroke="#10b981" strokeDasharray="5 5" strokeWidth={2} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="High Growth Case (EOL)" stroke="#065f46" strokeDasharray="5 5" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="Base Case" stroke="#6ee7b7" strokeWidth={3} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="Upside Case" stroke="#10b981" strokeWidth={3} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="High Growth Case" stroke="#065f46" strokeWidth={3} dot={{ r: 3 }} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>

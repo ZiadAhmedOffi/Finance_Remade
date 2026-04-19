@@ -1194,7 +1194,7 @@ def get_fund_performance_data(fund):
     all_entry_years = [d["entry_year"] for d in deals_data] + [d["entry_year"] for d in c_deals_data]
     all_exit_years = [d["exit_year"] for d in deals_data] + [d["latest_valuation_year"] for d in c_deals_data]
     start_year = min(inception_year, min(all_entry_years)) if all_entry_years else inception_year
-    end_year = max(fund_end_year, max(all_exit_years)) if all_exit_years else fund_end_year
+    end_year = fund_end_year - 1
 
     safe_c_irr = c_irr if c_irr and c_irr > -1 else 0.0
     safe_p_irr = irr if irr and irr > -1 else 0.0
