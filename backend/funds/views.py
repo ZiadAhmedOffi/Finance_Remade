@@ -1144,7 +1144,7 @@ def get_fund_performance_data(fund):
     fund_life = int(model_inputs.fund_life)
     fund_end_year = inception_year + fund_life
     current_year = datetime.now().year
-    historical_final_year = current_year
+    historical_final_year = current_year - 1
 
     # 1. Deal Prognosis Metrics
     deal_serializer = InvestmentDealSerializer(deals, many=True)

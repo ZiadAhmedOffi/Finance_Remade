@@ -62,9 +62,9 @@ class IRRCalculationTest(TestCase):
         # In my setup: current_year = 2026 (assumed)
         current_year = datetime.now().year
         inception_year = 2024
-        delta_t = current_year - inception_year # 2.0
+        delta_t = current_year - 1 - inception_year # Reverted to current_year - 1
         
         moic = c_metrics["moic"] # 2.0
-        # Expected IRR = moic ^ (1/2.0) - 1
-        expected_irr = (float(moic) ** (1.0/delta_t)) - 1.0
+        # Expected IRR = moic ^ (1/delta_t) - 1
+        expected_irr = (float(moic) ** (1.0/delta_t)) - 1.0 if delta_t > 0 else 0.0
         self.assertAlmostEqual(c_metrics["irr"], expected_irr, places=6)

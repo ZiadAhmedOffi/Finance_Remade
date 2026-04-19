@@ -111,11 +111,11 @@ def calculate_nav_trajectory(start_year, end_year, current_year, fund_end_year,
         c_inj = c_injections_by_year.get(yr, 0.0)
         p_inj = p_injections_by_year.get(yr, 0.0)
         
-        # Apply IRR reduction for yr >= current_year
+        # Apply IRR growth for yr >= current_year
         if yr >= current_year:
-            reduction_factor = 0.75 ** (yr - current_year + 1)
-            effective_c_irr = safe_c_irr * reduction_factor
-            effective_p_irr = safe_p_irr * reduction_factor
+            growth_factor = 0.75 ** (yr - current_year + 1)
+            effective_c_irr = safe_c_irr * growth_factor
+            effective_p_irr = safe_p_irr * growth_factor
         else:
             effective_c_irr = safe_c_irr
             effective_p_irr = safe_p_irr
@@ -177,8 +177,9 @@ def get_total_fund_portfolio(fund, year):
     c_injections_by_year = get_current_injections(c_deals_data)
     
     c_gross_exit_value = sum(float(d["final_exit_amount"]) for d in c_deals_data)
-    historical_target_year = current_year
+    historical_target_year = current_year - 1
     c_irr = solve_implied_return_rate(c_injections_by_year, historical_target_year, c_gross_exit_value)
+
 
     # 3. Calculate NAV parts
     safe_c_irr = c_irr if c_irr and c_irr > -1 else 0.0
