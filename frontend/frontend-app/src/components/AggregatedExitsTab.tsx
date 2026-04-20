@@ -131,16 +131,12 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
   const formatMultiple = (val: number) => val.toFixed(2) + "x";
 
   // Data mapping for Recharts
-  const chartData = aggregated_exits.map((c, idx) => {
-    const eolCase = end_of_life_exits.find(e => e.case === c.case) || end_of_life_exits[idx];
+  const chartData = aggregated_exits.map((c) => {
     return {
       name: c.case,
       invested: current_deals_metrics.total_invested,
       gev: c.gev,
-      irr: c.irr * 100,
-      eol_gev: eolCase?.gev || 0,
-      eol_irr: (eolCase?.irr || 0) * 100,
-      eol_invested: dashboard.total_invested + current_deals_metrics.total_invested
+      irr: c.irr * 100
     };
   });
 
@@ -362,11 +358,8 @@ const AggregatedExitsTab: React.FC<AggregatedExitsTabProps> = ({ fundId }) => {
               />
               <Legend />
               <Bar yAxisId="left" dataKey="invested" fill="#34495e" name="Invested (Current)" barSize={30} />
-              <Bar yAxisId="left" dataKey="eol_invested" fill="#1e293b" name="Invested (EOL)" barSize={30} />
               <Bar yAxisId="left" dataKey="gev" fill="#3498db" name="GEV (Current)" barSize={30} />
-              <Bar yAxisId="left" dataKey="eol_gev" fill="#0369a1" name="GEV (EOL)" barSize={30} />
               <Line yAxisId="right" type="monotone" dataKey="irr" stroke="#e74c3c" name="IRR (Current) %" strokeWidth={2} dot={{ r: 4 }} />
-              <Line yAxisId="right" type="monotone" dataKey="eol_irr" stroke="#b91c1c" name="IRR (EOL) %" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 4 }} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
