@@ -399,7 +399,7 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
                 <input type="text" value={formData.company_name} onChange={e => setFormData({...formData, company_name: e.target.value})} required disabled={formData.is_pro_rata} />
               </div>
               <div className="form-group">
-                <label>Company Type</label>
+                <label>Company Stage</label>
                 <input type="text" value={formData.company_type} onChange={e => setFormData({...formData, company_type: e.target.value})} required disabled={formData.is_pro_rata} />
               </div>
               <div className="form-group">
@@ -465,7 +465,7 @@ const CurrentDealsTab: React.FC<CurrentDealsTabProps> = ({ fundId, canEdit }) =>
               <thead>
                 <tr>
                   <th className="sticky-left">Company Name</th>
-                  <th>Type</th>
+                  <th>Stage</th>
                   <th>Industry</th>
                   <th>Entry Year</th>
                   <th>Amt Invested</th>
