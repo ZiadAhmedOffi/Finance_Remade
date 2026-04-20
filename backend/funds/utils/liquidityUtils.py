@@ -24,19 +24,21 @@ def get_venture_ls(company_type: str) -> float:
         return 0.15
     return 0.50  # Default fallback
 
-def calculateLiquidityIndex(current_deals, inception_year, decay_constant=0.20):
+def calculateLiquidityIndex(current_deals, inception_year, fund_life=10):
     """
     Computes the complete Liquidity Index for a portfolio.
-    Formula: LI = (Σ(LS_i * V_i) / Σ(V_i)) * exp(-k * t) * 100
+    Formula: LI = (1 - portfolio_l) * (1 + time_factor) * 100
+    
+    portfolio_l uses the old logic (weighted average of risk-based LS).
+    time_factor is a distributed percentage over the fund's lifetime.
     """
     if not current_deals:
-        return {"finalLI": 0, "portfolioL": 0, "ageFactor": 1, "age": 0}
+        return {"finalLI": 0, "portfolioL": 0, "ageFactor": 0, "age": 0}
 
-    total_weighted_ls = 0
     total_valuation = 0
+    total_weighted_ls = 0
 
     for d in current_deals:
-        # Django models or dicts
         if hasattr(d, 'latest_valuation'):
             val = float(d.latest_valuation) if d.latest_valuation else 0
         else:
@@ -55,13 +57,22 @@ def calculateLiquidityIndex(current_deals, inception_year, decay_constant=0.20):
 
     current_year = datetime.now().year
     age = max(0, current_year - inception_year)
-    age_factor = math.exp(-decay_constant * age)
+    
+    half_life = fund_life / 2
+    if age <= half_life:
+        time_factor = (age / half_life) * 0.6
+    else:
+        remaining_age = min(age - half_life, half_life)
+        time_factor = 0.6 + (remaining_age / half_life) * 0.4
+        
+    time_factor = min(1.0, time_factor)
 
-    final_li = portfolio_l * age_factor * 100
+    # Use (1 - portfolio_l) as the weighted base
+    final_li = (1 - portfolio_l) * (1 + time_factor) * 100
 
     return {
         "finalLI": min(100.0, max(0.0, final_li)),
         "portfolioL": portfolio_l,
-        "ageFactor": age_factor,
+        "ageFactor": time_factor,
         "age": age
     }

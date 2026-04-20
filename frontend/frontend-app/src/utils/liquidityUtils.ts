@@ -26,15 +26,18 @@ export const getVentureLS = (type: string): number => {
 
 /**
  * Computes the complete Liquidity Index for a portfolio.
- * Formula: LI = (Σ(LS_i * V_i) / Σ(V_i)) * exp(-k * t) * 100
+ * New Formula: LI = weightedBase * (1 + timeFactor) * 100
+ * timeFactor is a distributed percentage over the fund's lifetime (default 10 years).
+ * The first half of the lifetime (years 0-5) represents 60% of the risk distribution,
+ * and the second half (years 6-10) represents 40%.
  */
 export const calculateLiquidityIndex = (
   currentDeals: any[],
   inceptionYear: number,
-  decayConstant: number = 0.20
+  fundLife: number = 10
 ): LiquidityIndexResult => {
   if (!currentDeals || currentDeals.length === 0) {
-    return { finalLI: 0, portfolioL: 0, ageFactor: 1, age: 0 };
+    return { finalLI: 0, portfolioL: 0, ageFactor: 0, age: 0 };
   }
 
   let totalWeightedLS = 0;
@@ -51,14 +54,28 @@ export const calculateLiquidityIndex = (
 
   const currentYear = new Date().getFullYear();
   const age = Math.max(0, currentYear - inceptionYear);
-  const ageFactor = Math.exp(-decayConstant * age);
+  
+  // Time Factor Calculation: Distributed risk/stability over lifetime
+  let timeFactor = 0;
+  const halfLife = fundLife / 2;
+  
+  if (age <= halfLife) {
+    timeFactor = (age / halfLife) * 0.6;
+  } else {
+    const remainingAge = Math.min(age - halfLife, halfLife);
+    timeFactor = 0.6 + (remainingAge / halfLife) * 0.4;
+  }
+  
+  timeFactor = Math.min(1.0, timeFactor);
 
-  const finalLI = 100 - (portfolioL * ageFactor * 100);
+  // Overall Index Calculation: multiply the portfolio weighted base (1 - portfolioL) by (1 + timeFactor)
+  const weightedBase = 1 - portfolioL;
+  const finalLI = weightedBase * (1 + timeFactor) * 100;
 
   return { 
     finalLI: Math.min(100, Math.max(0, finalLI)), 
-    portfolioL, 
-    ageFactor, 
+    portfolioL, // Returning the Risk-based portfolioL (Aggregate Companies Factor)
+    ageFactor: timeFactor, 
     age 
   };
 };

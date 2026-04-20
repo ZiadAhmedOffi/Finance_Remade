@@ -460,7 +460,8 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
 
   const liData = performanceData ? calculateLiquidityIndex(
     performanceData.current_deals || [],
-    performanceData.admin_fee?.inception_year || new Date().getFullYear()
+    performanceData.admin_fee?.inception_year || new Date().getFullYear(),
+    performanceData.admin_fee?.fund_life || 10
   ) : null;
 
   const fundName = performanceData?.fund_details?.name || 'Our Fund';
@@ -1030,7 +1031,7 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({ fundId, canEdit }
               <div className="content-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ textAlign: 'center' }}>
                   <h3 style={{ marginBottom: '0.5rem', border: 'none' }}>Liquidity Index</h3>
-                  <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '2.5rem' }}>Measures the portfolio's path to realization</p>
+                  <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '2.5rem' }}>Assesses the portfolio's realization potential and risk maturity.</p>
                 </div>
                 
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

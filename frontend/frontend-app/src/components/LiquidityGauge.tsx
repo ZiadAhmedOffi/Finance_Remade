@@ -160,23 +160,22 @@ const LiquidityGauge: React.FC<LiquidityGaugeProps> = ({ value, portfolioL, ageF
         </div>
       </div>
 
-      <div style={{ 
-        marginTop: '5rem', 
+      <div style={{
+        marginTop: '5rem',
         width: '100%',
-        display: 'grid', 
-        gridTemplateColumns: '1fr 1fr', 
-        gap: '1rem' 
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: '1rem'
       }}>
         <div style={{ padding: '1rem', background: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
           <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Portfolio Weighted Base</div>
-          <div style={{ fontSize: '1.25rem', fontWeight: '900', color: '#1e293b' }}>{(100 - portfolioL * 100).toFixed(1)}%</div>
+          <div style={{ fontSize: '1.25rem', fontWeight: '900', color: '#1e293b' }}>{((1 - portfolioL) * 100).toFixed(1)}%</div>
         </div>
         <div style={{ padding: '1rem', background: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-          <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Time-to-Exit Benefit ({age}y)</div>
-          <div style={{ fontSize: '1.25rem', fontWeight: '900', color: '#10b981' }}>+{( (portfolioL * 100) * (1 - ageFactor) ).toFixed(1)}%</div>
+          <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Risk Maturity Factor ({age}y)</div>
+          <div style={{ fontSize: '1.25rem', fontWeight: '900', color: '#10b981' }}>x(1 + {ageFactor.toFixed(2)})</div>
         </div>
-      </div>
-    </div>
+      </div>    </div>
   );
 };
 

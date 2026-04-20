@@ -1811,7 +1811,7 @@ class InvestorHoldingsView(APIView):
             
             # Liquidity Index (simplified lookup from performance data or calculated)
             current_deals = fund.current_deals.all()
-            li_data = calculateLiquidityIndex(current_deals, model_inputs.inception_year)
+            li_data = calculateLiquidityIndex(current_deals, model_inputs.inception_year, model_inputs.fund_life)
             li_index = li_data['finalLI'] if li_data else 0
 
             # Lockup Logic
