@@ -58,12 +58,14 @@ def calculateLiquidityIndex(current_deals, inception_year, fund_life=10):
     current_year = datetime.now().year
     age = max(0, current_year - inception_year)
     
-    half_life = fund_life / 2
-    if age <= half_life:
-        time_factor = (age / half_life) * 0.6
+    unit = fund_life / 5
+    if age <= 3 * unit:
+        # First 3/5 gets 50%
+        time_factor = (age / (3 * unit)) * 0.5
     else:
-        remaining_age = min(age - half_life, half_life)
-        time_factor = 0.6 + (remaining_age / half_life) * 0.4
+        # Final 2/5 gets 50% (Total 100%)
+        remaining_age = min(age - 3 * unit, 2 * unit)
+        time_factor = 0.5 + (remaining_age / (2 * unit)) * 0.5
         
     time_factor = min(1.0, time_factor)
 

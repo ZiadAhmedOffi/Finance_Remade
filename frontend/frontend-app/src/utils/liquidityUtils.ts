@@ -28,8 +28,9 @@ export const getVentureLS = (type: string): number => {
  * Computes the complete Liquidity Index for a portfolio.
  * New Formula: LI = weightedBase * (1 + timeFactor) * 100
  * timeFactor is a distributed percentage over the fund's lifetime (default 10 years).
- * The first half of the lifetime (years 0-5) represents 60% of the risk distribution,
- * and the second half (years 6-10) represents 40%.
+ * Risk Distribution:
+ * - First 3/5 of lifetime: 50% distribution
+ * - Final 2/5 of lifetime: 50% distribution
  */
 export const calculateLiquidityIndex = (
   currentDeals: any[],
@@ -57,13 +58,15 @@ export const calculateLiquidityIndex = (
   
   // Time Factor Calculation: Distributed risk/stability over lifetime
   let timeFactor = 0;
-  const halfLife = fundLife / 2;
+  const unit = fundLife / 5;
   
-  if (age <= halfLife) {
-    timeFactor = (age / halfLife) * 0.6;
+  if (age <= 3 * unit) {
+    // First 3/5 gets 50%
+    timeFactor = (age / (3 * unit)) * 0.5;
   } else {
-    const remainingAge = Math.min(age - halfLife, halfLife);
-    timeFactor = 0.6 + (remainingAge / halfLife) * 0.4;
+    // Final 2/5 gets 50% (Total 100%)
+    const remainingAge = Math.min(age - 3 * unit, 2 * unit);
+    timeFactor = 0.5 + (remainingAge / (2 * unit)) * 0.5;
   }
   
   timeFactor = Math.min(1.0, timeFactor);
