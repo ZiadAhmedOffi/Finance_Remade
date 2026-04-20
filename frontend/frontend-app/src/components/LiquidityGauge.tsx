@@ -173,7 +173,7 @@ const LiquidityGauge: React.FC<LiquidityGaugeProps> = ({ value, portfolioL, ageF
         </div>
         <div style={{ padding: '1rem', background: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
           <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Risk Maturity Factor ({age}y)</div>
-          <div style={{ fontSize: '1.25rem', fontWeight: '900', color: '#10b981' }}>+{100 * ageFactor}%</div>
+          <div style={{ fontSize: '1.25rem', fontWeight: '900', color: '#10b981' }}>+{(100 * ageFactor).toFixed(2)}%</div>
         </div>
       </div>    </div>
   );
