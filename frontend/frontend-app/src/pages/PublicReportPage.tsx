@@ -527,9 +527,9 @@ const PublicReportPage: React.FC = () => {
       <section className="stability-section report-container" style={{ marginTop: '4rem' }}>
         <div className="section-title-premium"><h2>Portfolio Stability & Liquidity</h2></div>
         
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem', marginBottom: '3rem' }}>
-          <div className="content-card" style={{ padding: '2rem' }}>
-            <h3 style={{ textAlign: 'center', marginBottom: '2rem', border: 'none' }}>Intrinsic Value Radar</h3>
+        <div className="stability-grid">
+          <div className="content-card" style={{ padding: '2.5rem' }}>
+            <h3 style={{ textAlign: 'center' }}>Intrinsic Value Radar</h3>
             <div style={{ width: '100%', height: 400 }}>
               <ResponsiveContainer>
                 <RadarChart cx="50%" cy="50%" outerRadius="80%" data={(() => {
@@ -567,8 +567,8 @@ const PublicReportPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="content-card" style={{ padding: '2rem' }}>
-            <h3 style={{ textAlign: 'center', marginBottom: '1rem', border: 'none' }}>Liquidity Index</h3>
+          <div className="content-card" style={{ padding: '2.5rem' }}>
+            <h3 style={{ textAlign: 'center' }}>Liquidity Index</h3>
             <p style={{ textAlign: 'center', color: '#64748b', fontSize: '0.85rem', marginBottom: '2rem' }}>Path to realization & market benchmark</p>
             
             <div style={{ height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -584,7 +584,7 @@ const PublicReportPage: React.FC = () => {
             </div>
 
             <div style={{ marginTop: '0.75rem' }}>
-            <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: '#1e293b', marginBottom: '1rem', border: 'none' }}>Liquidity Benchmarks</h4>
+            <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: '#1e293b', marginTop: '2rem', border: 'none', fontWeight: 700 }}>Liquidity Benchmarks</h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                 {comparisons.sort((a, b) => b.li - a.li).map((comp) => {
                   const barColor = comp.li >= 60 ? '#10b981' : comp.li >= 40 ? '#fbbf24' : '#ef4444';

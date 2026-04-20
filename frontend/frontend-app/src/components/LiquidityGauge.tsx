@@ -28,8 +28,8 @@ const LiquidityGauge: React.FC<LiquidityGaugeProps> = ({ value, portfolioL, ageF
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', padding: '1.5rem 1.5rem 0' }}>
-      <div style={{ marginBottom: '2.5rem', textAlign: 'center' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', padding: '0.5rem 1rem 0' }}>
+      <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
         <span style={{ 
           fontSize: '3.5rem', 
           fontWeight: '900', 
@@ -40,14 +40,14 @@ const LiquidityGauge: React.FC<LiquidityGaugeProps> = ({ value, portfolioL, ageF
           {value.toFixed(1)}%
         </span>
         <span style={{ 
-          fontSize: '1rem', 
+          fontSize: '0.85rem', 
           fontWeight: '800', 
           color: '#64748b', 
           textTransform: 'uppercase', 
           letterSpacing: '0.1em',
-          marginTop: '0.5rem',
+          marginTop: '0.25rem',
           display: 'inline-block',
-          padding: '4px 12px',
+          padding: '2px 10px',
           background: '#f1f5f9',
           borderRadius: '20px'
         }}>
@@ -55,12 +55,12 @@ const LiquidityGauge: React.FC<LiquidityGaugeProps> = ({ value, portfolioL, ageF
         </span>
       </div>
 
-      <div style={{ position: 'relative', width: '100%', height: '100px', padding: '0 10px' }}>
+      <div style={{ position: 'relative', width: '100%', height: '80px', padding: '0 10px' }}>
         {/* Scale Labels */}
         <div style={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
-          marginBottom: '12px', 
+          marginBottom: '10px', 
           fontSize: '0.75rem', 
           color: '#94a3b8', 
           fontWeight: '800',
@@ -74,9 +74,9 @@ const LiquidityGauge: React.FC<LiquidityGaugeProps> = ({ value, portfolioL, ageF
 
         {/* The Bar */}
         <div style={{
-          height: '40px',
+          height: '32px',
           width: '100%',
-          borderRadius: '20px',
+          borderRadius: '16px',
           // Reversed gradient: Red (Illiquid) to Green (Liquid)
           background: 'linear-gradient(to right, #ef4444 0%, #f97316 30%, #facc15 50%, #22c55e 70%, #10b981 100%)',
           boxShadow: 'inset 0 4px 6px rgba(0,0,0,0.15)',
@@ -111,8 +111,8 @@ const LiquidityGauge: React.FC<LiquidityGaugeProps> = ({ value, portfolioL, ageF
             {/* The Indicator Line (through the bar) */}
             <div style={{ 
               position: 'absolute',
-              top: '-15px',
-              bottom: '-15px',
+              top: '-12px',
+              bottom: '-12px',
               left: '50%',
               transform: 'translateX(-50%)',
               width: '6px', 
@@ -125,7 +125,7 @@ const LiquidityGauge: React.FC<LiquidityGaugeProps> = ({ value, portfolioL, ageF
             {/* Triangle pointing DOWN towards the text */}
             <div style={{
               position: 'absolute',
-              bottom: '-45px',
+              bottom: '-35px',
               left: '50%',
               transform: 'translateX(-50%)',
               width: 0,
@@ -139,14 +139,14 @@ const LiquidityGauge: React.FC<LiquidityGaugeProps> = ({ value, portfolioL, ageF
             {/* Label Below */}
             <div style={{
               position: 'absolute',
-              bottom: '-85px',
+              bottom: '-70px',
               left: '50%',
               transform: 'translateX(-50%)',
               backgroundColor: '#1e293b',
               color: 'white',
-              padding: '6px 14px',
+              padding: '4px 12px',
               borderRadius: '8px',
-              fontSize: '0.85rem',
+              fontSize: '0.8rem',
               fontWeight: '900',
               whiteSpace: 'nowrap',
               boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.04)',
@@ -161,7 +161,7 @@ const LiquidityGauge: React.FC<LiquidityGaugeProps> = ({ value, portfolioL, ageF
       </div>
 
       <div style={{ 
-        marginTop: '6.5rem', 
+        marginTop: '5rem', 
         width: '100%',
         display: 'grid', 
         gridTemplateColumns: '1fr 1fr', 

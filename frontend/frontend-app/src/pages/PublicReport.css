@@ -80,6 +80,7 @@
   font-size: 1.05rem;
   margin-bottom: 2rem;
   text-align: justify;
+  white-space: pre-wrap;
 }
 
 /* Metrics */
@@ -147,7 +148,7 @@
 .premium-badge.focus { background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(59, 130, 246, 0.4); color: #60a5fa; }
 
 .capital-call-title { font-size: 4rem; font-weight: 900; margin-bottom: 1.5rem; line-height: 1; }
-.fund-subheadline { font-size: 1.25rem; opacity: 0.8; max-width: 700px; margin: 0 auto; }
+.fund-subheadline { font-size: 1.25rem; opacity: 0.8; max-width: 700px; margin: 0 auto; white-space: pre-wrap; }
 
 /* Glass Metrics */
 .metrics-section { margin-top: -5rem; position: relative; z-index: 10; }
@@ -265,7 +266,37 @@
 .section-title-premium h2 { font-size: 2.25rem; font-weight: 800; color: #0f172a; position: relative; display: inline-block; }
 .section-title-premium h2::after { content: ''; position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); width: 60px; height: 4px; background: #2563eb; border-radius: 2px; }
 
-.prose-text-large { font-size: 1.25rem; color: #475569; text-align: justify; max-width: 850px; margin: 0 auto; line-height: 1.8; }
+.prose-text-large { font-size: 1.25rem; color: #475569; text-align: justify; max-width: 850px; margin: 0 auto; line-height: 1.8; white-space: pre-wrap; }
+
+.content-card {
+  background: white;
+  border-radius: 24px;
+  border: 1px solid #f1f5f9;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.content-card h3 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.stability-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+  gap: 3rem;
+  margin-bottom: 3rem;
+}
+
+@media (max-width: 1024px) {
+  .stability-grid {
+    grid-template-columns: 1fr;
+  }
+}
 
 /* Controls */
 .projection-controls {
@@ -355,7 +386,7 @@
 
 .reason-num { position: absolute; top: 1.5rem; right: 2rem; font-size: 3rem; font-weight: 900; color: #f1f5f9; z-index: 1; }
 .reason-card-premium h3 { position: relative; z-index: 2; margin-bottom: 1rem; font-size: 1.5rem; }
-.reason-card-premium p { position: relative; z-index: 2; color: #64748b; }
+.reason-card-premium p { position: relative; z-index: 2; color: #64748b; white-space: pre-wrap; }
 
 /* Legend */
 .chart-legend-premium {
