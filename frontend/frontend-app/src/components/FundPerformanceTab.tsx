@@ -234,7 +234,7 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
                     </div>
                   </div>
                   <div className="summary-item">
-                    <label style={{color: '#64748b', fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block'}}>Gross Exit Value Achieved</label>
+                    <label style={{color: '#64748b', fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block'}}>Gross Value Achieved</label>
                     <div className="summary-value" style={{fontSize: '2.5rem', fontWeight: '900', color: '#1e293b'}}>
                       {formatCurrencyLong(current_deals_metrics.gross_exit_value)}
                     </div>
@@ -283,7 +283,7 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
                     </div>
                   </div>
                   <div className="summary-item">
-                    <label style={{color: '#0056b3', fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block'}}>Expected Gross Exit Value</label>
+                    <label style={{color: '#0056b3', fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block'}}>Expected Gross Value</label>
                     <div className="summary-value" style={{fontSize: '2.5rem', fontWeight: '900', color: '#007bff'}}>
                       {formatCurrencyLong(dashboard.gross_exit_value)}
                     </div>
