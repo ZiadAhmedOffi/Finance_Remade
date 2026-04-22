@@ -193,7 +193,7 @@ const FundDashboard: React.FC = () => {
     <div className="fund-dashboard-layout">
       <aside className="sidebar">
         <div className="sidebar-header">
-          <div className="brand">InvestmentIntelligenceTool</div>
+          <div className="brand">Investment Intelligence Tool</div>
           <button className="back-link" onClick={() => navigate("/dashboard")}>
             &larr; Back to Funds
           </button>

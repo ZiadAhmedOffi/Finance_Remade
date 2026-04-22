@@ -247,7 +247,7 @@ const PublicReportPage: React.FC = () => {
 
         <header className="report-header">
           <div className="report-container">
-            <div className="report-brand">InvestmentIntelligenceTool | Institutional Reporting</div>
+            <div className="report-brand">Investment Intelligence Tool | Institutional Reporting</div>
             <div className="report-title">
               <h1>{report.name}</h1>
               <span className="fund-tag">{report.fund_name}</span>
@@ -392,8 +392,8 @@ const PublicReportPage: React.FC = () => {
 
         <footer className="report-footer">
           <div className="report-container">
-            <div className="report-brand">InvestmentIntelligenceTool</div>
-            <p>© 2026 InvestmentIntelligenceTool Asset Management. All rights reserved.</p>
+            <div className="report-brand">Investment Intelligence Tool</div>
+            <p>© 2026 Investment Intelligence Tool Asset Management. All rights reserved.</p>
           </div>
         </footer>
       </div>
@@ -802,12 +802,12 @@ const PublicReportPage: React.FC = () => {
         <div className="report-container">
           <div className="footer-grid">
             <div className="footer-main">
-              <h3>InvestmentIntelligenceTool</h3>
+              <h3>Investment Intelligence Tool</h3>
               <p>Redefining institutional investment through transparency and technology.</p>
             </div>
           </div>
           <div className="footer-bottom">
-            <p>© 2026 InvestmentIntelligenceTool. Institutional Investor Relations.</p>
+            <p>© 2026 Investment Intelligence Tool. Institutional Investor Relations.</p>
           </div>
         </div>
       </footer>
