@@ -82,7 +82,7 @@ const Dashboard: React.FC = () => {
   return (
     <div className="dashboard-container-revamp">
       <header className="main-header">
-        <div className="header-brand">FinanceRemade</div>
+        <div className="header-brand">InvestmentIntelligenceTool</div>
         <div className="header-nav">
           <Link to="/profile" className="nav-link">My Profile</Link>
           {isInvestor && <Link to="/investor-dashboard" className="nav-link">Investor Dashboard</Link>}

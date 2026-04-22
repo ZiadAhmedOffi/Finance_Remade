@@ -80,7 +80,7 @@ const Profile: React.FC = () => {
             &larr; Back to Dashboard
           </button>
         </div>
-        <div className="nav-brand">FinanceRemade</div>
+        <div className="nav-brand">InvestmentIntelligenceTool</div>
         <div className="nav-right">
           <button className="logout-btn-minimal" onClick={handleLogout}>Logout</button>
         </div>
