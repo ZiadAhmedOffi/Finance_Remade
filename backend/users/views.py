@@ -16,7 +16,7 @@ from users.serializers import (
     RoleSerializer,
     AuditLogSerializer,
 )
-from users.permissions import IsAccessManager
+from users.permissions import IsAccessManager, IsSuperAdmin
 from users.services.permission_service import PermissionService
 from users.services.audit_service import AuditService
 from users.models import AuditLog
@@ -297,6 +297,35 @@ class DeactivateUserView(APIView):
         )
 
         return Response({"message": "User deactivated successfully."})
+
+class ResetPasswordView(APIView):
+    """
+    API view for Super Admins to reset a user's password.
+    """
+    permission_classes = [IsSuperAdmin]
+
+    def post(self, request, user_id):
+        new_password = request.data.get("new_password")
+        if not new_password:
+            return Response({"error": "New password is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        user.set_password(new_password)
+        user.save()
+
+        AuditService.log(
+            actor=request.user,
+            action="PASSWORD_RESET",
+            target_user=user,
+            metadata={"description": f"Password for user {user.email} was reset by super admin."},
+            ip=request.META.get("REMOTE_ADDR")
+        )
+
+        return Response({"message": f"Password for {user.email} has been reset successfully."})
 
 class AssignRoleView(APIView):
     """

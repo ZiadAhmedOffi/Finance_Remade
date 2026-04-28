@@ -74,11 +74,13 @@ const AdminDashboard: React.FC = () => {
   const [totalLogPages, setTotalLogPages] = useState(1);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedLogForDetails, setSelectedLogForDetails] = useState<AuditLog | null>(null);
   const [selectedRoleId, setSelectedRoleId] = useState("");
   const [selectedFundId, setSelectedFundId] = useState("");
+  const [newPassword, setNewPassword] = useState("");
 
   const [newFundName, setNewFundName] = useState("");
   const [newFundDescription, setNewFundDescription] = useState("");
@@ -308,6 +310,22 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!selectedUserId || !newPassword) {
+      alert("Please provide a new password.");
+      return;
+    }
+    try {
+      await api.post(`/users/reset-password/${selectedUserId}/`, { new_password: newPassword });
+      setMessage("Password reset successfully.");
+      setIsResetPasswordModalOpen(false);
+      setNewPassword("");
+      fetchAuditLogs(logPage);
+    } catch (err: any) {
+      setError(err.response?.data?.error || "Failed to reset password.");
+    }
+  };
+
   if (privilegeError) {
     return <NotFound title={privilegeError.title} message={privilegeError.message} />;
   }
@@ -431,6 +449,18 @@ const AdminDashboard: React.FC = () => {
                           >
                             Assign Role
                           </button>
+                          {isSuperAdmin && (
+                            <button 
+                              onClick={() => {
+                                setSelectedUserId(user.id);
+                                setIsResetPasswordModalOpen(true);
+                              }}
+                              className="btn btn-primary"
+                              style={{ marginLeft: '0.5rem' }}
+                            >
+                              Reset Password
+                            </button>
+                          )}
                           <button onClick={() => handleDeactivate(user.id)} className="btn btn-deactivate">Deactivate</button>
                         </td>
                       </tr>
@@ -685,6 +715,32 @@ const AdminDashboard: React.FC = () => {
             <div className="modal-actions">
               <button onClick={handleCreateFund} className="btn btn-approve">Create Fund</button>
               <button onClick={() => setIsFundModalOpen(false)} className="btn btn-reject">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isResetPasswordModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h3>Reset Password</h3>
+            <p>Enter a new password for the user:</p>
+            <div className="form-group">
+              <input 
+                type="password" 
+                value={newPassword} 
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="New Password"
+                className="form-input"
+                style={{width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc'}}
+              />
+            </div>
+            <div className="modal-actions">
+              <button onClick={handleResetPassword} className="btn btn-approve">Reset Password</button>
+              <button onClick={() => {
+                setIsResetPasswordModalOpen(false);
+                setNewPassword("");
+              }} className="btn btn-reject">Cancel</button>
             </div>
           </div>
         </div>

@@ -198,6 +198,7 @@ class AuditLog(models.Model):
         ("UNAUTHENTICATED_ACCESS_DENIED", "Unauthenticated Access Denied"),
         ("LOGIN_SUCCESS", "Login Success"),
         ("LOGIN_FAILED", "Login Failed"),
+        ("PASSWORD_RESET", "Password Reset"),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
