@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import (
+from funds.api.views import (
     FundListView, 
     FundDetailView, 
     FundLogListView, 

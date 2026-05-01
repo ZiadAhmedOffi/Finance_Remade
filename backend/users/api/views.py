@@ -9,7 +9,7 @@ from rest_framework.exceptions import ValidationError
 
 from users.models import User, Role, UserRoleAssignment
 from funds.models import Fund
-from users.serializers import (
+from users.api.serializers import (
     LoginSerializer,
     ApplyAccessSerializer,
     UserSerializer,
@@ -20,6 +20,11 @@ from users.permissions import IsAccessManager, IsSuperAdmin
 from users.services.permission_service import PermissionService
 from users.services.audit_service import AuditService
 from users.models import AuditLog
+from users.services.user_service import UserService
+from users.interfaces.fund_service_adapter import FundServiceAdapter
+
+fund_adapter = FundServiceAdapter()
+user_service = UserService(fund_adapter)
 
 # -----------------------------
 # JWT Custom Token Serializer
@@ -148,6 +153,8 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     """
     serializer_class = CustomTokenObtainPairSerializer
 
+from users.selectors import user_selectors, audit_selectors
+
 # -----------------------------
 # User Listing & Management
 # -----------------------------
@@ -164,7 +171,7 @@ class ActiveUsersView(APIView):
     permission_classes = [IsAccessManager]
 
     def get(self, request):
-        active_users = User.objects.filter(status="ACTIVE", is_deleted=False).order_by("email")
+        active_users = user_selectors.get_active_users()
         paginator = ActiveUsersPagination()
         result_page = paginator.paginate_queryset(active_users, request)
         serializer = UserSerializer(result_page, many=True)
@@ -178,7 +185,7 @@ class PendingUsersView(APIView):
     permission_classes = [IsAccessManager]
 
     def get(self, request):
-        pending_users = User.objects.filter(status="PENDING", is_deleted=False).order_by("-date_joined")
+        pending_users = user_selectors.get_pending_users()
         serializer = UserSerializer(pending_users, many=True)
         return Response(serializer.data)
 
@@ -220,26 +227,14 @@ class ApproveUserView(APIView):
 
     def post(self, request, user_id):
         try:
-            user = User.objects.get(id=user_id, status="PENDING")
-        except User.DoesNotExist:
-            return Response(
-                {"error": "User not found or has already been processed."},
-                status=status.HTTP_404_NOT_FOUND,
+            user_service.approve_user(
+                user_id=user_id,
+                actor=request.user,
+                ip_address=request.META.get("REMOTE_ADDR")
             )
-
-        user.status = "ACTIVE"
-        user.is_active = True
-        user.save(update_fields=["status", "is_active"])
-
-        AuditService.log(
-            actor=request.user,
-            action="USER_APPROVED",
-            target_user=user,
-            metadata={"description": f"User {user.email} was approved."},
-            ip=request.META.get("REMOTE_ADDR"),
-        )
-
-        return Response({"message": "User approved successfully."})
+            return Response({"message": "User approved successfully."})
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
 
 class RejectUserView(APIView):
     """
@@ -250,26 +245,14 @@ class RejectUserView(APIView):
 
     def post(self, request, user_id):
         try:
-            user = User.objects.get(id=user_id, status="PENDING")
-        except User.DoesNotExist:
-            return Response(
-                {"error": "User not found or has already been processed."},
-                status=status.HTTP_404_NOT_FOUND,
+            user_service.reject_user(
+                user_id=user_id,
+                actor=request.user,
+                ip_address=request.META.get("REMOTE_ADDR")
             )
-
-        user.status = "REJECTED"
-        user.is_active = False
-        user.save(update_fields=["status", "is_active"])
-
-        AuditService.log(
-            actor=request.user,
-            action="USER_REJECTED",
-            target_user=user,
-            metadata={"description": f"User {user.email} was rejected."},
-            ip=request.META.get("REMOTE_ADDR"),
-        )
-
-        return Response({"message": "User rejected successfully."})
+            return Response({"message": "User rejected successfully."})
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
 
 class DeactivateUserView(APIView):
     """
@@ -280,23 +263,14 @@ class DeactivateUserView(APIView):
 
     def post(self, request, user_id):
         try:
-            user = User.objects.get(id=user_id)
-        except User.DoesNotExist:
-            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        user.is_active = False
-        user.status = "REJECTED"
-        user.save()
-
-        AuditService.log(
-            actor=request.user,
-            action="USER_SOFT_DELETED",
-            target_user=user,
-            metadata={"description": f"User {user.email} was deactivated."},
-            ip=request.META.get("REMOTE_ADDR")
-        )
-
-        return Response({"message": "User deactivated successfully."})
+            user_service.deactivate_user(
+                user_id=user_id,
+                actor=request.user,
+                ip_address=request.META.get("REMOTE_ADDR")
+            )
+            return Response({"message": "User deactivated successfully."})
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
 
 class ResetPasswordView(APIView):
     """
@@ -310,22 +284,15 @@ class ResetPasswordView(APIView):
             return Response({"error": "New password is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            user = User.objects.get(id=user_id)
-        except User.DoesNotExist:
-            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        user.set_password(new_password)
-        user.save()
-
-        AuditService.log(
-            actor=request.user,
-            action="PASSWORD_RESET",
-            target_user=user,
-            metadata={"description": f"Password for user {user.email} was reset by super admin."},
-            ip=request.META.get("REMOTE_ADDR")
-        )
-
-        return Response({"message": f"Password for {user.email} has been reset successfully."})
+            user_service.reset_password(
+                user_id=user_id,
+                new_password=new_password,
+                actor=request.user,
+                ip_address=request.META.get("REMOTE_ADDR")
+            )
+            return Response({"message": f"Password for user reset successfully."})
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
 
 class AssignRoleView(APIView):
     """
@@ -339,60 +306,21 @@ class AssignRoleView(APIView):
         fund_id = request.data.get("fund_id")
 
         try:
-            target_user = User.objects.get(id=user_id)
-            role = Role.objects.get(id=role_id)
-        except (User.DoesNotExist, Role.DoesNotExist):
-            return Response({"error": "User or Role not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        is_super_admin = PermissionService.is_super_admin(request.user)
-        
-        if role.name in ["SUPER_ADMIN", "ACCESS_MANAGER"] and not is_super_admin:
-            return Response(
-                {"error": "Only Super Admins can assign Admin/Manager roles."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        fund = None
-        if role.name in ["INVESTOR", "STEERING_COMMITTEE"]:
-            if not fund_id:
-                return Response(
-                    {"error": f"Role {role.name} requires a fund."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            try:
-                fund = Fund.objects.get(id=fund_id)
-            except Fund.DoesNotExist:
-                return Response({"error": "Fund not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        assignment, created = UserRoleAssignment.objects.get_or_create(
-            user=target_user,
-            role=role,
-            fund=fund,
-            defaults={"assigned_by": request.user}
-        )
-
-        if not created:
-            return Response({"message": "Role already assigned."})
-
-        if not target_user.is_active or target_user.status != "ACTIVE":
-            target_user.is_active = True
-            target_user.status = "ACTIVE"
-            target_user.save(update_fields=["is_active", "status"])
-
-        if fund:
-            from funds.models import FundLog
-            action_map = {
-                "STEERING_COMMITTEE": "SC_MEMBER_ASSIGNED",
-                "INVESTOR": "INVESTOR_ASSIGNED",
-            }
-            FundLog.objects.create(
+            assignment, created = user_service.assign_role(
+                user_id=user_id,
+                role_id=role_id,
+                fund_id=fund_id,
                 actor=request.user,
-                target_fund=fund,
-                action=action_map.get(role.name, "ROLE_ASSIGNED"),
-                metadata={"user_email": target_user.email, "role": role.name}
+                ip_address=request.META.get("REMOTE_ADDR")
             )
+            if not created:
+                return Response({"message": "Role already assigned."})
 
-        return Response({"message": "Role assigned successfully."})
+            return Response({"message": "Role assigned successfully."})
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        except PermissionError as e:
+            return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
 
 class RemoveRoleView(APIView):
     """
@@ -405,51 +333,18 @@ class RemoveRoleView(APIView):
         fund_id = request.data.get("fund_id")
 
         try:
-            target_user = User.objects.get(id=user_id)
-            role = Role.objects.get(id=role_id)
-        except (User.DoesNotExist, Role.DoesNotExist):
-            return Response({"error": "User or Role not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        is_super_admin = PermissionService.is_super_admin(request.user)
-        
-        if role.name in ["SUPER_ADMIN", "ACCESS_MANAGER"] and not is_super_admin:
-            return Response(
-                {"error": "Only Super Admins can remove Admin/Manager roles."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        try:
-            assignment = UserRoleAssignment.objects.get(
-                user=target_user,
-                role=role,
-                fund=fund_id if fund_id else None
-            )
-            assignment.delete()
-            
-            AuditService.log(
+            user_service.remove_role(
+                user_id=user_id,
+                role_id=role_id,
+                fund_id=fund_id,
                 actor=request.user,
-                action="ROLE_REMOVED",
-                target_user=target_user,
-                metadata={"description": f"Role {role.name} was removed from {target_user.email}."},
-                ip=request.META.get("REMOTE_ADDR")
+                ip_address=request.META.get("REMOTE_ADDR")
             )
-
-            if fund_id:
-                from funds.models import Fund, FundLog
-                try:
-                    fund = Fund.objects.get(id=fund_id)
-                    FundLog.objects.create(
-                        actor=request.user,
-                        target_fund=fund,
-                        action="ROLE_REMOVED",
-                        metadata={"user_email": target_user.email, "role": role.name}
-                    )
-                except Fund.DoesNotExist:
-                    pass
-            
             return Response({"message": "Role removed successfully."})
-        except UserRoleAssignment.DoesNotExist:
-            return Response({"error": "Role assignment not found."}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        except PermissionError as e:
+            return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
 
 # -----------------------------
 # Audit Log Listing
@@ -467,7 +362,7 @@ class AuditLogView(APIView):
     permission_classes = [IsAccessManager]
 
     def get(self, request):
-        logs = AuditLog.objects.all().select_related("actor", "target_user", "fund").order_by("-timestamp")
+        logs = audit_selectors.get_all_audit_logs()
         paginator = AuditLogPagination()
         result_page = paginator.paginate_queryset(logs, request)
         serializer = AuditLogSerializer(result_page, many=True)
@@ -480,7 +375,7 @@ class ListRolesView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        roles = Role.objects.all()
+        roles = user_selectors.get_all_roles()
         serializer = RoleSerializer(roles, many=True)
         return Response(serializer.data)
 
@@ -498,24 +393,22 @@ class UserDetailView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request, user_id):
-        try:
-            user = User.objects.get(id=user_id)
+        user = user_selectors.get_user_by_id(user_id)
+        if user:
             serializer = UserSerializer(user)
             return Response(serializer.data)
-        except User.DoesNotExist:
-            return Response(
-                {"error": "User not found."}, status=status.HTTP_404_NOT_FOUND
-            )
+        return Response(
+            {"error": "User not found."}, status=status.HTTP_404_NOT_FOUND
+        )
 
     def put(self, request, user_id):
-        try:
-            user = User.objects.get(id=user_id)
-            serializer = UserSerializer(user, data=request.data, partial=True)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except User.DoesNotExist:
+        user = user_selectors.get_user_by_id(user_id)
+        if not user:
             return Response(
                 {"error": "User not found."}, status=status.HTTP_404_NOT_FOUND
             )
+        serializer = UserSerializer(user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

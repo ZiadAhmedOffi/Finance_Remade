@@ -19,3 +19,8 @@ coverage/
 # IDEs
 .vscode/
 .idea/
+
+
+# Agentic Coding
+.gemini/
+docs/

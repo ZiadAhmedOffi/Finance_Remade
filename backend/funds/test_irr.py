@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from .models import Fund, ModelInput, InvestmentDeal, CurrentDeal
 from decimal import Decimal
 from datetime import datetime
-from .views import solve_implied_return_rate
+from funds.utils.calculators import solve_implied_return_rate
 
 User = get_user_model()
 
@@ -47,7 +47,7 @@ class IRRCalculationTest(TestCase):
         )
         
         from rest_framework.test import APIRequestFactory, force_authenticate
-        from .views import FundPerformanceView
+        from funds.api.views import FundPerformanceView
         
         factory = APIRequestFactory()
         request = factory.get(f'/api/funds/{self.fund.id}/performance/')

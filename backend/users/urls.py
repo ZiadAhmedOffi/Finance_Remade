@@ -1,6 +1,6 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
-from users.views import (
+from users.api.views import (
     CustomTokenObtainPairView,
     ApplyForAccessView,
     CurrentUserView,

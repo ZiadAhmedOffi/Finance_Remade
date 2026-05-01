@@ -1,7 +1,7 @@
 import uuid
 from django.db import models
 from django.conf import settings
-from .db_functions import locked_get_or_create
+from .utils.db import locked_get_or_create
 
 class Fund(models.Model):
     """

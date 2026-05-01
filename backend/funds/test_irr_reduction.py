@@ -3,21 +3,20 @@ from unittest.mock import patch
 from datetime import datetime
 from decimal import Decimal
 from .models import Fund, ModelInput, CurrentDeal
-from .logic import get_total_fund_portfolio
+from .selectors.fund_selectors import get_total_fund_portfolio
 
 class IRRReductionTest(TestCase):
     def setUp(self):
         # Create a fund
         self.fund = Fund.objects.create(name="IRR Test Fund")
         
-        # Create model inputs
-        self.model_inputs = ModelInput.objects.create(
-            fund=self.fund,
-            inception_year=2020,
-            fund_life=10,
-            management_fee=0, # Simplify
-            admin_cost=0
-        )
+        # Get model inputs (created via signal)
+        self.model_inputs = ModelInput.objects.get(fund=self.fund)
+        self.model_inputs.inception_year = 2020
+        self.model_inputs.fund_life = 10
+        self.model_inputs.management_fee = 0
+        self.model_inputs.admin_cost = 0
+        self.model_inputs.save()
         
         # Create a current deal
         # Invest 1,000,000 in 2020.
@@ -37,13 +36,13 @@ class IRRReductionTest(TestCase):
             latest_valuation_year=2023
         )
 
-    @patch('funds.logic.datetime')
-    @patch('funds.views.datetime')
-    def test_irr_reduction_compounding(self, mock_datetime_views, mock_datetime_logic):
+    @patch('funds.selectors.fund_selectors.datetime')
+    @patch('funds.api.views.datetime')
+    def test_irr_reduction_compounding(self, mock_datetime_views, mock_datetime_selectors):
         # Mock current year as 2024
         mock_now = datetime(2024, 1, 1)
         mock_datetime_views.now.return_value = mock_now
-        mock_datetime_logic.now.return_value = mock_now
+        mock_datetime_selectors.now.return_value = mock_now
         
         # Calculate current portfolio value in 2023 (before reduction starts)
         # 2020: 1M injection. 

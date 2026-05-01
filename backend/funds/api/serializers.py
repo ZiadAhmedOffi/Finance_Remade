@@ -1,6 +1,6 @@
 import math
 from rest_framework import serializers
-from .models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, RiskAssessment, PossibleCapitalSource, InvestorAction, InvestorRequest
+from funds.models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, RiskAssessment, PossibleCapitalSource, InvestorAction, InvestorRequest
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -168,75 +168,24 @@ class InvestmentDealSerializer(serializers.ModelSerializer):
         return obj.exit_year - obj.entry_year
 
     def get_post_money_ownership(self, obj):
-        """Formula: amount_invested / (amount_invested + entry_valuation)."""
-        denominator = float(obj.amount_invested) + float(obj.entry_valuation)
-        if denominator == 0:
-            return 0
-        return (float(obj.amount_invested) / denominator) * 100
+        from funds.selectors import deal_selectors
+        return deal_selectors.calculate_investment_deal_post_money_ownership(obj)
 
     def get_expected_ownership_after_dilution(self, obj):
-        """
-        Calculates expected ownership after dilution based on pro-rata rights.
-        With pro-rata: original ownership * (0.9)^(number of rounds)
-        Without pro-rata: original ownership * (0.8)^(number of rounds)
-        """
-        original_ownership = float(self.get_post_money_ownership(obj))
-        rounds = int(obj.expected_number_of_rounds)
-        
-        factor = 0.9 if obj.pro_rata_rights else 0.8
-        return original_ownership * (factor ** rounds)
+        from funds.selectors import deal_selectors
+        return deal_selectors.calculate_investment_deal_expected_ownership_after_dilution(obj)
 
     def get_expected_pro_rata_investments(self, obj):
-        """
-        Calculates expected pro rata investments (USD).
-        Summation from i=1 to rounds [0.1 * original ownership * entry valuation * scenario factor ^ (1/holding_period) * ((0.9 * scenario factor ^ (1/holding_period))^(i-1))]
-        Only if pro_rata_rights is True.
-        """
-        if not obj.pro_rata_rights:
-            return 0
-        
-        original_ownership_decimal = float(self.get_post_money_ownership(obj)) / 100
-        
-        # Get holding period
-        holding_period = obj.exit_year - obj.entry_year
-        # Handle cases where holding period might be 0 or negative to avoid division by zero or invalid exponents
-        if holding_period <= 0:
-            holding_period = 1 # Default to 1 year if invalid
-
-        scenario_base_factor = float(getattr(obj, f"{obj.selected_scenario.lower()}_factor", 1.00))
-        # Apply the new requirement: scenario_factor ^ (1/holding_period)
-        dilution_adjusted_factor = scenario_base_factor ** (1 / holding_period)
-        
-        entry_valuation = float(obj.entry_valuation)
-        rounds = int(obj.expected_number_of_rounds)
-        
-        total = 0
-        # Base value for the first round investment calculation
-        # The original formula had 0.1 * original_ownership * entry_valuation * scenario_factor
-        # We are replacing scenario_factor with dilution_adjusted_factor
-        base_val = 0.1 * original_ownership_decimal * entry_valuation * dilution_adjusted_factor
-        
-        # Growth factor for subsequent rounds, adjusted by the new rule
-        # Original: 0.9 * scenario_factor
-        # New: 0.9 * dilution_adjusted_factor
-        growth_factor = 0.9 * dilution_adjusted_factor
-        
-        for i in range(1, rounds + 1):
-            total += base_val * (growth_factor ** (i - 1))
-            
-        return total
+        from funds.selectors import deal_selectors
+        return deal_selectors.calculate_investment_deal_expected_pro_rata_investments(obj)
 
     def get_exit_valuation(self, obj):
-        """Calculated by multiplying the factor of the selected scenario by the post-money entry valuation."""
-        factor = float(getattr(obj, f"{obj.selected_scenario.lower()}_factor", 1.00))
-        post_money_valuation = float(obj.entry_valuation) + float(obj.amount_invested)
-        return post_money_valuation * factor
+        from funds.selectors import deal_selectors
+        return deal_selectors.calculate_investment_deal_exit_valuation(obj)
 
     def get_exit_value(self, obj):
-        """Calculated by multiplying the expected ownership percentage after dilution by the exit valuation."""
-        ownership_decimal = self.get_expected_ownership_after_dilution(obj) / 100
-        exit_val = self.get_exit_valuation(obj)
-        return float(ownership_decimal) * float(exit_val)
+        from funds.selectors import deal_selectors
+        return deal_selectors.calculate_investment_deal_exit_value(obj)
 
 class CurrentDealSerializer(serializers.ModelSerializer):
     """
@@ -311,58 +260,12 @@ class CurrentDealSerializer(serializers.ModelSerializer):
         return current_year - obj.entry_year
 
     def get_post_money_ownership(self, obj):
-        """
-        Formula: amount_invested / (amount_invested + entry_valuation).
-        For pro-rata deals, entry_valuation is already post-money (target_valuation).
-        """
-        if obj.is_pro_rata:
-            if float(obj.entry_valuation) == 0:
-                return 0
-            return (float(obj.amount_invested) / float(obj.entry_valuation)) * 100
-
-        denominator = float(obj.amount_invested) + float(obj.entry_valuation)
-        if denominator == 0:
-            return 0
-        return (float(obj.amount_invested) / denominator) * 100
+        from funds.selectors import deal_selectors
+        return deal_selectors.calculate_current_deal_post_money_ownership(obj)
 
     def get_ownership_after_dilution(self, obj):
-        """Calculates the individual diluted ownership of this specific deal based on subsequent rounds."""
-        initial_ownership = self.get_post_money_ownership(obj)
-        
-        if obj.is_pro_rata:
-            # Find all rounds that happened AFTER the round that created this deal
-            try:
-                creation_round = obj.investment_round
-                subsequent_rounds = InvestmentRound.objects.filter(
-                    fund=obj.fund, 
-                    company_name=obj.company_name,
-                    created_at__gt=creation_round.created_at
-                ).order_by('year', 'created_at')
-            except:
-                # Fallback
-                subsequent_rounds = InvestmentRound.objects.filter(
-                    fund=obj.fund,
-                    company_name=obj.company_name,
-                    year__gt=obj.entry_year
-                ).order_by('year', 'created_at')
-        else:
-            # All rounds for this company dilute the main deal
-            subsequent_rounds = InvestmentRound.objects.filter(
-                fund=obj.fund, 
-                company_name=obj.company_name
-            ).order_by('year', 'created_at')
-
-        # Apply dilution from each subsequent round
-        current_ownership = float(initial_ownership)
-        for round_obj in subsequent_rounds:
-            pre_money = float(round_obj.pre_money_valuation)
-            post_money = float(round_obj.target_valuation)
-            if post_money > 0:
-                dilution_factor = pre_money / post_money
-                current_ownership *= dilution_factor
-        
-        return current_ownership
-
+        from funds.selectors import deal_selectors
+        return deal_selectors.calculate_current_deal_ownership_after_dilution(obj)
 
     def get_moic(self, obj):
         """Formula: latest_valuation / post_money_valuation (entry_valuation + amount_invested)."""
@@ -372,9 +275,8 @@ class CurrentDealSerializer(serializers.ModelSerializer):
         return float(obj.latest_valuation) / post_money_valuation
 
     def get_final_exit_amount(self, obj):
-        """Formula: ownership_after_dilution % * latest_valuation."""
-        ownership_decimal = float(self.get_ownership_after_dilution(obj)) / 100
-        return ownership_decimal * float(obj.latest_valuation)
+        from funds.selectors import deal_selectors
+        return deal_selectors.calculate_current_deal_final_exit_amount(obj)
 
 class FundSerializer(serializers.ModelSerializer):
     created_by_email = serializers.EmailField(source="created_by.email", read_only=True)
@@ -433,7 +335,7 @@ class FundLogSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "actor", "actor_email", "target_fund", "target_fund_name", "timestamp"]
 
-from .models import InvestorAction
+from funds.models import InvestorAction
 
 class RiskAssessmentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -503,7 +405,7 @@ class InvestorActionSerializer(serializers.ModelSerializer):
                 
         return data
 
-from .models import Report
+from funds.models import Report
 
 class ReportSerializer(serializers.ModelSerializer):
     fund_name = serializers.CharField(source="fund.name", read_only=True)
