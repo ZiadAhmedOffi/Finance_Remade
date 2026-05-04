@@ -1063,6 +1063,15 @@ const PublicReportPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* 5. STRATEGIC RADAR PERFORMANCE */}
+                <section className="radar-section report-container" style={{ marginTop: '6rem' }}>
+                  <div className="section-title-premium"><h2>Performance Dynamics</h2></div>
+                  <FundPerformanceRadarChart 
+                    data={dashboard?.performance_table || []} 
+                    irr={cIrr} 
+                  />
+                </section>
               </section>
             );
 
