@@ -17,6 +17,11 @@ import {
   ReferenceLine,
   ReferenceArea,
   Area,
+  Radar,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
 } from "recharts";
 import "./PublicReport.css";
 import { calculateLiquidityIndex } from "../utils/liquidityUtils";
@@ -1037,42 +1042,141 @@ const PublicReportPage: React.FC = () => {
 
           case 'liquidity_analysis':
             return (
-              <section key={section.id} className="stability-liquidity-section report-container" style={{ marginTop: '4rem' }}>
-                <div className="section-title-premium"><h2>Liquidity Analysis</h2></div>
-                <div className="stability-liquidity-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '2rem' }}>
-                  <div className="content-card" style={{ padding: '2.5rem' }}>
-                    <h3 style={{ textAlign: 'center', marginBottom: '2rem', border: 'none' }}>Liquidity Index</h3>
-                    <div style={{ height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {liData && (
-                        <LiquidityGauge value={liData.finalLI} portfolioL={liData.portfolioL} ageFactor={liData.ageFactor} age={liData.age} fundName={report.fund_name} />
-                      )}
-                    </div>
-                  </div>
-                  <div className="content-card" style={{ padding: '2.5rem' }}>
-                    <h3 style={{ textAlign: 'center', marginBottom: '2rem', border: 'none' }}>Market Benchmarks</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                      {comparisons.sort((a, b) => b.li - a.li).map((comp) => (
-                        <div key={comp.name} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                          <span style={{ fontSize: '0.7rem', color: '#64748b', width: '140px' }}>{comp.name} {comp.isCurrent && "(Current)"}</span>
-                          <div style={{ flex: 1, height: '6px', backgroundColor: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ width: `${comp.li}%`, height: '100%', background: comp.li >= 60 ? '#10b981' : comp.li >= 40 ? '#fbbf24' : '#ef4444', opacity: comp.isCurrent ? 1 : 0.7 }} />
-                          </div>
-                          <span style={{ fontSize: '0.7rem', fontWeight: '700', width: '35px' }}>{comp.li.toFixed(0)}%</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                  <section className="stability-liquidity-section report-container" style={{ marginTop: '4rem' }}>
+                    <div className="section-title-premium"><h2>Portfolio Stability & Market Liquidity</h2></div>
+                    
+                    <div className="stability-liquidity-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '2rem' }}>
+                      {/* Intrinsic Value Radar */}
+                      <div className="content-card" style={{ padding: '2.5rem' }}>
+                        <h3 style={{ textAlign: 'center', marginBottom: '2rem', border: 'none' }}>Intrinsic Value</h3>
+                        <div style={{ width: '100%', height: 450 }}>
+                          <ResponsiveContainer>
+                            <RadarChart cx="50%" cy="50%" outerRadius="80%" data={(() => {
+                              const farthestDealsMap = new Map();
+                              
+                              current_deals.forEach((d: any) => {
+                                const dist = Math.abs(d.entry_year - currentYear);
+                                const existingDeal = farthestDealsMap.get(d.company_name);
+                                if (!existingDeal || dist > Math.abs(existingDeal.entry_year - currentYear)) {
+                                  farthestDealsMap.set(d.company_name, d);
+                                }
+                              });
+                              
+                              const result: any[] = [];
+                              farthestDealsMap.forEach((d) => {
+                                const entryVal = parseFloat(d.entry_valuation);
+                                const currentVal = parseFloat(d.latest_valuation);
+                                const exitMultiple = parseFloat(d.expected_exit_multiple || 5.0);
+                                const ownership = parseFloat(d.ownership_after_dilution || 0);
+                                const targetVal = entryVal * exitMultiple;
+                                
+                                result.push({
+                                  subject: d.company_name,
+                                  entry: targetVal > 0 ? (entryVal / targetVal) * 100 : 0,
+                                  current: targetVal > 0 ? (currentVal / targetVal) * 100 : 0,
+                                  expected: 100,
+                                  upside: 120,
+                                  highGrowth: 150,
+                                  full_name: d.company_name,
+                                  raw_entry: entryVal,
+                                  raw_current: currentVal,
+                                  raw_expected: targetVal,
+                                  ownership: ownership
+                                });
+                              });
+                              
+                              return result;
+                            })()}>
+                              <PolarGrid />
+                              <PolarAngleAxis 
+                                dataKey="subject" 
+                                tick={(() => {
+                                  const uniqueCompanies = new Set(current_deals.map((d: any) => d.company_name));
+                                  return uniqueCompanies.size > 15 ? false : { fill: '#64748b', fontSize: '0.8rem' };
+                                })()}
+                              />
+                              <PolarRadiusAxis angle={30} domain={[0, 150]} tick={false} axisLine={false} />
+                              <Radar name="Entry Valuation" dataKey="entry" stroke="#3498db" fill="#3498db" fillOpacity={0.4} />
+                              <Radar name="Current Valuation" dataKey="current" stroke="#2ecc71" fill="#2ecc71" fillOpacity={0.5} />
+                              <Radar name="Base Case" dataKey="expected" stroke="#6ee7b7" fill="transparent" strokeDasharray="5 5" />
+                              <Radar name="Upside Case" dataKey="upside" stroke="#10b981" fill="transparent" strokeDasharray="5 5" />
+                              <Radar name="High Growth Case" dataKey="highGrowth" stroke="#065f46" fill="transparent" strokeDasharray="5 5" />
+                              <Tooltip content={({ active, payload }) => {
+                                if (active && payload && payload.length) {
+                                  const d = payload[0].payload;
+                                  let achievedScenario = "In Progress";
+                                  if (d.current >= 150) achievedScenario = "High Growth Scenario";
+                                  else if (d.current >= 120) achievedScenario = "Upward Scenario";
+                                  else if (d.current >= 100) achievedScenario = "Base Scenario";
 
-                {/* 5. STRATEGIC RADAR PERFORMANCE */}
-                <section className="radar-section report-container" style={{ marginTop: '6rem' }}>
-                  <div className="section-title-premium"><h2>Performance Dynamics</h2></div>
-                  <FundPerformanceRadarChart 
-                    data={dashboard?.performance_table || []} 
-                    irr={cIrr} 
-                  />
-                </section>
-              </section>
+                                  return (
+                                    <div className="custom-tooltip" style={{ 
+                                      backgroundColor: '#fff', padding: '12px', border: '1px solid #e2e8f0',
+                                      borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                                      fontSize: '0.85rem', lineHeight: '1.5'
+                                    }}>
+                                      <p style={{ fontWeight: 'bold', marginBottom: '8px', color: '#1e293b', borderBottom: '1px solid #f1f5f9', paddingBottom: '4px' }}>{d.full_name}</p>
+                                      <p style={{ margin: '2px 0' }}><span style={{ color: '#64748b' }}>Ownership:</span> <strong>{d.ownership.toFixed(2)}%</strong></p>
+                                      <p style={{ margin: '2px 0' }}><span style={{ color: '#3498db' }}>Entry Val:</span> <strong>{formatCurrencyLong(d.raw_entry)}</strong> ({d.entry.toFixed(1)}%)</p>
+                                      <p style={{ margin: '2px 0' }}><span style={{ color: '#2ecc71' }}>Current Val:</span> <strong>{formatCurrencyLong(d.raw_current)}</strong> ({d.current.toFixed(1)}%)</p>
+                                      <p style={{ margin: '2px 0' }}><span style={{ color: '#129448' }}>Expected Exit Val:</span> <strong>{formatCurrencyLong(d.raw_expected)}</strong> ({100}%)</p>
+                                      <p style={{ margin: '8px 0 0', fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>Achieved Scenario: {achievedScenario}</p>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              }} />
+                              <Legend />
+                            </RadarChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <p style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: '#64748b', lineHeight: '1.6', textAlign: 'center' }}>
+                          The Intrinsic Value graph visualizes each portfolio company's journey from entry valuation towards its target exit valuation. 
+                        </p>
+                      </div>
+
+                      {/* Liquidity Index */}
+                      <div className="content-card" style={{ padding: '2.5rem' }}>
+                        <h3 style={{ textAlign: 'center', marginBottom: '2rem', border: 'none' }}>Liquidity Index</h3>
+                        <div style={{ height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {liData && (
+                            <LiquidityGauge 
+                              value={liData.finalLI} 
+                              portfolioL={liData.portfolioL} 
+                              ageFactor={liData.ageFactor} 
+                              age={liData.age} 
+                              fundName={fundName}
+                            />
+                          )}
+                        </div>
+
+                        <div style={{ marginTop: '0.75rem' }}>
+                          <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: '#1e293b', marginTop: '2rem', border: 'none', fontWeight: 700 }}>Liquidity Benchmarks</h4>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                            {comparisons.sort((a, b) => b.li - a.li).map((comp) => {
+                              const barColor = comp.li >= 60 ? '#10b981' : comp.li >= 40 ? '#fbbf24' : '#ef4444';
+                              return (
+                                <div key={comp.name} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                  <span style={{ fontSize: '0.7rem', color: '#64748b', width: '140px' }}>{comp.name} {comp.isCurrent && "(Current)"}</span>
+                                  <div style={{ flex: 1, height: '6px', backgroundColor: '#e2e8f0', borderRadius: '3px', overflow: 'hidden', border: comp.isCurrent ? '1px solid #1e293b' : 'none' }}>
+                                    <div style={{ 
+                                      width: `${comp.li}%`, height: '100%', 
+                                      background: barColor,
+                                      opacity: comp.isCurrent ? 1 : 0.7
+                                    }} />
+                                  </div>
+                                  <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#1e293b', width: '35px' }}>{comp.li.toFixed(0)}%</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <p style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: '#64748b', lineHeight: '1.6', textAlign: 'center' }}>
+                          The Liquidity Index assesses the portfolio's realization potential and risk maturity.
+                        </p>
+                      </div>
+                    </div>
+                  </section>
             );
 
           case 'call_timeline':
