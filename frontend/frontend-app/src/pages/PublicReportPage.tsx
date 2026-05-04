@@ -713,7 +713,7 @@ const PublicReportPage: React.FC = () => {
                       <span className="m-value">{formatPercent(total)}</span>
                       <div className="m-subvalue">
                         <span style={{ color: getMetricColor(targetYield) }}>Yield: {formatPercent(targetYield / 100)}</span>
-                        <span style={{ color: getMetricColor(targetAppreciation) }}>Gain: {formatPercent(gain)}}</span>
+                        <span style={{ color: getMetricColor(targetAppreciation) }}>Gain: {formatPercent(gain)}</span>
                       </div>
                     </div>
                     <div className="metric-card-modern">
