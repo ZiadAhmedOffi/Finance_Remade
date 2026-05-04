@@ -111,6 +111,7 @@ class InvestmentDealSerializer(serializers.ModelSerializer):
             "company_name",
             "company_type",
             "industry",
+            "investment_type",
             "entry_year",
             "exit_year",
             "amount_invested",
@@ -301,6 +302,8 @@ class FundSerializer(serializers.ModelSerializer):
             "target_appreciation",
             "target_yield",
             "target_capital_allocation",
+            "investment_composition",
+            "risk_measures",
             "report_config",
             "created_by",
             "created_by_email",
@@ -329,6 +332,25 @@ class FundSerializer(serializers.ModelSerializer):
         
         if abs(total - 100) > 0.0001:  # Using epsilon for float comparison
             raise serializers.ValidationError(f"The sum of capital allocation percentages must be exactly 100% (currently {total}%).")
+        return value
+
+    def validate_investment_composition(self, value):
+        if not value:
+            return value
+        
+        total = 0
+        for item in value:
+            if not item.get("label"):
+                raise serializers.ValidationError("Each composition entry must have a label.")
+            if "value" not in item:
+                raise serializers.ValidationError("Each composition entry must have a percentage value.")
+            try:
+                total += float(item.get("value", 0))
+            except (ValueError, TypeError):
+                raise serializers.ValidationError("Percentage value must be a number.")
+        
+        if abs(total - 100) > 0.0001:
+            raise serializers.ValidationError(f"The sum of investment composition percentages must be exactly 100% (currently {total}%).")
         return value
 
     def get_steering_committee(self, obj):

@@ -332,10 +332,60 @@
 }
 .pill.active { background: #2563eb; color: white; border-color: #2563eb; }
 
-/* Legend Dots */
-.dot.lockup { background: #d97706; }
-.dot.secondary { background: #2563eb; opacity: 0.5; }
-.dot.maturity { background: #1e293b; }
+/* --- NEW CAPITAL CALL SECTIONS --- */
+
+.charts-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.chart-wrapper {
+  background: white;
+  padding: 2rem;
+  border-radius: 20px;
+  border: 1px solid #f1f5f9;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.chart-wrapper h3 {
+  font-size: 1.1rem;
+  color: #1e293b;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.risk-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+.risk-card {
+  padding: 1.5rem;
+  border-radius: 16px;
+  background: #f0fdf4;
+  border: 1px solid #dcfce7;
+  transition: transform 0.2s;
+}
+
+.risk-card:hover {
+  transform: translateY(-5px);
+}
+
+.risk-card h4 {
+  color: #166534;
+  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
+}
+
+.risk-card p {
+  color: #14532d;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
 
 /* Reasons Cards */
 .horizontal-scroll-container {

@@ -6,6 +6,7 @@ interface PerformanceEntry {
   total_portfolio_value_with_prognosis: number;
   cumulative_injection_with_prognosis: number;
   is_future: boolean;
+  irr?: number;
 }
 
 interface FundPerformanceRadarChartProps {
@@ -50,12 +51,13 @@ const FundPerformanceRadarChart: React.FC<FundPerformanceRadarChartProps> = ({ d
           const entry = data[idx];
           const moic = moicValues[idx].toFixed(2);
           const val = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact' }).format(entry.total_portfolio_value_with_prognosis);
+          const displayIrr = entry.irr !== undefined ? entry.irr : irr;
           return `
             <div style="padding: 5px;">
               <div style="font-weight: 800; margin-bottom: 5px; color: #64748b;">${entry.year} ${entry.is_future ? '(Projected)' : '(Achieved)'}</div>
               <div style="color: #2563eb;">Portfolio: <b>${val}</b></div>
               <div style="color: #f59e0b;">MOIC: <b>${moic}x</b></div>
-              <div style="color: #8b5cf6;">IRR: <b>${(irr * 100).toFixed(2)}%</b></div>
+              <div style="color: #8b5cf6;">IRR: <b>${(displayIrr * 100).toFixed(2)}%</b></div>
             </div>
           `;
         }

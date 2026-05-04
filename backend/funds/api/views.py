@@ -718,7 +718,9 @@ def get_fund_performance_data(fund):
     trajectory = calculators.calculate_nav_trajectory(
         start_year, end_year, current_year, fund_end_year,
         c_injections_by_year, p_injections_by_year,
-        safe_c_irr, safe_p_irr
+        safe_c_irr, safe_p_irr,
+        is_future=(fund.status == "FUTURE"),
+        target_appreciation=fund.target_appreciation
     )
 
     current_deals_by_year = {}
@@ -758,6 +760,7 @@ def get_fund_performance_data(fund):
             "cumulative_injection_with_prognosis": cum_inj_with_p,
             "cumulative_deals_count_current": cum_deals_c,
             "cumulative_deals_count_prognosis": cum_deals_total,
+            "irr": point.get("irr", 0.0)
         })
 
     # Aggregated Exits (Current Deals)

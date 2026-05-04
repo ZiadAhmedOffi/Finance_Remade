@@ -23,6 +23,16 @@ interface CapitalAllocationEntry {
   percentage: number;
 }
 
+interface CompositionEntry {
+  label: string;
+  value: number;
+}
+
+interface RiskMeasure {
+  title: string;
+  description: string;
+}
+
 interface Fund {
   id: string;
   name: string;
@@ -39,6 +49,8 @@ interface Fund {
   target_appreciation: number;
   target_yield: number;
   target_capital_allocation: CapitalAllocationEntry[];
+  investment_composition: CompositionEntry[];
+  risk_measures: RiskMeasure[];
   report_config: any;
   steering_committee: string[];
   status: "ESTABLISHED" | "FUTURE" | "DEACTIVATED";
@@ -86,6 +98,8 @@ const FundDashboard: React.FC = () => {
   const [targetAppreciation, setTargetAppreciation] = useState<number>(0);
   const [targetYield, setTargetYield] = useState<number>(0);
   const [targetAllocation, setTargetAllocation] = useState<CapitalAllocationEntry[]>([]);
+  const [investmentComposition, setInvestmentComposition] = useState<CompositionEntry[]>([]);
+  const [riskMeasures, setRiskMeasures] = useState<RiskMeasure[]>([]);
   
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isSCMember, setIsSCMember] = useState(false);
@@ -127,6 +141,8 @@ const FundDashboard: React.FC = () => {
       setTargetAppreciation(response.data.target_appreciation || 0);
       setTargetYield(response.data.target_yield || 0);
       setTargetAllocation(response.data.target_capital_allocation || []);
+      setInvestmentComposition(response.data.investment_composition || []);
+      setRiskMeasures(response.data.risk_measures || []);
       checkPermissions(response.data);
       setError(null);
     } catch (err: any) {
@@ -168,6 +184,13 @@ const handleUpdateInfo = async (e: React.FormEvent) => {
     return;
   }
 
+  // Validate Investment Composition Sum
+  const totalComposition = investmentComposition.reduce((sum, entry) => sum + parseFloat(entry.value as any || 0), 0);
+  if (investmentComposition.length > 0 && Math.abs(totalComposition - 100) > 0.001) {
+    alert(`Investment Composition must sum to exactly 100% (currently ${totalComposition}%).`);
+    return;
+  }
+
   try {
     await api.put(`/funds/${fundId}/`, {
       name: newName,
@@ -184,6 +207,8 @@ const handleUpdateInfo = async (e: React.FormEvent) => {
       target_appreciation: targetAppreciation,
       target_yield: targetYield,
       target_capital_allocation: targetAllocation,
+      investment_composition: investmentComposition,
+      risk_measures: riskMeasures,
     });
     setMessage("Fund information updated successfully!");
     fetchFundData();
@@ -616,6 +641,153 @@ const handleUpdateInfo = async (e: React.FormEvent) => {
                               <tr>
                                 <td colSpan={4} style={{ textAlign: 'center', color: '#64748b', padding: '1rem' }}>
                                   No allocations defined yet.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <div className="composition-section" style={{ marginTop: '2.5rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <h4 style={{ margin: 0 }}>Investment Composition (e.g. Ventures vs SMEs)</h4>
+                        <button 
+                          type="button" 
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => setInvestmentComposition([...investmentComposition, { label: "", value: 0 }])}
+                        >
+                          + Add Entry
+                        </button>
+                      </div>
+                      
+                      <div className="table-responsive">
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>Label</th>
+                              <th style={{ width: '150px' }}>Percentage (%)</th>
+                              <th style={{ width: '80px' }}>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {investmentComposition.map((comp, idx) => (
+                              <tr key={idx}>
+                                <td>
+                                  <input 
+                                    type="text" 
+                                    value={comp.label} 
+                                    onChange={(e) => {
+                                      const newComp = [...investmentComposition];
+                                      newComp[idx].label = e.target.value;
+                                      setInvestmentComposition(newComp);
+                                    }}
+                                    placeholder="e.g. Ventures"
+                                    className="form-input-sm"
+                                  />
+                                </td>
+                                <td>
+                                  <input 
+                                    type="number" 
+                                    step="0.1"
+                                    value={comp.value} 
+                                    onChange={(e) => {
+                                      const newComp = [...investmentComposition];
+                                      newComp[idx].value = parseFloat(e.target.value);
+                                      setInvestmentComposition(newComp);
+                                    }}
+                                    placeholder="0.0"
+                                    className="form-input-sm"
+                                  />
+                                </td>
+                                <td>
+                                  <button 
+                                    type="button" 
+                                    className="btn-icon delete"
+                                    onClick={() => setInvestmentComposition(investmentComposition.filter((_, i) => i !== idx))}
+                                  >
+                                    🗑️
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                            {investmentComposition.length === 0 && (
+                              <tr>
+                                <td colSpan={3} style={{ textAlign: 'center', color: '#64748b', padding: '1rem' }}>
+                                  No composition defined yet (Default: 50% Ventures / 50% SMEs).
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <div className="risk-measures-section" style={{ marginTop: '2.5rem', marginBottom: '2rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <h4 style={{ margin: 0 }}>Risk Measures</h4>
+                        <button 
+                          type="button" 
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => setRiskMeasures([...riskMeasures, { title: "", description: "" }])}
+                        >
+                          + Add Risk Measure
+                        </button>
+                      </div>
+                      
+                      <div className="table-responsive">
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th style={{ width: '30%' }}>Title</th>
+                              <th>Description</th>
+                              <th style={{ width: '80px' }}>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {riskMeasures.map((risk, idx) => (
+                              <tr key={idx}>
+                                <td>
+                                  <input 
+                                    type="text" 
+                                    value={risk.title} 
+                                    onChange={(e) => {
+                                      const newRisks = [...riskMeasures];
+                                      newRisks[idx].title = e.target.value;
+                                      setRiskMeasures(newRisks);
+                                    }}
+                                    placeholder="Risk Title"
+                                    className="form-input-sm"
+                                  />
+                                </td>
+                                <td>
+                                  <textarea 
+                                    value={risk.description} 
+                                    onChange={(e) => {
+                                      const newRisks = [...riskMeasures];
+                                      newRisks[idx].description = e.target.value;
+                                      setRiskMeasures(newRisks);
+                                    }}
+                                    placeholder="Description of the risk..."
+                                    className="form-input-sm"
+                                    rows={2}
+                                  />
+                                </td>
+                                <td>
+                                  <button 
+                                    type="button" 
+                                    className="btn-icon delete"
+                                    onClick={() => setRiskMeasures(riskMeasures.filter((_, i) => i !== idx))}
+                                  >
+                                    🗑️
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                            {riskMeasures.length === 0 && (
+                              <tr>
+                                <td colSpan={3} style={{ textAlign: 'center', color: '#64748b', padding: '1rem' }}>
+                                  No risk measures added yet.
                                 </td>
                               </tr>
                             )}

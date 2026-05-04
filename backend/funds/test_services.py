@@ -71,3 +71,29 @@ class ServiceIntegrationTest(TestCase):
         # Delete
         ReportService.delete_report(actor=self.user, report=report)
         self.assertFalse(Report.objects.filter(id=report.id).exists())
+
+    def test_capital_call_report_creation(self):
+        fund = Fund.objects.create(name="CC Fund", created_by=self.user)
+        report_data = {
+            "name": "Series A Call",
+            "fund": fund.id,
+            "report_type": "CAPITAL_CALL",
+            "config_json": {
+                "target_capital": 1000000,
+                "capital_raised": 500000,
+                "report_config": {"sections": []}
+            }
+        }
+        report = ReportService.create_report(actor=self.user, data=report_data)
+        self.assertEqual(report.report_type, "CAPITAL_CALL")
+        self.assertEqual(report.config_json["target_capital"], 1000000)
+        
+        # Verify slug generation
+        self.assertTrue(report.slug)
+        self.assertEqual(len(report.slug), 8)
+
+        # Regenerate
+        ReportService.regenerate_report(actor=self.user, report=report)
+        report.refresh_from_db()
+        self.assertEqual(report.status, "ACTIVE")
+        self.assertTrue(report.static_url.endswith(f"/reports/{report.slug}/index.html"))

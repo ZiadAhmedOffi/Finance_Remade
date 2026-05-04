@@ -31,14 +31,22 @@ const DEFAULT_DYNAMIC_SECTIONS = [
 
 const DEFAULT_CAPITAL_CALL_SECTIONS = [
   { id: "cc_overview", title: "Capital Call Overview" },
-  { id: "investment_case", title: "Investment Case" },
+  { id: "fund_strategy", title: "Fund Strategy" },
+  { id: "capital_allocation", title: "Capital Allocation & Composition" },
+  { id: "investment_case", title: "Investment Case & Yield" },
+  { id: "projected_growth_graph", title: "Projected Growth Graph" },
+  { id: "basepoints_graph", title: "Basepoints Analysis" },
+  { id: "risk_profile", title: "Risk Profile & Measures" },
   { id: "why_invest", title: "Why Invest" },
-  { id: "liquidity_analysis", title: "Liquidity Analysis" }
+  { id: "liquidity_analysis", title: "Liquidity Analysis" },
+  { id: "call_timeline", title: "Call Timeline" },
+  { id: "contact_info", title: "Contact Information" }
 ];
 
 const ReportsTab: React.FC<ReportsTabProps> = ({ fundId, isAdmin }) => {
   const [dynamicReports, setDynamicReports] = useState<Report[]>([]);
   const [capitalCallReports, setCapitalCallReports] = useState<Report[]>([]);
+  const [fund, setFund] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -81,13 +89,19 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ fundId, isAdmin }) => {
       
       setDynamicReports(dynamicRes.data.filter((r: Report) => r.fund === fundId));
       setCapitalCallReports(capitalCallRes.data.filter((r: Report) => r.fund === fundId));
+      setFund(fundRes.data);
       
       if (fundRes.data.report_config && Object.keys(fundRes.data.report_config).length > 0) {
-        let config = fundRes.data.report_config;
+        let config = JSON.parse(JSON.stringify(fundRes.data.report_config));
         
-        // Migration logic for old format
-        const migrate = (type: 'dynamic' | 'capital_call', defaults: any[]) => {
-          if (config[type] && (config[type].enabled_sections || config[type].custom_sections)) {
+        const ensureSections = (type: 'dynamic' | 'capital_call', defaults: any[]) => {
+          if (!config[type]) {
+            config[type] = { sections: defaults.map(s => ({ ...s, enabled: true, type: 'DEFAULT' })) };
+            return;
+          }
+
+          // Handle old format migration
+          if (config[type].enabled_sections || config[type].custom_sections) {
             const enabled = config[type].enabled_sections || [];
             const custom = config[type].custom_sections || [];
             config[type].sections = [
@@ -96,11 +110,23 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ fundId, isAdmin }) => {
             ];
             delete config[type].enabled_sections;
             delete config[type].custom_sections;
+          } else if (config[type].sections) {
+            // Merge new defaults into existing sections array if missing
+            const existingIds = config[type].sections.map((s: any) => s.id);
+            const missingDefaults = defaults.filter(d => !existingIds.includes(d.id));
+            if (missingDefaults.length > 0) {
+              config[type].sections = [
+                ...config[type].sections,
+                ...missingDefaults.map(s => ({ ...s, enabled: true, type: 'DEFAULT' }))
+              ];
+            }
+          } else {
+             config[type].sections = defaults.map(s => ({ ...s, enabled: true, type: 'DEFAULT' }));
           }
         };
 
-        migrate('dynamic', DEFAULT_DYNAMIC_SECTIONS);
-        migrate('capital_call', DEFAULT_CAPITAL_CALL_SECTIONS);
+        ensureSections('dynamic', DEFAULT_DYNAMIC_SECTIONS);
+        ensureSections('capital_call', DEFAULT_CAPITAL_CALL_SECTIONS);
         
         setReportConfig(config);
       }
@@ -218,7 +244,13 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ fundId, isAdmin }) => {
         config_json: {
           target_capital: parseFloat(targetCapital),
           capital_raised: parseFloat(capitalRaised),
-          report_config: reportConfig.capital_call // Store snapshot
+          report_config: reportConfig.capital_call, // Snapshot configuration
+          fund_snapshot: { // New fields for snapshotting
+            target_appreciation: fund?.target_appreciation || 0,
+            target_yield: fund?.target_yield || 0,
+            investment_composition: fund?.investment_composition || [],
+            risk_measures: fund?.risk_measures || []
+          }
         }
       });
       setNewReportName("");

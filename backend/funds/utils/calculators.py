@@ -46,7 +46,7 @@ def solve_implied_return_rate(injections_by_year, final_year, final_value):
 
 def calculate_nav_trajectory(start_year, end_year, current_year, fund_end_year, 
                             c_injections_by_year, p_injections_by_year, 
-                            safe_c_irr, safe_p_irr):
+                            safe_c_irr, safe_p_irr, is_future=False, target_appreciation=0.0):
     """
     Calculates the NAV trajectory (Current and Prognosis parts) year by year.
 
@@ -56,13 +56,18 @@ def calculate_nav_trajectory(start_year, end_year, current_year, fund_end_year,
     trajectory = []
     c_pv = 0.0
     p_pv = 0.0
+    target_appreciation_decimal = float(target_appreciation) / 100.0
 
     for yr in range(start_year, end_year + 1):
         c_inj = c_injections_by_year.get(yr, 0.0)
         p_inj = p_injections_by_year.get(yr, 0.0)
         
-        # Apply IRR growth for yr >= current_year
-        if yr >= current_year:
+        # Apply growth for yr >= current_year
+        if is_future:
+            # Future funds use target_appreciation as constant annual growth
+            effective_c_irr = target_appreciation_decimal
+            effective_p_irr = target_appreciation_decimal
+        elif yr >= current_year:
             growth_factor = 0.75 ** (yr - current_year + 1)
             effective_c_irr = safe_c_irr * growth_factor
             effective_p_irr = safe_p_irr * growth_factor
@@ -83,7 +88,8 @@ def calculate_nav_trajectory(start_year, end_year, current_year, fund_end_year,
             "c_appr": c_appr,
             "p_appr": p_appr,
             "c_inj": c_inj,
-            "p_inj": p_inj
+            "p_inj": p_inj,
+            "irr": effective_c_irr if not is_future else target_appreciation_decimal
         })
         
     return trajectory

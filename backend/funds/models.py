@@ -73,6 +73,16 @@ class Fund(models.Model):
     target_appreciation = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     target_yield = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     target_capital_allocation = models.JSONField(default=list, blank=True)
+    investment_composition = models.JSONField(
+        default=list, 
+        blank=True,
+        help_text="Customizable investment composition (e.g. Ventures vs SMEs)"
+    )
+    risk_measures = models.JSONField(
+        default=list, 
+        blank=True,
+        help_text="Structured list of risk measures with title and description"
+    )
     report_config = models.JSONField(default=dict, blank=True)
 
     class Meta:
@@ -198,6 +208,12 @@ class InvestmentDeal(models.Model):
         ("UPSIDE", "Upside"),
     ]
 
+    INVESTMENT_TYPE_CHOICES = [
+        ("EQUITY", "Equity Financing"),
+        ("VENTURE_DEBT", "Venture Debt"),
+        ("VENTURE_DEBT_ROYALTIES", "Venture Debt with Royalties (Shariah Compliant)"),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     fund = models.ForeignKey(Fund, on_delete=models.CASCADE, related_name="deals")
     
@@ -205,6 +221,11 @@ class InvestmentDeal(models.Model):
     company_name = models.CharField(max_length=255)
     company_type = models.CharField(max_length=100, blank=True)
     industry = models.CharField(max_length=100, blank=True)
+    investment_type = models.CharField(
+        max_length=50, 
+        choices=INVESTMENT_TYPE_CHOICES, 
+        default="EQUITY"
+    )
     
     # Investment Timing
     entry_year = models.PositiveIntegerField(default=2024)
