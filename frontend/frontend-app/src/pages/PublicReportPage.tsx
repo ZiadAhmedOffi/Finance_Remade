@@ -674,7 +674,8 @@ const PublicReportPage: React.FC = () => {
       {/* Main Content Sections (In saved order) */}
       {sections.map((section: any) => {
         if (!section.enabled) return null;
-
+        const total = (targetAppreciation + targetYield === 0) ? cIrr : (targetAppreciation + targetYield) / 100;
+        const gain = (targetAppreciation + targetYield === 0) ? cIrr : (targetAppreciation) / 100;
         switch (section.id) {
           case 'cc_overview':
             return (
@@ -709,10 +710,10 @@ const PublicReportPage: React.FC = () => {
                     <div className="metric-card-modern">
                       <div className="m-icon">📈</div>
                       <span className="m-label">Annualized Return</span>
-                      <span className="m-value">{formatPercent((targetAppreciation + targetYield) / 100) || formatPercent(cIrr)}</span>
+                      <span className="m-value">{formatPercent(total)}</span>
                       <div className="m-subvalue">
                         <span style={{ color: getMetricColor(targetYield) }}>Yield: {formatPercent(targetYield / 100)}</span>
-                        <span style={{ color: getMetricColor(targetAppreciation) }}>Gain: {formatPercent(targetAppreciation / 100) || formatPercent(cIrr)}</span>
+                        <span style={{ color: getMetricColor(targetAppreciation) }}>Gain: {formatPercent(gain)}}</span>
                       </div>
                     </div>
                     <div className="metric-card-modern">
