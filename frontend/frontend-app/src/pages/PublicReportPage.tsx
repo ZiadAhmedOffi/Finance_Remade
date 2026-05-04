@@ -226,7 +226,10 @@ const PublicReportPage: React.FC = () => {
         "High Growth Case": 1.6
     };
     const rateFactor = multipliers[selectedScenario] || 1.0;
-    const appreciationRate = (targetAppreciation / 100) * rateFactor;
+    let appreciationRate = (targetAppreciation / 100) * rateFactor;
+    if(inceptionYear < currentYear){
+      appreciationRate = cIrr;
+    }
     
     const endYear = inceptionYear + fundLife;
     
