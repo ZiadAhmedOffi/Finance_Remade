@@ -105,6 +105,43 @@ const PublicReportPage: React.FC = () => {
     aggregated_exits = []
   } = performanceData || {};
 
+  const config = useMemo(() => {
+    const rawConfig = report?.config_json?.report_config;
+    if (!rawConfig) return { sections: [] };
+    
+    // If it's the old format (enabled_sections + custom_sections), migrate it for display
+    if (rawConfig.enabled_sections || rawConfig.custom_sections) {
+      const isDynamic = report.report_type === 'DYNAMIC';
+      const defaults = isDynamic ? [
+        { id: "perf_overview", title: "Performance Overview" },
+        { id: "portfolio_comp", title: "Portfolio Composition" },
+        { id: "value_appreciation", title: "Value Appreciation" },
+        { id: "risk_assessment", title: "Risk Assessment" },
+        { id: "deal_prognosis", title: "Deal Prognosis" }
+      ] : [
+        { id: "cc_overview", title: "Capital Call Overview" },
+        { id: "investment_case", title: "Investment Case" },
+        { id: "why_invest", title: "Why Invest" },
+        { id: "liquidity_analysis", title: "Liquidity Analysis" }
+      ];
+
+      return {
+        sections: [
+          ...defaults.map(d => ({ ...d, enabled: (rawConfig.enabled_sections || []).includes(d.id), type: 'DEFAULT' })),
+          ...(rawConfig.custom_sections || []).map((s: any) => ({ ...s, enabled: true, type: 'CUSTOM' }))
+        ]
+      };
+    }
+    
+    return rawConfig;
+  }, [report]);
+
+  const isEnabled = (id: string) => {
+    if (!report?.config_json?.report_config) return true;
+    const section = config.sections.find((s: any) => s.id === id);
+    return section ? section.enabled : false;
+  };
+
   const cIrr = current_deals_metrics?.irr || 0;
 
   const fundIrr = useMemo(() => {
@@ -129,6 +166,274 @@ const PublicReportPage: React.FC = () => {
     const target = dashboard?.moic || 0;
     return (achieved + target) / 2;
   }, [current_deals_metrics, dashboard]);
+
+  // --- Capital Call Report Render Helpers ---
+  const renderCCOverview = () => (
+    <div key="cc_overview">
+      {/* 1. COVER SECTION */}
+      <section className="cover-section" style={{ 
+        position: 'relative', 
+        minHeight: '60vh', 
+        display: 'flex', 
+        alignItems: 'center',
+        background: '#0f172a',
+        overflow: 'hidden'
+      }}>
+        <div className="cover-image-container" style={{ 
+          position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0 
+        }}>
+          <img 
+            src="/Stock-Market-Arrows-iStock.jpg" 
+            alt="Fund Cover" 
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+          />
+          <div style={{ 
+            position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', 
+            background: 'linear-gradient(to bottom, rgba(15, 23, 42, 0.45), rgba(15, 23, 42, 0.55))' 
+          }} />
+        </div>
+        
+        <div className="cover-content report-container" style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+          <h1 className="capital-call-title" style={{ fontSize: '4rem', marginBottom: '1rem', color: 'white' }}>{report.name}</h1>
+          <div className="badge-row" style={{ justifyContent: 'center', marginBottom: '2rem' }}>
+            {report.fund_details?.sharia_compliant && <span className="premium-badge sharia">Sharia Compliant</span>}
+            {report.fund_details?.region && <span className="premium-badge region">{report.fund_details.region}</span>}
+            {report.fund_details?.tag && <span className="premium-badge focus">{report.fund_details.tag}</span>}
+          </div>
+          <p className="fund-subheadline" style={{ maxWidth: '800px', margin: '0 auto 3rem', fontSize: '1.2rem', opacity: 0.9, color: 'white' }}>
+            {report.fund_details?.description}
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '4rem' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '3rem', fontWeight: '900', color: '#60a5fa' }}>{formatCurrency(report.config_json?.target_capital)}</div>
+              <div style={{ fontSize: '0.9rem', textTransform: 'uppercase', opacity: 0.8, letterSpacing: '0.15em', marginTop: '0.5rem', color: 'white' }}>Target Capital</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '3rem', fontWeight: '900', color: '#34d399' }}>{formatCurrency(report.config_json?.capital_raised)}</div>
+              <div style={{ fontSize: '0.9rem', textTransform: 'uppercase', opacity: 0.8, letterSpacing: '0.15em', marginTop: '0.5rem', color: 'white' }}>Already Raised</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 2. KEY FUND METRICS */}
+      <section className="metrics-section report-container">
+        <div className="modern-metrics-container">
+          <div className="metrics-row">
+            <div className="metric-card-modern">
+              <div className="m-icon">📊</div>
+              <span className="m-label">Avg. MOIC</span>
+              <span className="m-value">{formatMultiple(avgMoic)}</span>
+            </div>
+            <div className="metric-card-modern">
+              <div className="m-icon">⏳</div>
+              <span className="m-label">Investment Period</span>
+              <span className="m-value">{report.fund_details?.model_inputs?.investment_period} Years</span>
+            </div>
+            {!hideLockup && (
+              <div className="metric-card-modern">
+                <div className="m-icon">🔒</div>
+                <span className="m-label">Lockup Period</span>
+                <span className="m-value">{report.fund_details?.model_inputs?.lock_up_period} Years</span>
+              </div>
+            )}
+            <div className="metric-card-modern">
+              <div className="m-icon">💱</div>
+              <span className="m-label">Currency</span>
+              <span className="m-value">USD</span>
+            </div>
+          </div>
+          <div className="metrics-row secondary">
+            <div className="metric-card-modern">
+              <div className="m-icon">📈</div>
+              <span className="m-label">Annualized Return</span>
+              <span className="m-value">{formatPercent(fundIrr)}</span>
+              <div className="m-subvalue">
+                <span>Yield: 0%</span>
+                <span className="highlight">Gain: {formatPercent(fundIrr)}</span>
+              </div>
+            </div>
+            <div className="metric-card-modern">
+              <div className="m-icon">🎯</div>
+              <span className="m-label">Strategy</span>
+              <span className="m-value" style={{ fontSize: '1.1rem' }}>{report.fund_details?.strategy || 'N/A'}</span>
+            </div>
+            <div className="metric-card-modern">
+              <div className="m-icon">🏗️</div>
+              <span className="m-label">Structure</span>
+              <span className="m-value" style={{ fontSize: '1.1rem' }}>{report.fund_details?.structure || 'N/A'}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 3. OVERVIEW SECTION */}
+      {report.fund_details?.overview && (
+        <section className="overview-section report-container">
+          <div className="section-title-premium"><h2>Opportunity Overview</h2></div>
+          <div className="prose-container">
+            <p className="prose-text-large">{report.fund_details.overview}</p>
+          </div>
+        </section>
+      )}
+    </div>
+  );
+
+  const renderLiquidityAnalysis = () => (
+    <section key="liquidity_analysis" className="stability-liquidity-section report-container" style={{ marginTop: '4rem' }}>
+      <div className="section-title-premium"><h2>Portfolio Stability & Market Liquidity</h2></div>
+      
+      <div className="stability-liquidity-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '2rem' }}>
+        {/* Intrinsic Value Radar */}
+        <div className="content-card" style={{ padding: '2.5rem' }}>
+          <h3 style={{ textAlign: 'center', marginBottom: '2rem', border: 'none' }}>Intrinsic Value</h3>
+          <div style={{ width: '100%', height: 450 }}>
+            <ResponsiveContainer>
+              <RadarChart cx="50%" cy="50%" outerRadius="80%" data={(() => {
+                const farthestDealsMap = new Map();
+                current_deals.forEach((d: any) => {
+                  const dist = Math.abs(d.entry_year - currentYear);
+                  const existingDeal = farthestDealsMap.get(d.company_name);
+                  if (!existingDeal || dist > Math.abs(existingDeal.entry_year - currentYear)) {
+                    farthestDealsMap.set(d.company_name, d);
+                  }
+                });
+                const result: any[] = [];
+                farthestDealsMap.forEach((d) => {
+                  const entryVal = parseFloat(d.entry_valuation);
+                  const currentVal = parseFloat(d.latest_valuation);
+                  const exitMultiple = parseFloat(d.expected_exit_multiple || 5.0);
+                  const targetVal = entryVal * exitMultiple;
+                  result.push({
+                    subject: d.company_name,
+                    entry: targetVal > 0 ? (entryVal / targetVal) * 100 : 0,
+                    current: targetVal > 0 ? (currentVal / targetVal) * 100 : 0,
+                    expected: 100, upside: 120, highGrowth: 150,
+                    full_name: d.company_name, raw_entry: entryVal, raw_current: currentVal, raw_expected: targetVal,
+                    ownership: parseFloat(d.ownership_after_dilution || 0)
+                  });
+                });
+                return result;
+              })()}>
+                <PolarGrid />
+                <PolarAngleAxis dataKey="subject" tick={current_deals.length > 15 ? false : { fill: '#64748b', fontSize: '0.8rem' }} />
+                <PolarRadiusAxis angle={30} domain={[0, 150]} tick={false} axisLine={false} />
+                <Radar name="Entry Valuation" dataKey="entry" stroke="#3498db" fill="#3498db" fillOpacity={0.4} />
+                <Radar name="Current Valuation" dataKey="current" stroke="#2ecc71" fill="#2ecc71" fillOpacity={0.5} />
+                <Radar name="Base Case" dataKey="expected" stroke="#6ee7b7" fill="transparent" strokeDasharray="5 5" />
+                <Radar name="Upside Case" dataKey="upside" stroke="#10b981" fill="transparent" strokeDasharray="5 5" />
+                <Radar name="High Growth Case" dataKey="highGrowth" stroke="#065f46" fill="transparent" strokeDasharray="5 5" />
+                <Tooltip content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const d = payload[0].payload;
+                    let achievedScenario = "In Progress";
+                    if (d.current >= 150) achievedScenario = "High Growth Scenario";
+                    else if (d.current >= 120) achievedScenario = "Upward Scenario";
+                    else if (d.current >= 100) achievedScenario = "Base Scenario";
+                    return (
+                      <div className="custom-tooltip" style={{ backgroundColor: '#fff', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '0.85rem' }}>
+                        <p style={{ fontWeight: 'bold', marginBottom: '8px', borderBottom: '1px solid #f1f5f9' }}>{d.full_name}</p>
+                        <p style={{ margin: '2px 0' }}>Ownership: <strong>{d.ownership.toFixed(2)}%</strong></p>
+                        <p style={{ margin: '2px 0' }}>Entry Val: <strong>{formatCurrencyLong(d.raw_entry)}</strong></p>
+                        <p style={{ margin: '2px 0' }}>Current Val: <strong>{formatCurrencyLong(d.raw_current)}</strong></p>
+                        <p style={{ margin: '8px 0 0', fontSize: '0.75rem', fontStyle: 'italic' }}>Scenario: {achievedScenario}</p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }} />
+                <Legend />
+              </RadarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Liquidity Index */}
+        <div className="content-card" style={{ padding: '2.5rem' }}>
+          <h3 style={{ textAlign: 'center', marginBottom: '2rem', border: 'none' }}>Liquidity Index</h3>
+          <div style={{ height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {liData && (
+              <LiquidityGauge value={liData.finalLI} portfolioL={liData.portfolioL} ageFactor={liData.ageFactor} age={liData.age} fundName={report.fund_name} />
+            )}
+          </div>
+          <div style={{ marginTop: '0.75rem' }}>
+            <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', marginTop: '2rem', border: 'none', fontWeight: 700 }}>Liquidity Benchmarks</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              {comparisons.sort((a, b) => b.li - a.li).map((comp) => (
+                <div key={comp.name} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <span style={{ fontSize: '0.7rem', color: '#64748b', width: '140px' }}>{comp.name} {comp.isCurrent && "(Current)"}</span>
+                  <div style={{ flex: 1, height: '6px', backgroundColor: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ width: `${comp.li}%`, height: '100%', background: comp.li >= 60 ? '#10b981' : comp.li >= 40 ? '#fbbf24' : '#ef4444', opacity: comp.isCurrent ? 1 : 0.7 }} />
+                  </div>
+                  <span style={{ fontSize: '0.7rem', fontWeight: '700', width: '35px' }}>{comp.li.toFixed(0)}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+
+  const renderInvestmentCase = () => (
+    <section key="investment_case" className="projection-section report-container" style={{ marginTop: '4rem' }}>
+      <div className="section-title-premium"><h2>Investment Case</h2></div>
+      <div className="projection-controls">
+        <div className="control-group">
+          <label>Investment Amount (USD)</label>
+          <input type="number" value={investmentAmount} onChange={(e) => setInvestmentAmount(parseFloat(e.target.value) || 0)} className="premium-input" />
+        </div>
+        <div className="control-group">
+          <label>Growth Scenario</label>
+          <div className="scenario-pills">
+            {aggregated_exits.map((c: any) => (
+              <button key={c.case} className={`pill ${selectedScenario === c.case ? 'active' : ''}`} onClick={() => setSelectedScenario(c.case)}>{c.case}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="chart-container-premium">
+        <ResponsiveContainer width="100%" height={450}>
+          <ComposedChart data={cashFlowProjectionData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+            <defs>
+              <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/><stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+            <XAxis dataKey="year" axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
+            <YAxis tickFormatter={formatCurrency} axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
+            <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }} formatter={(v: any) => [formatCurrencyLong(v), "Projected Value"]} />
+            {!hideLockup && (
+              <ReferenceArea x1={currentYear} x2={lockupEndYear} fill="#d97706" fillOpacity={0.15} label={{ value: 'Lockup', position: 'top', fill: '#d97706', fontSize: 10, fontWeight: '700' }} />
+            )}
+            <ReferenceLine x={maturityYear} stroke="#1e293b" strokeWidth={2} label={{ position: 'top', value: 'Maturity', fill: '#1e293b', fontSize: 10, fontWeight: '700' }} />
+            <Bar dataKey="investment" stackId="a" fill="#2563eb" name="Initial Investment" />
+            <Bar dataKey="base" stackId="a" fill="transparent" legendType="none" />
+            <Bar dataKey="growth" stackId="a" fill="#10b981" name="Capital Appreciation" />
+            <Area type="monotone" dataKey="value" stroke="#2563eb" strokeWidth={4} fillOpacity={1} fill="url(#colorValue)" />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
+  );
+
+  const renderWhyInvest = () => (
+    <section key="why_invest" className="reasons-invest-section report-container" style={{ marginTop: '4rem' }}>
+      <div className="section-title-premium"><h2>Why Invest With Us?</h2></div>
+      <div className="horizontal-scroll-container" ref={scrollRef}>
+        {report.fund_details.reasons_to_invest.map((reason: any, idx: number) => (
+          <div key={idx} className="reason-card-premium">
+            <div className="reason-num">0{idx + 1}</div>
+            <h3>{reason.title}</h3>
+            <p>{reason.brief_desc}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+
+  // --- Dynamic Report Logic ---
 
   // --- Dynamic Report Logic ---
 
@@ -259,135 +564,153 @@ const PublicReportPage: React.FC = () => {
         </header>
 
         <main className="report-container">
-          <section className="report-section">
-            <div className="report-section-header"><h2>Executive Summary</h2></div>
-            <p className="prose-text">
-              This report provides a comprehensive overview of the fund's current standing, realized returns, and future growth projections. 
-              As of {currentYear}, the portfolio shows strong resilience with a current MOIC of <strong>{formatMultiple(current_deals_metrics?.moic)}</strong> 
-              and a projected IRR of <strong>{formatPercent(dashboard?.irr)}</strong> upon full deployment.
-            </p>
-            
-            <div className="metrics-grid">
-              <div className="metric-card-revamp past">
-                <span className="card-icon">💼</span>
-                <span className="metric-label">Realized MOIC</span>
-                <span className="metric-value">{formatMultiple(current_deals_metrics?.moic)}</span>
+          {isEnabled('perf_overview') && (
+            <section className="report-section">
+              <div className="report-section-header"><h2>Executive Summary</h2></div>
+              <p className="prose-text">
+                This report provides a comprehensive overview of the fund's current standing, realized returns, and future growth projections. 
+                As of {currentYear}, the portfolio shows strong resilience with a current MOIC of <strong>{formatMultiple(current_deals_metrics?.moic)}</strong> 
+                and a projected IRR of <strong>{formatPercent(dashboard?.irr)}</strong> upon full deployment.
+              </p>
+              
+              <div className="metrics-grid">
+                <div className="metric-card-revamp past">
+                  <span className="card-icon">💼</span>
+                  <span className="metric-label">Realized MOIC</span>
+                  <span className="metric-value">{formatMultiple(current_deals_metrics?.moic)}</span>
+                </div>
+                <div className="metric-card-revamp future">
+                  <span className="card-icon">🚀</span>
+                  <span className="metric-label">Target IRR</span>
+                  <span className="metric-value">{formatPercent(dashboard?.irr)}</span>
+                </div>
+                <div className="metric-card-revamp past">
+                  <span className="card-icon">💰</span>
+                  <span className="metric-label">Capital Deployed</span>
+                  <span className="metric-value">{formatCurrency(current_deals_metrics?.total_invested)}</span>
+                </div>
+                <div className="metric-card-revamp future">
+                  <span className="card-icon">📈</span>
+                  <span className="metric-label">Projected Value</span>
+                  <span className="metric-value">{formatCurrency(dashboard?.gross_exit_value)}</span>
+                </div>
               </div>
-              <div className="metric-card-revamp future">
-                <span className="card-icon">🚀</span>
-                <span className="metric-label">Target IRR</span>
-                <span className="metric-value">{formatPercent(dashboard?.irr)}</span>
-              </div>
-              <div className="metric-card-revamp past">
-                <span className="card-icon">💰</span>
-                <span className="metric-label">Capital Deployed</span>
-                <span className="metric-value">{formatCurrency(current_deals_metrics?.total_invested)}</span>
-              </div>
-              <div className="metric-card-revamp future">
-                <span className="card-icon">📈</span>
-                <span className="metric-label">Projected Value</span>
-                <span className="metric-value">{formatCurrency(dashboard?.gross_exit_value)}</span>
-              </div>
-            </div>
-          </section>
+            </section>
+          )}
 
-          <section className="report-section">
-            <div className="report-section-header"><h2>Portfolio Diversification</h2></div>
-            <div className="charts-row">
+          {isEnabled('portfolio_comp') && (
+            <section className="report-section">
+              <div className="report-section-header"><h2>Portfolio Diversification</h2></div>
+              <div className="charts-row">
+                <div className="chart-wrapper">
+                  <h3>Allocation by Deal Count</h3>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie data={chartDataSectorCount} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, percent }) => `${name} (${((percent || 0) * 100).toFixed(0)}%)`}>
+                        {chartDataSectorCount.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="chart-wrapper">
+                  <h3>Allocation by Capital Deployed</h3>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie data={chartDataSectorCapital} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, percent }) => `${name} (${((percent || 0) * 100).toFixed(0)}%)`}>
+                        {chartDataSectorCapital.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {isEnabled('value_appreciation') && (
+            <section className="report-section">
+              <div className="report-section-header"><h2>Growth Dynamics</h2></div>
               <div className="chart-wrapper">
-                <h3>Allocation by Deal Count</h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie data={chartDataSectorCount} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, percent }) => `${name} (${((percent || 0) * 100).toFixed(0)}%)`}>
-                      {chartDataSectorCount.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip />
+                <h3>Annual Portfolio Value Expansion</h3>
+                <ResponsiveContainer width="100%" height={400}>
+                  <ComposedChart data={waterfallData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="year" />
+                    <YAxis tickFormatter={formatCurrency} />
+                    <Tooltip formatter={(value: any) => formatCurrencyLong(Number(value))} />
                     <Legend />
-                  </PieChart>
+                    <ReferenceLine x={currentYear} stroke="#ef4444" strokeDasharray="3 3" label={{ position: 'top', value: 'Current', fill: '#ef4444' }} />
+                    <Bar dataKey="startValue" stackId="a" fill="transparent" legendType="none" />
+                    <Bar dataKey="injection_current" stackId="a" fill="#3b82f6" name="Past Injections" />
+                    <Bar dataKey="injection_prognosis" stackId="a" fill="url(#hash-injection)" name="Future Injections" />
+                    <Bar dataKey="appreciation_current" stackId="a" fill="#10b981" name="Past Appreciation" />
+                    <Bar dataKey="appreciation_prognosis" stackId="a" fill="url(#hash-appreciation)" name="Future Appreciation" />
+                  </ComposedChart>
                 </ResponsiveContainer>
               </div>
-              <div className="chart-wrapper">
-                <h3>Allocation by Capital Deployed</h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie data={chartDataSectorCapital} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, percent }) => `${name} (${((percent || 0) * 100).toFixed(0)}%)`}>
-                      {chartDataSectorCapital.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
+            </section>
+          )}
+
+          {isEnabled('risk_assessment') && (
+            <section className="report-section">
+              <div className="report-section-header"><h2>Strategic Performance Trajectory</h2></div>
+              <p className="prose-text">
+                The following radar visualization provides an integrated view of the fund's efficiency and growth. 
+                The solid line tracks the <strong>Total Portfolio Value</strong>, while 
+                <strong>MOIC multiples</strong> and <strong>IRR performance</strong> are integrated into the 
+                multi-dimensional assessment, visible on hover for each year.
+              </p>
+              <FundPerformanceRadarChart 
+                data={dashboard?.performance_table || []} 
+                irr={cIrr} 
+              />
+            </section>
+          )}
+
+          {isEnabled('deal_prognosis') && (
+            <section className="report-section">
+              <div className="report-section-header"><h2>Scenario Sensitivity Analysis</h2></div>
+              <div className="table-wrapper">
+                <table className="modern-table">
+                  <thead>
+                    <tr>
+                      <th>Performance Metric</th>
+                      {aggregated_exits.map((c: any) => <th key={c.case}>{c.case}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><strong>Gross Exit Value</strong></td>
+                      {aggregated_exits.map((c: any) => <td key={c.case}>{formatCurrency(c.gev)}</td>)}
+                    </tr>
+                    <tr>
+                      <td><strong>Gross MOIC</strong></td>
+                      {aggregated_exits.map((c: any) => <td key={c.case}>{formatMultiple(c.gross_moic)}</td>)}
+                    </tr>
+                    <tr>
+                      <td><strong>Net to Investors</strong></td>
+                      {aggregated_exits.map((c: any) => <td key={c.case}>{formatCurrency(c.net_to_investors)}</td>)}
+                    </tr>
+                    <tr>
+                      <td><strong>Net IRR</strong></td>
+                      {aggregated_exits.map((c: any) => <td key={c.case}>{formatPercent(c.irr)}</td>)}
+                    </tr>
+                  </tbody>
+                </table>
               </div>
-            </div>
-          </section>
+            </section>
+          )}
 
-          <section className="report-section">
-            <div className="report-section-header"><h2>Growth Dynamics</h2></div>
-            <div className="chart-wrapper">
-              <h3>Annual Portfolio Value Expansion</h3>
-              <ResponsiveContainer width="100%" height={400}>
-                <ComposedChart data={waterfallData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="year" />
-                  <YAxis tickFormatter={formatCurrency} />
-                  <Tooltip formatter={(value: any) => formatCurrencyLong(Number(value))} />
-                  <Legend />
-                  <ReferenceLine x={currentYear} stroke="#ef4444" strokeDasharray="3 3" label={{ position: 'top', value: 'Current', fill: '#ef4444' }} />
-                  <Bar dataKey="startValue" stackId="a" fill="transparent" legendType="none" />
-                  <Bar dataKey="injection_current" stackId="a" fill="#3b82f6" name="Past Injections" />
-                  <Bar dataKey="injection_prognosis" stackId="a" fill="url(#hash-injection)" name="Future Injections" />
-                  <Bar dataKey="appreciation_current" stackId="a" fill="#10b981" name="Past Appreciation" />
-                  <Bar dataKey="appreciation_prognosis" stackId="a" fill="url(#hash-appreciation)" name="Future Appreciation" />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
-
-          <section className="report-section">
-            <div className="report-section-header"><h2>Strategic Performance Trajectory</h2></div>
-            <p className="prose-text">
-              The following radar visualization provides an integrated view of the fund's efficiency and growth. 
-              The solid line tracks the <strong>Total Portfolio Value</strong>, while 
-              <strong>MOIC multiples</strong> and <strong>IRR performance</strong> are integrated into the 
-              multi-dimensional assessment, visible on hover for each year.
-            </p>
-            <FundPerformanceRadarChart 
-              data={dashboard?.performance_table || []} 
-              irr={cIrr} 
-            />
-          </section>
-
-          <section className="report-section">
-            <div className="report-section-header"><h2>Scenario Sensitivity Analysis</h2></div>
-            <div className="table-wrapper">
-              <table className="modern-table">
-                <thead>
-                  <tr>
-                    <th>Performance Metric</th>
-                    {aggregated_exits.map((c: any) => <th key={c.case}>{c.case}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td><strong>Gross Exit Value</strong></td>
-                    {aggregated_exits.map((c: any) => <td key={c.case}>{formatCurrency(c.gev)}</td>)}
-                  </tr>
-                  <tr>
-                    <td><strong>Gross MOIC</strong></td>
-                    {aggregated_exits.map((c: any) => <td key={c.case}>{formatMultiple(c.gross_moic)}</td>)}
-                  </tr>
-                  <tr>
-                    <td><strong>Net to Investors</strong></td>
-                    {aggregated_exits.map((c: any) => <td key={c.case}>{formatCurrency(c.net_to_investors)}</td>)}
-                  </tr>
-                  <tr>
-                    <td><strong>Net IRR</strong></td>
-                    {aggregated_exits.map((c: any) => <td key={c.case}>{formatPercent(c.irr)}</td>)}
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
+          {/* Custom Sections */}
+          {(config.custom_sections || []).map((s: any) => (
+            <section key={s.id} className="report-section">
+              <div className="report-section-header"><h2>{s.title}</h2></div>
+              <p className="prose-text" style={{ textAlign: 'justify', whiteSpace: 'pre-wrap' }}>{s.text}</p>
+            </section>
+          ))}
         </main>
 
         <footer className="report-footer">
@@ -405,377 +728,352 @@ const PublicReportPage: React.FC = () => {
     <div className="public-report-layout capital-call-theme">
       
       {/* 1. COVER SECTION */}
-      <section className="cover-section" style={{ 
-        position: 'relative', 
-        minHeight: '60vh', 
-        display: 'flex', 
-        alignItems: 'center',
-        background: '#0f172a',
-        overflow: 'hidden'
-      }}>
-        <div className="cover-image-container" style={{ 
-          position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0 
+      {isEnabled('cc_overview') && (
+        <section className="cover-section" style={{ 
+          position: 'relative', 
+          minHeight: '60vh', 
+          display: 'flex', 
+          alignItems: 'center',
+          background: '#0f172a',
+          overflow: 'hidden'
         }}>
-          <img 
-            src="/Stock-Market-Arrows-iStock.jpg" 
-            alt="Fund Cover" 
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-          />
-          {/* Dark Overlay */}
-          <div style={{ 
-            position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', 
-            background: 'linear-gradient(to bottom, rgba(15, 23, 42, 0.45), rgba(15, 23, 42, 0.55))' 
-          }} />
-        </div>
-        
-        <div className="cover-content report-container" style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
-          <h1 className="capital-call-title" style={{ fontSize: '4rem', marginBottom: '1rem', color: 'white' }}>{report.name}</h1>
-          
-          <div className="badge-row" style={{ justifyContent: 'center', marginBottom: '2rem' }}>
-            {report.fund_details?.sharia_compliant && <span className="premium-badge sharia">Sharia Compliant</span>}
-            {report.fund_details?.region && <span className="premium-badge region">{report.fund_details.region}</span>}
-            {report.fund_details?.tag && <span className="premium-badge focus">{report.fund_details.tag}</span>}
-          </div>
-
-          <p className="fund-subheadline" style={{ maxWidth: '800px', margin: '0 auto 3rem', fontSize: '1.2rem', opacity: 0.9, color: 'white' }}>
-            {report.fund_details?.description}
-          </p>
-          
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '4rem' }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '3rem', fontWeight: '900', color: '#60a5fa' }}>{formatCurrency(report.config_json?.target_capital)}</div>
-              <div style={{ fontSize: '0.9rem', textTransform: 'uppercase', opacity: 0.8, letterSpacing: '0.15em', marginTop: '0.5rem', color: 'white' }}>Target Capital</div>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '3rem', fontWeight: '900', color: '#34d399' }}>{formatCurrency(report.config_json?.capital_raised)}</div>
-              <div style={{ fontSize: '0.9rem', textTransform: 'uppercase', opacity: 0.8, letterSpacing: '0.15em', marginTop: '0.5rem', color: 'white' }}>Already Raised</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 2. KEY FUND METRICS */}
-      <section className="metrics-section report-container">
-        <div className="modern-metrics-container">
-          
-          {/* Row 1: Core Performance & Timing */}
-          <div className="metrics-row">
-            <div className="metric-card-modern">
-              <div className="m-icon">📊</div>
-              <span className="m-label">Avg. MOIC</span>
-              <span className="m-value">{formatMultiple(avgMoic)}</span>
-            </div>
-            
-            <div className="metric-card-modern">
-              <div className="m-icon">⏳</div>
-              <span className="m-label">Investment Period</span>
-              <span className="m-value">{report.fund_details?.model_inputs?.investment_period} Years</span>
-            </div>
-            
-            {!hideLockup && (
-              <div className="metric-card-modern">
-                <div className="m-icon">🔒</div>
-                <span className="m-label">Lockup Period</span>
-                <span className="m-value">{report.fund_details?.model_inputs?.lock_up_period} Years</span>
-              </div>
-            )}
-            
-            <div className="metric-card-modern">
-              <div className="m-icon">💱</div>
-              <span className="m-label">Currency</span>
-              <span className="m-value">USD</span>
-            </div>
-          </div>
-
-          {/* Row 2: Strategy, Structure & Return */}
-          <div className="metrics-row secondary">
-            <div className="metric-card-modern">
-              <div className="m-icon">📈</div>
-              <span className="m-label">Annualized Return</span>
-              <span className="m-value">{formatPercent(fundIrr)}</span>
-              <div className="m-subvalue">
-                <span>Yield: 0%</span>
-                <span className="highlight">Gain: {formatPercent(fundIrr)}</span>
-              </div>
-            </div>
-
-            <div className="metric-card-modern">
-              <div className="m-icon">🎯</div>
-              <span className="m-label">Strategy</span>
-              <span className="m-value" style={{ fontSize: '1.1rem' }}>{report.fund_details?.strategy || 'N/A'}</span>
-            </div>
-
-            <div className="metric-card-modern">
-              <div className="m-icon">🏗️</div>
-              <span className="m-label">Structure</span>
-              <span className="m-value" style={{ fontSize: '1.1rem' }}>{report.fund_details?.structure || 'N/A'}</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 3. OVERVIEW SECTION */}
-      {report.fund_details?.overview && (
-        <section className="overview-section report-container">
-          <div className="section-title-premium"><h2>Opportunity Overview</h2></div>
-          <div className="prose-container">
-            <p className="prose-text-large">{report.fund_details.overview}</p>
-          </div>
-        </section>
-      )}
-
-      {/* 4. INTRINSIC VALUE & LIQUIDITY SECTION */}
-      <section className="stability-section report-container" style={{ marginTop: '4rem' }}>
-        <div className="section-title-premium"><h2>Portfolio Stability & Liquidity</h2></div>
-        
-        <div className="stability-grid">
-          <div className="content-card" style={{ padding: '2.5rem' }}>
-            <h3 style={{ textAlign: 'center', marginBottom: '2rem', border: 'none' }}>Intrinsic Value</h3>
-            <div style={{ width: '100%', height: 450 }}>
-              <ResponsiveContainer>
-                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={(() => {
-                  const farthestDealsMap = new Map();
-                  
-                  current_deals.forEach((d: any) => {
-                    const dist = Math.abs(d.entry_year - currentYear);
-                    const existingDeal = farthestDealsMap.get(d.company_name);
-                    if (!existingDeal || dist > Math.abs(existingDeal.entry_year - currentYear)) {
-                      farthestDealsMap.set(d.company_name, d);
-                    }
-                  });
-                  
-                  const result: any[] = [];
-                  farthestDealsMap.forEach((d) => {
-                    const entryVal = parseFloat(d.entry_valuation);
-                    const currentVal = parseFloat(d.latest_valuation);
-                    const exitMultiple = parseFloat(d.expected_exit_multiple || 5.0);
-                    const ownership = parseFloat(d.ownership_after_dilution || 0);
-                    const targetVal = entryVal * exitMultiple;
-                    
-                    result.push({
-                      subject: d.company_name,
-                      entry: targetVal > 0 ? (entryVal / targetVal) * 100 : 0,
-                      current: targetVal > 0 ? (currentVal / targetVal) * 100 : 0,
-                      expected: 100,
-                      upside: 120,
-                      highGrowth: 150,
-                      full_name: d.company_name,
-                      raw_entry: entryVal,
-                      raw_current: currentVal,
-                      raw_expected: targetVal,
-                      ownership: ownership
-                    });
-                  });
-                  
-                  return result;
-                })()}>
-                  <PolarGrid />
-                  <PolarAngleAxis 
-                    dataKey="subject" 
-                    tick={(() => {
-                      const uniqueCompanies = new Set(current_deals.map((d: any) => d.company_name));
-                      return uniqueCompanies.size > 15 ? false : { fill: '#64748b', fontSize: '0.8rem' };
-                    })()}
-                  />
-                  <PolarRadiusAxis angle={30} domain={[0, 150]} tick={false} axisLine={false} />
-                  <Radar name="Entry Valuation" dataKey="entry" stroke="#3498db" fill="#3498db" fillOpacity={0.4} />
-                  <Radar name="Current Valuation" dataKey="current" stroke="#2ecc71" fill="#2ecc71" fillOpacity={0.5} />
-                  <Radar name="Base Case" dataKey="expected" stroke="#6ee7b7" fill="transparent" strokeDasharray="5 5" />
-                  <Radar name="Upside Case" dataKey="upside" stroke="#10b981" fill="transparent" strokeDasharray="5 5" />
-                  <Radar name="High Growth Case" dataKey="highGrowth" stroke="#065f46" fill="transparent" strokeDasharray="5 5" />
-                  <Tooltip content={({ active, payload }) => {
-                    if (active && payload && payload.length) {
-                      const d = payload[0].payload;
-                      let achievedScenario = "In Progress";
-                      if (d.current >= 150) achievedScenario = "High Growth Scenario";
-                      else if (d.current >= 120) achievedScenario = "Upward Scenario";
-                      else if (d.current >= 100) achievedScenario = "Base Scenario";
-
-                      return (
-                        <div className="custom-tooltip" style={{ 
-                          backgroundColor: '#fff', padding: '12px', border: '1px solid #e2e8f0',
-                          borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                          fontSize: '0.85rem', lineHeight: '1.5'
-                        }}>
-                          <p style={{ fontWeight: 'bold', marginBottom: '8px', color: '#1e293b', borderBottom: '1px solid #f1f5f9', paddingBottom: '4px' }}>{d.full_name}</p>
-                          <p style={{ margin: '2px 0' }}><span style={{ color: '#64748b' }}>Ownership:</span> <strong>{d.ownership.toFixed(2)}%</strong></p>
-                          <p style={{ margin: '2px 0' }}><span style={{ color: '#3498db' }}>Entry Val:</span> <strong>{formatCurrencyLong(d.raw_entry)}</strong> ({d.entry.toFixed(1)}%)</p>
-                          <p style={{ margin: '2px 0' }}><span style={{ color: '#2ecc71' }}>Current Val:</span> <strong>{formatCurrencyLong(d.raw_current)}</strong> ({d.current.toFixed(1)}%)</p>
-                          <p style={{ margin: '2px 0' }}><span style={{ color: '#129448' }}>Expected Exit Val:</span> <strong>{formatCurrencyLong(d.raw_expected)}</strong> ({100}%)</p>
-                          <p style={{ margin: '8px 0 0', fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>Achieved Scenario: {achievedScenario}</p>
-                        </div>
-                      );
-                    }
-                    return null;
-                  }} />
-                  <Legend />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
-            <p style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: '#64748b', lineHeight: '1.6', textAlign: 'center' }}>
-              The Intrinsic Value graph visualizes each portfolio company's journey from entry valuation towards its target exit valuation. 
-              The solid areas show historical and current progress, while the dashed lines represent strategic exit objectives across different scenarios.
-            </p>
-          </div>
-
-          <div className="content-card" style={{ padding: '2.5rem' }}>
-            <h3 style={{ textAlign: 'center' }}>Liquidity Index</h3>
-            <p style={{ textAlign: 'center', color: '#64748b', fontSize: '0.85rem', marginBottom: '2rem' }}>Path to realization & market benchmark</p>
-            
-            <div style={{ height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {liData && (
-                <LiquidityGauge 
-                  value={liData.finalLI} 
-                  portfolioL={liData.portfolioL} 
-                  ageFactor={liData.ageFactor} 
-                  age={liData.age} 
-                  fundName={fundName}
-                />
-              )}
-            </div>
-
-            <div style={{ marginTop: '0.75rem' }}>
-            <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: '#1e293b', marginTop: '2rem', border: 'none', fontWeight: 700 }}>Liquidity Benchmarks</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                {comparisons.sort((a, b) => b.li - a.li).map((comp) => {
-                  const barColor = comp.li >= 60 ? '#10b981' : comp.li >= 40 ? '#fbbf24' : '#ef4444';
-                  return (
-                    <div key={comp.name} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                      <span style={{ fontSize: '0.7rem', color: '#64748b', width: '140px' }}>{comp.name} {comp.isCurrent && "(Current)"}</span>
-                      <div style={{ flex: 1, height: '6px', backgroundColor: '#e2e8f0', borderRadius: '3px', overflow: 'hidden', border: comp.isCurrent ? '1px solid #1e293b' : 'none' }}>
-                        <div style={{ 
-                          width: `${comp.li}%`, height: '100%', 
-                          background: barColor,
-                          opacity: comp.isCurrent ? 1 : 0.7
-                        }} />
-                      </div>
-                      <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#1e293b', width: '35px' }}>{comp.li.toFixed(0)}%</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <p style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: '#64748b', lineHeight: '1.6', textAlign: 'center' }}>
-              The Liquidity Index assesses the portfolio's realization potential and risk maturity. 
-              It combines a weighted base of current holdings with a maturity factor that increases as the fund progresses through its lifecycle, 
-              benchmarking our performance against standard asset classes.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* 5. STRATEGIC RADAR PERFORMANCE */}
-      <section className="radar-section report-container" style={{ marginTop: '6rem' }}>
-        <div className="section-title-premium"><h2>Performance Dynamics</h2></div>
-        <FundPerformanceRadarChart 
-          data={dashboard?.performance_table || []} 
-          irr={cIrr} 
-        />
-      </section>
-
-      {/* 6. CASH FLOW PROJECTION (CORE) */}
-      <section className="projection-section report-container">
-        <div className="section-title-premium"><h2>Cash Flow Projection</h2></div>
-        
-        <div className="projection-controls">
-          <div className="control-group">
-            <label>Investment Amount (USD)</label>
-            <input 
-              type="number" 
-              value={investmentAmount} 
-              onChange={(e) => setInvestmentAmount(parseFloat(e.target.value) || 0)}
-              className="premium-input"
+          <div className="cover-image-container" style={{ 
+            position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0 
+          }}>
+            <img 
+              src="/Stock-Market-Arrows-iStock.jpg" 
+              alt="Fund Cover" 
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
             />
+            {/* Dark Overlay */}
+            <div style={{ 
+              position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', 
+              background: 'linear-gradient(to bottom, rgba(15, 23, 42, 0.45), rgba(15, 23, 42, 0.55))' 
+            }} />
           </div>
-          <div className="control-group">
-            <label>Growth Scenario</label>
-            <div className="scenario-pills">
-              {aggregated_exits.map((c: any) => (
-                <button 
-                  key={c.case} 
-                  className={`pill ${selectedScenario === c.case ? 'active' : ''}`}
-                  onClick={() => setSelectedScenario(c.case)}
-                >
-                  {c.case}
-                </button>
-              ))}
+          
+          <div className="cover-content report-container" style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+            <h1 className="capital-call-title" style={{ fontSize: '4rem', marginBottom: '1rem', color: 'white' }}>{report.name}</h1>
+            
+            <div className="badge-row" style={{ justifyContent: 'center', marginBottom: '2rem' }}>
+              {report.fund_details?.sharia_compliant && <span className="premium-badge sharia">Sharia Compliant</span>}
+              {report.fund_details?.region && <span className="premium-badge region">{report.fund_details.region}</span>}
+              {report.fund_details?.tag && <span className="premium-badge focus">{report.fund_details.tag}</span>}
             </div>
-          </div>
-        </div>
 
-        <div className="chart-container-premium">
-          <div style={{ marginBottom: '2rem', padding: '1rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '0.9rem', color: '#64748b' }}>
-            <strong>Understanding the Projection:</strong> This graph illustrates the projected growth of your investment over the fund's lifecycle. 
-            The <strong>Blue Bar</strong> represents your initial investment in the current year. 
-            The <strong>Green Bars</strong> show the projected capital appreciation starting from your initial investment base. 
-            The dashed lines indicate key fund milestones like the end of the lockup period and the secondary market window.
-          </div>
-
-          <ResponsiveContainer width="100%" height={450}>
-            <ComposedChart data={cashFlowProjectionData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-              <defs>
-                <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-              <XAxis dataKey="year" axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
-              <YAxis tickFormatter={formatCurrency} axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
-              <Tooltip 
-                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-                formatter={(v: any) => [formatCurrencyLong(v), "Projected Value"]}
-              />
-              
-              {!hideLockup && (
-                <ReferenceArea 
-                  x1={currentYear} 
-                  x2={lockupEndYear} 
-                  fill="#d97706" 
-                  fillOpacity={0.15}
-                  strokeOpacity={0}
-                  label={{ value: 'Lockup', position: 'top', fill: '#d97706', fontSize: 10, fontWeight: '700', offset: 10 }}
-                />
-              )}
-              <ReferenceLine x={maturityYear} stroke="#1e293b" strokeWidth={2} label={{ position: 'top', value: 'Maturity', fill: '#1e293b', fontSize: 10, fontWeight: '700' }} />
-              
-              <Bar dataKey="investment" stackId="a" fill="#2563eb" name="Initial Investment" />
-              <Bar dataKey="base" stackId="a" fill="transparent" legendType="none" />
-              <Bar dataKey="growth" stackId="a" fill="#10b981" name="Capital Appreciation" />
-
-              <Area 
-                type="monotone" 
-                dataKey="value" 
-                stroke="#2563eb" 
-                strokeWidth={4} 
-                fillOpacity={1} 
-                fill="url(#colorValue)" 
-                animationDuration={1500}
-                isAnimationActive={true}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
-          <div className="chart-legend-premium">
-            <div className="legend-item"><span className="dot" style={{ background: '#2563eb' }}></span> Initial Investment</div>
-            <div className="legend-item"><span className="dot" style={{ background: '#10b981' }}></span> Projected Growth</div>
-            {!hideLockup && <div className="legend-item"><span className="dot lockup"></span> Lockup Phase</div>}
-            <div className="legend-item"><span className="dot maturity"></span> Maturity</div>
-          </div>
-        </div>
-      </section>
-
-      {/* 6. STRATEGY & LIFECYCLE */}
-      {report.fund_details?.strategy_and_fund_lifecycle && (
-        <section className="strategy-section report-container">
-          <div className="section-title-premium"><h2>Strategy & Lifecycle</h2></div>
-          <div className="prose-container">
-            <p className="prose-text">{report.fund_details.strategy_and_fund_lifecycle}</p>
+            <p className="fund-subheadline" style={{ maxWidth: '800px', margin: '0 auto 3rem', fontSize: '1.2rem', opacity: 0.9, color: 'white' }}>
+              {report.fund_details?.description}
+            </p>
+            
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '4rem' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '3rem', fontWeight: '900', color: '#60a5fa' }}>{formatCurrency(report.config_json?.target_capital)}</div>
+                <div style={{ fontSize: '0.9rem', textTransform: 'uppercase', opacity: 0.8, letterSpacing: '0.15em', marginTop: '0.5rem', color: 'white' }}>Target Capital</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '3rem', fontWeight: '900', color: '#34d399' }}>{formatCurrency(report.config_json?.capital_raised)}</div>
+                <div style={{ fontSize: '0.9rem', textTransform: 'uppercase', opacity: 0.8, letterSpacing: '0.15em', marginTop: '0.5rem', color: 'white' }}>Already Raised</div>
+              </div>
+            </div>
           </div>
         </section>
       )}
 
-      {/* 7. REASONS TO INVEST */}
-      {report.fund_details?.reasons_to_invest?.length > 0 && (
+      {/* 2. KEY FUND METRICS & HEALTH */}
+      {isEnabled('cc_overview') && (
+        <>
+          <section className="metrics-section report-container">
+            <div className="modern-metrics-container">
+              
+              {/* Row 1: Core Performance & Timing */}
+              <div className="metrics-row">
+                <div className="metric-card-modern">
+                  <div className="m-icon">📊</div>
+                  <span className="m-label">Avg. MOIC</span>
+                  <span className="m-value">{formatMultiple(avgMoic)}</span>
+                </div>
+                
+                <div className="metric-card-modern">
+                  <div className="m-icon">⏳</div>
+                  <span className="m-label">Investment Period</span>
+                  <span className="m-value">{report.fund_details?.model_inputs?.investment_period} Years</span>
+                </div>
+                
+                {!hideLockup && (
+                  <div className="metric-card-modern">
+                    <div className="m-icon">🔒</div>
+                    <span className="m-label">Lockup Period</span>
+                    <span className="m-value">{report.fund_details?.model_inputs?.lock_up_period} Years</span>
+                  </div>
+                )}
+                
+                <div className="metric-card-modern">
+                  <div className="m-icon">💱</div>
+                  <span className="m-label">Currency</span>
+                  <span className="m-value">USD</span>
+                </div>
+              </div>
+
+              {/* Row 2: Strategy, Structure & Return */}
+              <div className="metrics-row secondary">
+                <div className="metric-card-modern">
+                  <div className="m-icon">📈</div>
+                  <span className="m-label">Annualized Return</span>
+                  <span className="m-value">{formatPercent(fundIrr)}</span>
+                  <div className="m-subvalue">
+                    <span>Yield: 0%</span>
+                    <span className="highlight">Gain: {formatPercent(fundIrr)}</span>
+                  </div>
+                </div>
+
+                <div className="metric-card-modern">
+                  <div className="m-icon">🎯</div>
+                  <span className="m-label">Strategy</span>
+                  <span className="m-value" style={{ fontSize: '1.1rem' }}>{report.fund_details?.strategy || 'N/A'}</span>
+                </div>
+
+                <div className="metric-card-modern">
+                  <div className="m-icon">🏗️</div>
+                  <span className="m-label">Structure</span>
+                  <span className="m-value" style={{ fontSize: '1.1rem' }}>{report.fund_details?.structure || 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* 3. OVERVIEW SECTION */}
+          {report.fund_details?.overview && (
+            <section className="overview-section report-container">
+              <div className="section-title-premium"><h2>Opportunity Overview</h2></div>
+              <div className="prose-container">
+                <p className="prose-text-large">{report.fund_details.overview}</p>
+              </div>
+            </section>
+          )}
+        </>
+      )}
+
+      {/* 4. STABILITY & LIQUIDITY (Side-by-Side) */}
+      {isEnabled('liquidity_analysis') && (
+        <section className="stability-liquidity-section report-container" style={{ marginTop: '4rem' }}>
+          <div className="section-title-premium"><h2>Portfolio Stability & Market Liquidity</h2></div>
+          
+          <div className="stability-liquidity-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '2rem' }}>
+            {/* Intrinsic Value Radar */}
+            <div className="content-card" style={{ padding: '2.5rem' }}>
+              <h3 style={{ textAlign: 'center', marginBottom: '2rem', border: 'none' }}>Intrinsic Value</h3>
+              <div style={{ width: '100%', height: 450 }}>
+                <ResponsiveContainer>
+                  <RadarChart cx="50%" cy="50%" outerRadius="80%" data={(() => {
+                    const farthestDealsMap = new Map();
+                    
+                    current_deals.forEach((d: any) => {
+                      const dist = Math.abs(d.entry_year - currentYear);
+                      const existingDeal = farthestDealsMap.get(d.company_name);
+                      if (!existingDeal || dist > Math.abs(existingDeal.entry_year - currentYear)) {
+                        farthestDealsMap.set(d.company_name, d);
+                      }
+                    });
+                    
+                    const result: any[] = [];
+                    farthestDealsMap.forEach((d) => {
+                      const entryVal = parseFloat(d.entry_valuation);
+                      const currentVal = parseFloat(d.latest_valuation);
+                      const exitMultiple = parseFloat(d.expected_exit_multiple || 5.0);
+                      const ownership = parseFloat(d.ownership_after_dilution || 0);
+                      const targetVal = entryVal * exitMultiple;
+                      
+                      result.push({
+                        subject: d.company_name,
+                        entry: targetVal > 0 ? (entryVal / targetVal) * 100 : 0,
+                        current: targetVal > 0 ? (currentVal / targetVal) * 100 : 0,
+                        expected: 100,
+                        upside: 120,
+                        highGrowth: 150,
+                        full_name: d.company_name,
+                        raw_entry: entryVal,
+                        raw_current: currentVal,
+                        raw_expected: targetVal,
+                        ownership: ownership
+                      });
+                    });
+                    
+                    return result;
+                  })()}>
+                    <PolarGrid />
+                    <PolarAngleAxis 
+                      dataKey="subject" 
+                      tick={(() => {
+                        const uniqueCompanies = new Set(current_deals.map((d: any) => d.company_name));
+                        return uniqueCompanies.size > 15 ? false : { fill: '#64748b', fontSize: '0.8rem' };
+                      })()}
+                    />
+                    <PolarRadiusAxis angle={30} domain={[0, 150]} tick={false} axisLine={false} />
+                    <Radar name="Entry Valuation" dataKey="entry" stroke="#3498db" fill="#3498db" fillOpacity={0.4} />
+                    <Radar name="Current Valuation" dataKey="current" stroke="#2ecc71" fill="#2ecc71" fillOpacity={0.5} />
+                    <Radar name="Base Case" dataKey="expected" stroke="#6ee7b7" fill="transparent" strokeDasharray="5 5" />
+                    <Radar name="Upside Case" dataKey="upside" stroke="#10b981" fill="transparent" strokeDasharray="5 5" />
+                    <Radar name="High Growth Case" dataKey="highGrowth" stroke="#065f46" fill="transparent" strokeDasharray="5 5" />
+                    <Tooltip content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const d = payload[0].payload;
+                        let achievedScenario = "In Progress";
+                        if (d.current >= 150) achievedScenario = "High Growth Scenario";
+                        else if (d.current >= 120) achievedScenario = "Upward Scenario";
+                        else if (d.current >= 100) achievedScenario = "Base Scenario";
+
+                        return (
+                          <div className="custom-tooltip" style={{ 
+                            backgroundColor: '#fff', padding: '12px', border: '1px solid #e2e8f0',
+                            borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                            fontSize: '0.85rem', lineHeight: '1.5'
+                          }}>
+                            <p style={{ fontWeight: 'bold', marginBottom: '8px', color: '#1e293b', borderBottom: '1px solid #f1f5f9', paddingBottom: '4px' }}>{d.full_name}</p>
+                            <p style={{ margin: '2px 0' }}><span style={{ color: '#64748b' }}>Ownership:</span> <strong>{d.ownership.toFixed(2)}%</strong></p>
+                            <p style={{ margin: '2px 0' }}><span style={{ color: '#3498db' }}>Entry Val:</span> <strong>{formatCurrencyLong(d.raw_entry)}</strong> ({d.entry.toFixed(1)}%)</p>
+                            <p style={{ margin: '2px 0' }}><span style={{ color: '#2ecc71' }}>Current Val:</span> <strong>{formatCurrencyLong(d.raw_current)}</strong> ({d.current.toFixed(1)}%)</p>
+                            <p style={{ margin: '2px 0' }}><span style={{ color: '#129448' }}>Expected Exit Val:</span> <strong>{formatCurrencyLong(d.raw_expected)}</strong> ({100}%)</p>
+                            <p style={{ margin: '8px 0 0', fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>Achieved Scenario: {achievedScenario}</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }} />
+                    <Legend />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+              <p style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: '#64748b', lineHeight: '1.6', textAlign: 'center' }}>
+                The Intrinsic Value graph visualizes each portfolio company's journey from entry valuation towards its target exit valuation. 
+              </p>
+            </div>
+
+            {/* Liquidity Index */}
+            <div className="content-card" style={{ padding: '2.5rem' }}>
+              <h3 style={{ textAlign: 'center', marginBottom: '2rem', border: 'none' }}>Liquidity Index</h3>
+              <div style={{ height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {liData && (
+                  <LiquidityGauge 
+                    value={liData.finalLI} 
+                    portfolioL={liData.portfolioL} 
+                    ageFactor={liData.ageFactor} 
+                    age={liData.age} 
+                    fundName={fundName}
+                  />
+                )}
+              </div>
+
+              <div style={{ marginTop: '0.75rem' }}>
+                <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: '#1e293b', marginTop: '2rem', border: 'none', fontWeight: 700 }}>Liquidity Benchmarks</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  {comparisons.sort((a, b) => b.li - a.li).map((comp) => {
+                    const barColor = comp.li >= 60 ? '#10b981' : comp.li >= 40 ? '#fbbf24' : '#ef4444';
+                    return (
+                      <div key={comp.name} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <span style={{ fontSize: '0.7rem', color: '#64748b', width: '140px' }}>{comp.name} {comp.isCurrent && "(Current)"}</span>
+                        <div style={{ flex: 1, height: '6px', backgroundColor: '#e2e8f0', borderRadius: '3px', overflow: 'hidden', border: comp.isCurrent ? '1px solid #1e293b' : 'none' }}>
+                          <div style={{ 
+                            width: `${comp.li}%`, height: '100%', 
+                            background: barColor,
+                            opacity: comp.isCurrent ? 1 : 0.7
+                          }} />
+                        </div>
+                        <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#1e293b', width: '35px' }}>{comp.li.toFixed(0)}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <p style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: '#64748b', lineHeight: '1.6', textAlign: 'center' }}>
+                The Liquidity Index assesses the portfolio's realization potential and risk maturity.
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* 6. INVESTMENT CASE (PROJECTION) */}
+      {isEnabled('investment_case') && (
+        <section className="projection-section report-container" style={{ marginTop: '4rem' }}>
+          <div className="section-title-premium"><h2>Investment Case</h2></div>
+          
+          <div className="projection-controls">
+            <div className="control-group">
+              <label>Investment Amount (USD)</label>
+              <input 
+                type="number" 
+                value={investmentAmount} 
+                onChange={(e) => setInvestmentAmount(parseFloat(e.target.value) || 0)}
+                className="premium-input"
+              />
+            </div>
+            <div className="control-group">
+              <label>Growth Scenario</label>
+              <div className="scenario-pills">
+                {aggregated_exits.map((c: any) => (
+                  <button 
+                    key={c.case} 
+                    className={`pill ${selectedScenario === c.case ? 'active' : ''}`}
+                    onClick={() => setSelectedScenario(c.case)}
+                  >
+                    {c.case}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="chart-container-premium">
+            <ResponsiveContainer width="100%" height={450}>
+              <ComposedChart data={cashFlowProjectionData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                <defs>
+                  <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis dataKey="year" axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
+                <YAxis tickFormatter={formatCurrency} axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
+                <Tooltip 
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                  formatter={(v: any) => [formatCurrencyLong(v), "Projected Value"]}
+                />
+                
+                {!hideLockup && (
+                  <ReferenceArea 
+                    x1={currentYear} 
+                    x2={lockupEndYear} 
+                    fill="#d97706" 
+                    fillOpacity={0.15}
+                    strokeOpacity={0}
+                    label={{ value: 'Lockup', position: 'top', fill: '#d97706', fontSize: 10, fontWeight: '700', offset: 10 }}
+                  />
+                )}
+                <ReferenceLine x={maturityYear} stroke="#1e293b" strokeWidth={2} label={{ position: 'top', value: 'Maturity', fill: '#1e293b', fontSize: 10, fontWeight: '700' }} />
+                
+                <Bar dataKey="investment" stackId="a" fill="#2563eb" name="Initial Investment" />
+                <Bar dataKey="base" stackId="a" fill="transparent" legendType="none" />
+                <Bar dataKey="growth" stackId="a" fill="#10b981" name="Capital Appreciation" />
+
+                <Area 
+                  type="monotone" 
+                  dataKey="value" 
+                  stroke="#2563eb" 
+                  strokeWidth={4} 
+                  fillOpacity={1} 
+                  fill="url(#colorValue)" 
+                  animationDuration={1500}
+                  isAnimationActive={true}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+      )}
+
+      {/* 7. WHY INVEST */}
+      {isEnabled('why_invest') && report.fund_details?.reasons_to_invest?.length > 0 && (
         <section className="reasons-invest-section report-container">
           <div className="section-title-premium"><h2>Why Invest With Us?</h2></div>
           <div className="horizontal-scroll-container" ref={scrollRef}>
@@ -798,7 +1096,17 @@ const PublicReportPage: React.FC = () => {
         </section>
       )}
 
-      <footer className="capital-call-footer">
+      {/* Custom Sections */}
+      {(config.custom_sections || []).map((s: any) => (
+        <section key={s.id} className="report-container" style={{ marginTop: '4rem' }}>
+          <div className="section-title-premium"><h2>{s.title}</h2></div>
+          <div className="prose-container">
+            <p className="prose-text-large" style={{ textAlign: 'justify', whiteSpace: 'pre-wrap' }}>{s.text}</p>
+          </div>
+        </section>
+      ))}
+
+      <footer className="capital-call-footer" style={{ marginTop: '6rem' }}>
         <div className="report-container">
           <div className="footer-grid">
             <div className="footer-main">

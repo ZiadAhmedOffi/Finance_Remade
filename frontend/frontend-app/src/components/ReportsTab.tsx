@@ -21,12 +21,33 @@ interface ReportsTabProps {
   isAdmin: boolean;
 }
 
+const DEFAULT_DYNAMIC_SECTIONS = [
+  { id: "perf_overview", title: "Performance Overview" },
+  { id: "portfolio_comp", title: "Portfolio Composition" },
+  { id: "value_appreciation", title: "Value Appreciation" },
+  { id: "risk_assessment", title: "Risk Assessment" },
+  { id: "deal_prognosis", title: "Deal Prognosis" }
+];
+
+const DEFAULT_CAPITAL_CALL_SECTIONS = [
+  { id: "cc_overview", title: "Capital Call Overview" },
+  { id: "investment_case", title: "Investment Case" },
+  { id: "why_invest", title: "Why Invest" },
+  { id: "liquidity_analysis", title: "Liquidity Analysis" }
+];
+
 const ReportsTab: React.FC<ReportsTabProps> = ({ fundId, isAdmin }) => {
   const [dynamicReports, setDynamicReports] = useState<Report[]>([]);
   const [capitalCallReports, setCapitalCallReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  const [viewMode, setViewMode] = useState<"LISTING" | "PLANNING">("LISTING");
+  const [reportConfig, setReportConfig] = useState<any>({
+    dynamic: { sections: DEFAULT_DYNAMIC_SECTIONS.map(s => ({ ...s, enabled: true, type: 'DEFAULT' })) },
+    capital_call: { sections: DEFAULT_CAPITAL_CALL_SECTIONS.map(s => ({ ...s, enabled: true, type: 'DEFAULT' })) }
+  });
+
   const [isCreatingDynamic, setIsCreatingDynamic] = useState(false);
   const [isCreatingCapitalCall, setIsCreatingCapitalCall] = useState(false);
   
@@ -45,16 +66,44 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ fundId, isAdmin }) => {
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<any>({});
 
+  const [isAddingCustom, setIsAddingCustom] = useState<"DYNAMIC" | "CAPITAL_CALL" | null>(null);
+  const [customTitle, setCustomTitle] = useState("");
+  const [customText, setCustomText] = useState("");
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [dynamicRes, capitalCallRes] = await Promise.all([
+      const [dynamicRes, capitalCallRes, fundRes] = await Promise.all([
         fundsApi.getReports(),
-        fundsApi.getCapitalCallReports()
+        fundsApi.getCapitalCallReports(),
+        fundsApi.getFund(fundId)
       ]);
       
       setDynamicReports(dynamicRes.data.filter((r: Report) => r.fund === fundId));
       setCapitalCallReports(capitalCallRes.data.filter((r: Report) => r.fund === fundId));
+      
+      if (fundRes.data.report_config && Object.keys(fundRes.data.report_config).length > 0) {
+        let config = fundRes.data.report_config;
+        
+        // Migration logic for old format
+        const migrate = (type: 'dynamic' | 'capital_call', defaults: any[]) => {
+          if (config[type] && (config[type].enabled_sections || config[type].custom_sections)) {
+            const enabled = config[type].enabled_sections || [];
+            const custom = config[type].custom_sections || [];
+            config[type].sections = [
+              ...defaults.map(s => ({ ...s, enabled: enabled.includes(s.id), type: 'DEFAULT' })),
+              ...custom.map((s: any) => ({ ...s, enabled: true, type: 'CUSTOM' }))
+            ];
+            delete config[type].enabled_sections;
+            delete config[type].custom_sections;
+          }
+        };
+
+        migrate('dynamic', DEFAULT_DYNAMIC_SECTIONS);
+        migrate('capital_call', DEFAULT_CAPITAL_CALL_SECTIONS);
+        
+        setReportConfig(config);
+      }
       setError(null);
     } catch (err) {
       setError("Failed to fetch reports.");
@@ -67,6 +116,72 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ fundId, isAdmin }) => {
     fetchData();
   }, [fetchData]);
 
+  const [draggedItem, setDraggedItem] = useState<{ type: 'dynamic' | 'capital_call', index: number } | null>(null);
+
+  const handleSavePlanning = async () => {
+    try {
+      await fundsApi.updateFund(fundId, { report_config: reportConfig });
+      alert("Report structure updated successfully!");
+      setViewMode("LISTING");
+    } catch (err) {
+      alert("Failed to save report planning.");
+    }
+  };
+
+  const moveSection = (type: 'dynamic' | 'capital_call', index: number, direction: 'UP' | 'DOWN') => {
+    const newConfig = { ...reportConfig };
+    const sections = [...newConfig[type].sections];
+    const newIndex = direction === 'UP' ? index - 1 : index + 1;
+    
+    if (newIndex >= 0 && newIndex < sections.length) {
+      const temp = sections[index];
+      sections[index] = sections[newIndex];
+      sections[newIndex] = temp;
+      newConfig[type].sections = sections;
+      setReportConfig(newConfig);
+    }
+  };
+
+  const reorderSection = (type: 'dynamic' | 'capital_call', oldIndex: number, newIndex: number) => {
+    if (oldIndex === newIndex) return;
+    const newConfig = { ...reportConfig };
+    const sections = [...newConfig[type].sections];
+    const [movedItem] = sections.splice(oldIndex, 1);
+    sections.splice(newIndex, 0, movedItem);
+    newConfig[type].sections = sections;
+    setReportConfig(newConfig);
+  };
+
+  const toggleSection = (type: 'dynamic' | 'capital_call', sectionId: string) => {
+    const newConfig = { ...reportConfig };
+    newConfig[type].sections = newConfig[type].sections.map((s: any) => 
+      s.id === sectionId ? { ...s, enabled: !s.enabled } : s
+    );
+    setReportConfig(newConfig);
+  };
+
+  const handleAddCustomSection = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customTitle || !customText || !isAddingCustom) return;
+
+    const type = isAddingCustom === "DYNAMIC" ? "dynamic" : "capital_call";
+    const newConfig = { ...reportConfig };
+    newConfig[type].sections = [
+      ...(newConfig[type].sections || []),
+      { id: `custom_${Date.now()}`, title: customTitle, text: customText, enabled: true, type: 'CUSTOM' }
+    ];
+    setReportConfig(newConfig);
+    setCustomTitle("");
+    setCustomText("");
+    setIsAddingCustom(null);
+  };
+
+  const handleRemoveCustomSection = (type: 'dynamic' | 'capital_call', sectionId: string) => {
+    const newConfig = { ...reportConfig };
+    newConfig[type].sections = newConfig[type].sections.filter((s: any) => s.id !== sectionId);
+    setReportConfig(newConfig);
+  };
+
   const handleCreateDynamicReport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newReportName.trim()) return;
@@ -77,6 +192,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ fundId, isAdmin }) => {
         fund: fundId,
         config_json: {
           layout: "grid",
+          report_config: reportConfig.dynamic, // Store snapshot of current planning
           modules: [
             { id: "performance_summary", type: "METRIC_CARD", title: "Performance Summary" },
             { id: "irr_trend", type: "LINE_CHART", metric: "irr", title: "IRR Trend" }
@@ -101,7 +217,8 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ fundId, isAdmin }) => {
         fund: fundId,
         config_json: {
           target_capital: parseFloat(targetCapital),
-          capital_raised: parseFloat(capitalRaised)
+          capital_raised: parseFloat(capitalRaised),
+          report_config: reportConfig.capital_call // Store snapshot
         }
       });
       setNewReportName("");
@@ -364,32 +481,273 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ fundId, isAdmin }) => {
     );
   };
 
+  const renderPlanningMode = () => {
+    const renderSectionList = (type: 'dynamic' | 'capital_call', title: string) => {
+      const sections = reportConfig[type].sections || [];
+
+      // Touch Reordering State
+      const handleTouchStart = (idx: number) => {
+        setDraggedItem({ type, index: idx });
+      };
+
+      const handleTouchMove = (e: React.TouchEvent, idx: number) => {
+        if (!draggedItem || draggedItem.type !== type) return;
+        
+        // Find the element under the finger
+        const touch = e.touches[0];
+        const element = document.elementFromPoint(touch.clientX, touch.clientY);
+        const container = element?.closest('.planning-section-item');
+        
+        if (container) {
+          const overIdx = parseInt(container.getAttribute('data-index') || '-1');
+          if (overIdx !== -1 && overIdx !== draggedItem.index) {
+            reorderSection(type, draggedItem.index, overIdx);
+            setDraggedItem({ type, index: overIdx });
+          }
+        }
+      };
+
+      const handleTouchEnd = () => {
+        setDraggedItem(null);
+      };
+
+      return (
+        <div className="content-card" style={{ marginBottom: '2rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <h4 style={{ margin: 0 }}>{title} Structure</h4>
+            <button className="btn btn-secondary btn-sm" onClick={() => setIsAddingCustom(type === 'dynamic' ? "DYNAMIC" : "CAPITAL_CALL")}>+ Add Custom Section</button>
+          </div>
+          
+          <div className="planning-sections-list" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {sections.map((s: any, idx: number) => (
+              <div 
+                key={s.id} 
+                className="planning-section-item"
+                data-index={idx}
+                draggable
+                onDragStart={() => setDraggedItem({ type, index: idx })}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (draggedItem && draggedItem.type === type && draggedItem.index !== idx) {
+                    reorderSection(type, draggedItem.index, idx);
+                    setDraggedItem({ type, index: idx });
+                  }
+                }}
+                onDragEnd={() => setDraggedItem(null)}
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '1rem', 
+                  padding: '1rem', 
+                  background: s.enabled ? '#fff' : '#f8fafc', 
+                  borderRadius: '12px', 
+                  border: '1px solid #e2e8f0',
+                  boxShadow: s.enabled ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  opacity: s.enabled ? 1 : 0.7,
+                  cursor: 'grab',
+                  transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                  transform: draggedItem?.index === idx && draggedItem.type === type ? 'scale(1.02)' : 'none',
+                  zIndex: draggedItem?.index === idx && draggedItem.type === type ? 10 : 1
+                }}
+              >
+                {/* Drag Handle & Reorder Controls */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div 
+                    className="drag-handle"
+                    onTouchStart={() => handleTouchStart(idx)}
+                    onTouchMove={(e) => handleTouchMove(e, idx)}
+                    onTouchEnd={handleTouchEnd}
+                    style={{ 
+                      fontSize: '1.2rem', 
+                      color: '#94a3b8', 
+                      cursor: 'grab',
+                      padding: '0.5rem 0.25rem',
+                      userSelect: 'none',
+                      touchAction: 'none' // Important for touch move
+                    }}
+                  >
+                    ⠿
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                    <button 
+                      className="btn-icon" 
+                      onClick={() => moveSection(type, idx, 'UP')}
+                      disabled={idx === 0}
+                      style={{ fontSize: '0.7rem', padding: '1px', opacity: idx === 0 ? 0.2 : 0.6 }}
+                      title="Move Up"
+                    >
+                      ▲
+                    </button>
+                    <button 
+                      className="btn-icon" 
+                      onClick={() => moveSection(type, idx, 'DOWN')}
+                      disabled={idx === sections.length - 1}
+                      style={{ fontSize: '0.7rem', padding: '1px', opacity: idx === sections.length - 1 ? 0.2 : 0.6 }}
+                      title="Move Down"
+                    >
+                      ▼
+                    </button>
+                  </div>
+                </div>
+
+                {/* Enabled Toggle */}
+                <input 
+                  type="checkbox" 
+                  checked={s.enabled}
+                  onChange={() => toggleSection(type, s.id)}
+                  style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                />
+
+                {/* Content Info */}
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontWeight: 700, fontSize: '1rem' }}>{s.title}</span>
+                    <span style={{ 
+                      fontSize: '0.65rem', 
+                      padding: '2px 6px', 
+                      borderRadius: '4px', 
+                      background: s.type === 'DEFAULT' ? '#eff6ff' : '#fdf2f8',
+                      color: s.type === 'DEFAULT' ? '#2563eb' : '#db2777',
+                      fontWeight: 700,
+                      textTransform: 'uppercase'
+                    }}>
+                      {s.type}
+                    </span>
+                  </div>
+                  {s.type === 'CUSTOM' && (
+                    <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.25rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '500px' }}>
+                      {s.text}
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                {s.type === 'CUSTOM' && (
+                  <button 
+                    className="btn-icon delete" 
+                    onClick={() => handleRemoveCustomSection(type, s.id)}
+                    title="Remove custom section"
+                  >
+                    🗑️
+                  </button>
+                )}
+              </div>
+            ))}
+            {sections.length === 0 && (
+              <p style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem', border: '2px dashed #e2e8f0', borderRadius: '12px' }}>No sections defined.</p>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    return (
+      <div className="planning-mode animate-fade-in">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+           <div>
+             <h3 style={{ border: 'none', margin: 0 }}>Report Structure Planning</h3>
+             <p className="text-secondary" style={{ marginTop: '0.5rem' }}>Arrange sections, toggle visibility, and add custom commentary for future reports.</p>
+           </div>
+           <div style={{ display: 'flex', gap: '1rem' }}>
+             <button className="btn-secondary" onClick={() => setViewMode('LISTING')}>Cancel</button>
+             <button className="btn-primary" onClick={handleSavePlanning}>Save All Changes</button>
+           </div>
+        </div>
+
+        <div className="planning-container" style={{ maxWidth: '1000px', margin: '0 auto' }}>
+          {renderSectionList('dynamic', 'Dynamic Fund Report')}
+          {renderSectionList('capital_call', 'Capital Call Report')}
+        </div>
+      </div>
+    );
+  };
+
   if (loading) return <div className="loading-state" style={{ textAlign: 'center', padding: '4rem' }}>Loading reports...</div>;
 
   return (
     <div className="reports-tab">
       {error && <div className="alert-mini error" style={{ marginBottom: '1.5rem' }}>{error}</div>}
 
-      {renderReportTable(
-        dynamicReports, 
-        "Dynamic Fund Reports", 
-        isDynamicOpen,
-        setIsDynamicOpen,
-        dynamicPage,
-        setDynamicPage,
-        () => setIsCreatingDynamic(true),
-        "Interactive static reports showing current fund performance and metrics."
+      <div className="tab-mode-toggle" style={{ marginBottom: '2rem', display: 'flex', gap: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '1rem' }}>
+        <button 
+          className={`btn ${viewMode === 'LISTING' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setViewMode('LISTING')}
+        >
+          Listing Mode
+        </button>
+        <button 
+          className={`btn ${viewMode === 'PLANNING' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setViewMode('PLANNING')}
+        >
+          Planning Mode
+        </button>
+      </div>
+
+      {viewMode === "PLANNING" ? (
+        renderPlanningMode()
+      ) : (
+        <>
+          {renderReportTable(
+            dynamicReports, 
+            "Dynamic Fund Reports", 
+            isDynamicOpen,
+            setIsDynamicOpen,
+            dynamicPage,
+            setDynamicPage,
+            () => setIsCreatingDynamic(true),
+            "Interactive static reports showing current fund performance and metrics."
+          )}
+
+          {renderReportTable(
+            capitalCallReports, 
+            "Capital Call Reports", 
+            isCapitalCallOpen,
+            setIsCapitalCallOpen,
+            capitalCallPage,
+            setCapitalCallPage,
+            () => setIsCreatingCapitalCall(true),
+            "Premium, shareable landing pages for fund capital calls and investor cases."
+          )}
+        </>
       )}
 
-      {renderReportTable(
-        capitalCallReports, 
-        "Capital Call Reports", 
-        isCapitalCallOpen,
-        setIsCapitalCallOpen,
-        capitalCallPage,
-        setCapitalCallPage,
-        () => setIsCreatingCapitalCall(true),
-        "Premium, shareable landing pages for fund capital calls and investor cases."
+      {/* Modal for Adding Custom Section */}
+      {isAddingCustom && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '600px' }}>
+            <h3 style={{ border: 'none', marginBottom: '1.5rem' }}>Add Custom Section to {isAddingCustom === "DYNAMIC" ? "Dynamic" : "Capital Call"} Report</h3>
+            <form onSubmit={handleAddCustomSection}>
+              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Section Title</label>
+                <input 
+                  type="text" 
+                  value={customTitle} 
+                  onChange={(e) => setCustomTitle(e.target.value)}
+                  placeholder="e.g. Market Outlook or General Commentary"
+                  className="form-input"
+                  required
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Content (Max 5000 characters)</label>
+                <textarea 
+                  value={customText} 
+                  onChange={(e) => setCustomText(e.target.value)}
+                  placeholder="Enter the justified text content here..."
+                  className="form-input"
+                  rows={8}
+                  maxLength={5000}
+                  required
+                />
+                <p className="text-secondary" style={{ fontSize: '0.75rem', marginTop: '0.5rem' }}>{customText.length}/5000 characters used.</p>
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn-secondary" onClick={() => setIsAddingCustom(null)}>Cancel</button>
+                <button type="submit" className="btn-primary">Add Section</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* Modal for Dynamic Report */}

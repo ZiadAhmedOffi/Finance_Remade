@@ -671,11 +671,11 @@ def get_fund_performance_data(fund):
     # 1. Deal Prognosis Metrics
     p_injections_by_year = deal_selectors.get_prognosis_injections(fund)
     
-    total_expected_pro_rata = sum(float(deal.expected_pro_rata_investments) for deal in deals)
+    total_expected_pro_rata = sum(float(deal_selectors.calculate_investment_deal_expected_pro_rata_investments(deal)) for deal in deals)
     total_invested_float = float(sum(deal.amount_invested for deal in deals)) + total_expected_pro_rata
     
-    gross_exit_value = sum(float(deal.exit_value) for deal in deals)
-    gross_exit_value_future = sum(float(deal.exit_value) for deal in deals if deal.entry_year >= current_year)
+    gross_exit_value = sum(float(deal_selectors.calculate_investment_deal_exit_value(deal)) for deal in deals)
+    gross_exit_value_future = sum(float(deal_selectors.calculate_investment_deal_exit_value(deal)) for deal in deals if deal.entry_year >= current_year)
     
     p_injections_future = {yr: amt for yr, amt in p_injections_by_year.items() if yr >= current_year}
     p_solver_injections = p_injections_future if p_injections_future else p_injections_by_year

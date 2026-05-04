@@ -69,6 +69,12 @@ class Fund(models.Model):
     )
     total_units = models.DecimalField(max_digits=30, decimal_places=4, default=0.0000)
 
+    # New Target & Planning Fields
+    target_appreciation = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    target_yield = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    target_capital_allocation = models.JSONField(default=list, blank=True)
+    report_config = models.JSONField(default=dict, blank=True)
+
     class Meta:
         ordering = ["-created_at"]
         indexes = [

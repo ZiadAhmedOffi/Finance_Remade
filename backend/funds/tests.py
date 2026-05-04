@@ -35,7 +35,7 @@ class FundCalculationTest(TestCase):
         )
         
         # Ownership should be 1 / (1 + 4) = 20%
-        from .serializers import InvestmentDealSerializer
+        from funds.api.serializers import InvestmentDealSerializer
         serializer = InvestmentDealSerializer(deal)
         data = serializer.data
         
@@ -58,7 +58,7 @@ class FundCalculationTest(TestCase):
         # Fund Ownership = 2M / 10M = 20%
         # Fund value = 20% * 15M = 3M.
         # Fund MOIC = 3M / 2M = 1.5x.
-        from .serializers import CurrentDealSerializer
+        from funds.api.serializers import CurrentDealSerializer
         serializer = CurrentDealSerializer(deal)
         data = serializer.data
         
@@ -87,7 +87,7 @@ class FundCalculationTest(TestCase):
         )
         
         from rest_framework.test import APIRequestFactory, force_authenticate
-        from .views import FundPerformanceView
+        from funds.api.views import FundPerformanceView
         
         factory = APIRequestFactory()
         request = factory.get(f'/api/funds/{self.fund.id}/performance/')
@@ -116,7 +116,7 @@ class ProRataValidationTest(TestCase):
 
     def test_pro_rata_validation_same_company(self):
         """Verify that pro-rata deal must belong to the same company."""
-        from .serializers import InvestmentDealSerializer
+        from funds.api.serializers import InvestmentDealSerializer
         data = {
             "fund": self.fund.id,
             "company_name": "Other Co",
@@ -136,7 +136,7 @@ class ProRataValidationTest(TestCase):
 
     def test_pro_rata_validation_success(self):
         """Verify successful pro-rata deal creation."""
-        from .serializers import InvestmentDealSerializer
+        from funds.api.serializers import InvestmentDealSerializer
         data = {
             "fund": self.fund.id,
             "company_name": "Tech Co",
@@ -154,3 +154,51 @@ class ProRataValidationTest(TestCase):
         deal = serializer.save(fund=self.fund)
         self.assertEqual(deal.parent_deal, self.parent_deal)
         self.assertTrue(deal.is_pro_rata)
+
+class FundTargetTest(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="target_test@example.com", password="password", is_active=True)
+        self.fund = Fund.objects.create(name="Target Fund", created_by=self.user)
+
+    def test_allocation_sum_validation_failure(self):
+        """Verify that allocation sum != 100 fails."""
+        from funds.api.serializers import FundSerializer
+        data = {
+            "target_capital_allocation": [
+                {"name": "SaaS", "rationale": "High growth", "percentage": 60},
+                {"name": "Fintech", "rationale": "Stable", "percentage": 30}
+            ]
+        }
+        serializer = FundSerializer(self.fund, data=data, partial=True)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("target_capital_allocation", serializer.errors)
+
+    def test_allocation_sum_validation_success(self):
+        """Verify that allocation sum == 100 succeeds."""
+        from funds.api.serializers import FundSerializer
+        data = {
+            "target_capital_allocation": [
+                {"name": "SaaS", "rationale": "High growth", "percentage": 60.5},
+                {"name": "Fintech", "rationale": "Stable", "percentage": 39.5}
+            ]
+        }
+        serializer = FundSerializer(self.fund, data=data, partial=True)
+        self.assertTrue(serializer.is_valid())
+        serializer.save()
+        self.fund.refresh_from_db()
+        self.assertEqual(len(self.fund.target_capital_allocation), 2)
+        self.assertEqual(float(self.fund.target_capital_allocation[0]['percentage']), 60.5)
+
+    def test_target_metrics_save(self):
+        """Verify that target appreciation and yield are saved correctly."""
+        from funds.api.serializers import FundSerializer
+        data = {
+            "target_appreciation": 15.5,
+            "target_yield": 8.25
+        }
+        serializer = FundSerializer(self.fund, data=data, partial=True)
+        self.assertTrue(serializer.is_valid())
+        serializer.save()
+        self.fund.refresh_from_db()
+        self.assertEqual(float(self.fund.target_appreciation), 15.5)
+        self.assertEqual(float(self.fund.target_yield), 8.25)

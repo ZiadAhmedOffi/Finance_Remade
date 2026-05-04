@@ -17,6 +17,12 @@ interface ReasonToInvest {
   brief_desc: string;
 }
 
+interface CapitalAllocationEntry {
+  name: string;
+  rationale: string;
+  percentage: number;
+}
+
 interface Fund {
   id: string;
   name: string;
@@ -30,6 +36,10 @@ interface Fund {
   structure: string;
   strategy_and_fund_lifecycle: string;
   reasons_to_invest: ReasonToInvest[];
+  target_appreciation: number;
+  target_yield: number;
+  target_capital_allocation: CapitalAllocationEntry[];
+  report_config: any;
   steering_committee: string[];
   status: "ESTABLISHED" | "FUTURE" | "DEACTIVATED";
 }
@@ -72,6 +82,11 @@ const FundDashboard: React.FC = () => {
   const [strategyAndLifecycle, setStrategyAndLifecycle] = useState("");
   const [reasonsToInvest, setReasonsToInvest] = useState<ReasonToInvest[]>([]);
   
+  // Targets & Planning state
+  const [targetAppreciation, setTargetAppreciation] = useState<number>(0);
+  const [targetYield, setTargetYield] = useState<number>(0);
+  const [targetAllocation, setTargetAllocation] = useState<CapitalAllocationEntry[]>([]);
+  
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isSCMember, setIsSCMember] = useState(false);
 
@@ -109,6 +124,9 @@ const FundDashboard: React.FC = () => {
       setStructure(response.data.structure || "");
       setStrategyAndLifecycle(response.data.strategy_and_fund_lifecycle || "");
       setReasonsToInvest(response.data.reasons_to_invest || []);
+      setTargetAppreciation(response.data.target_appreciation || 0);
+      setTargetYield(response.data.target_yield || 0);
+      setTargetAllocation(response.data.target_capital_allocation || []);
       checkPermissions(response.data);
       setError(null);
     } catch (err: any) {
@@ -140,29 +158,41 @@ const FundDashboard: React.FC = () => {
       fetchLogs();
     }
   }, [activeTab, fetchLogs]);
+const handleUpdateInfo = async (e: React.FormEvent) => {
+  e.preventDefault();
 
-  const handleUpdateInfo = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await api.put(`/funds/${fundId}/`, {
-        name: newName,
-        description: newDescription,
-        tag: newTag,
-        sharia_compliant: shariaCompliant,
-        region: region,
-        focus: focus || null,
-        overview: overview,
-        strategy: strategy,
-        structure: structure,
-        strategy_and_fund_lifecycle: strategyAndLifecycle,
-        reasons_to_invest: reasonsToInvest
-      });
-      setMessage("Fund information updated successfully.");
-      fetchFundData();
-    } catch (err: any) {
-      setError(err.response?.data?.error || "Failed to update fund information.");
-    }
-  };
+  // Validate Capital Allocation Sum
+  const totalAllocation = targetAllocation.reduce((sum, entry) => sum + parseFloat(entry.percentage as any || 0), 0);
+  if (targetAllocation.length > 0 && Math.abs(totalAllocation - 100) > 0.001) {
+    alert(`Target Capital Allocation must sum to exactly 100% (currently ${totalAllocation}%).`);
+    return;
+  }
+
+  try {
+    await api.put(`/funds/${fundId}/`, {
+      name: newName,
+      description: newDescription,
+      tag: newTag,
+      sharia_compliant: shariaCompliant,
+      region: region,
+      focus: focus,
+      overview: overview,
+      strategy: strategy,
+      structure: structure,
+      strategy_and_fund_lifecycle: strategyAndLifecycle,
+      reasons_to_invest: reasonsToInvest,
+      target_appreciation: targetAppreciation,
+      target_yield: targetYield,
+      target_capital_allocation: targetAllocation,
+    });
+    setMessage("Fund information updated successfully!");
+    fetchFundData();
+    setTimeout(() => setMessage(null), 3000);
+  } catch (err) {
+    alert("Failed to update fund information.");
+  }
+};
+
 
   const handleLogout = () => {
     localStorage.removeItem("access_token");
@@ -477,6 +507,122 @@ const FundDashboard: React.FC = () => {
                         </table>
                       </div>
                     </div>
+
+                    <div className="targets-section" style={{ marginTop: '2.5rem' }}>
+                      <h4 style={{ marginBottom: '1.5rem' }}>Fund Performance Targets</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                        <div className="form-group">
+                          <label>Target YoY Assets Appreciation (%)</label>
+                          <input 
+                            type="number" 
+                            step="0.01"
+                            value={targetAppreciation} 
+                            onChange={(e) => setTargetAppreciation(parseFloat(e.target.value))} 
+                            placeholder="e.g. 15.00"
+                            className="form-input"
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>Target Annual Yield (%)</label>
+                          <input 
+                            type="number" 
+                            step="0.01"
+                            value={targetYield} 
+                            onChange={(e) => setTargetYield(parseFloat(e.target.value))} 
+                            placeholder="e.g. 8.00"
+                            className="form-input"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="allocation-section" style={{ marginTop: '2.5rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <h4 style={{ margin: 0 }}>Target Capital Allocation Model</h4>
+                        <button 
+                          type="button" 
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => setTargetAllocation([...targetAllocation, { name: "", rationale: "", percentage: 0 }])}
+                        >
+                          + Add Allocation
+                        </button>
+                      </div>
+                      
+                      <div className="table-responsive">
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th style={{ width: '25%' }}>Name</th>
+                              <th>Rationale</th>
+                              <th style={{ width: '120px' }}>Percentage (%)</th>
+                              <th style={{ width: '80px' }}>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {targetAllocation.map((alloc, idx) => (
+                              <tr key={idx}>
+                                <td>
+                                  <input 
+                                    type="text" 
+                                    value={alloc.name} 
+                                    onChange={(e) => {
+                                      const newAlloc = [...targetAllocation];
+                                      newAlloc[idx].name = e.target.value;
+                                      setTargetAllocation(newAlloc);
+                                    }}
+                                    placeholder="Sector/Asset Name"
+                                    className="form-input-sm"
+                                  />
+                                </td>
+                                <td>
+                                  <textarea 
+                                    value={alloc.rationale} 
+                                    onChange={(e) => {
+                                      const newAlloc = [...targetAllocation];
+                                      newAlloc[idx].rationale = e.target.value;
+                                      setTargetAllocation(newAlloc);
+                                    }}
+                                    placeholder="Brief rationale..."
+                                    className="form-input-sm"
+                                    rows={2}
+                                  />
+                                </td>
+                                <td>
+                                  <input 
+                                    type="number" 
+                                    step="0.1"
+                                    value={alloc.percentage} 
+                                    onChange={(e) => {
+                                      const newAlloc = [...targetAllocation];
+                                      newAlloc[idx].percentage = parseFloat(e.target.value);
+                                      setTargetAllocation(newAlloc);
+                                    }}
+                                    placeholder="0.0"
+                                    className="form-input-sm"
+                                  />
+                                </td>
+                                <td>
+                                  <button 
+                                    type="button" 
+                                    className="btn-icon delete"
+                                    onClick={() => setTargetAllocation(targetAllocation.filter((_, i) => i !== idx))}
+                                  >
+                                    🗑️
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                            {targetAllocation.length === 0 && (
+                              <tr>
+                                <td colSpan={4} style={{ textAlign: 'center', color: '#64748b', padding: '1rem' }}>
+                                  No allocations defined yet.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
                   </form>
                 ) : (
                   <div className="info-display">
@@ -545,9 +691,50 @@ const FundDashboard: React.FC = () => {
                              </div>
                            ))}
                          </div>
-                       </div>
-                     )}
-                  </div>
+                         </div>
+                         )}
+
+                         <div className="targets-display" style={{ marginTop: '2.5rem', paddingTop: '1.5rem', borderTop: '1px solid #e2e8f0' }}>
+                         <label style={{ display: 'block', marginBottom: '1rem', fontWeight: 600, color: '#475569' }}>Fund Performance Targets</label>
+                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
+                         <div className="info-item">
+                           <label>Target YoY Assets Appreciation</label>
+                           <p className="value">{fund.target_appreciation}%</p>
+                         </div>
+                         <div className="info-item">
+                           <label>Target Annual Yield</label>
+                           <p className="value">{fund.target_yield}%</p>
+                         </div>
+                         </div>
+                         </div>
+
+                         {fund.target_capital_allocation && fund.target_capital_allocation.length > 0 && (
+                         <div className="allocation-display" style={{ marginTop: '2rem' }}>
+                         <label style={{ display: 'block', marginBottom: '1rem', fontWeight: 600, color: '#475569' }}>Target Capital Allocation Model</label>
+                         <div className="table-responsive">
+                           <table className="data-table">
+                             <thead>
+                               <tr>
+                                 <th>Name</th>
+                                 <th>Rationale</th>
+                                 <th style={{ width: '120px' }}>Percentage (%)</th>
+                               </tr>
+                             </thead>
+                             <tbody>
+                               {fund.target_capital_allocation.map((alloc, idx) => (
+                                 <tr key={idx}>
+                                   <td style={{ fontWeight: 600 }}>{alloc.name}</td>
+                                   <td>{alloc.rationale}</td>
+                                   <td style={{ fontWeight: 700, color: '#2563eb' }}>{alloc.percentage}%</td>
+                                 </tr>
+                               ))}
+                             </tbody>
+                           </table>
+                         </div>
+                         </div>
+                         )}
+                         </div>
+
                 )}
               </div>
 

@@ -298,6 +298,10 @@ class FundSerializer(serializers.ModelSerializer):
             "structure",
             "strategy_and_fund_lifecycle",
             "reasons_to_invest",
+            "target_appreciation",
+            "target_yield",
+            "target_capital_allocation",
+            "report_config",
             "created_by",
             "created_by_email",
             "created_at",
@@ -307,6 +311,25 @@ class FundSerializer(serializers.ModelSerializer):
             "model_inputs",
         ]
         read_only_fields = ["created_by", "created_at", "total_units"]
+
+    def validate_target_capital_allocation(self, value):
+        if not value:
+            return value
+        
+        total = 0
+        for item in value:
+            if not item.get("name"):
+                raise serializers.ValidationError("Each allocation entry must have a name.")
+            if "percentage" not in item:
+                raise serializers.ValidationError("Each allocation entry must have a percentage.")
+            try:
+                total += float(item.get("percentage", 0))
+            except (ValueError, TypeError):
+                raise serializers.ValidationError("Percentage must be a number.")
+        
+        if abs(total - 100) > 0.0001:  # Using epsilon for float comparison
+            raise serializers.ValidationError(f"The sum of capital allocation percentages must be exactly 100% (currently {total}%).")
+        return value
 
     def get_steering_committee(self, obj):
         from users.models import UserRoleAssignment
