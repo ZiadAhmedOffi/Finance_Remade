@@ -522,7 +522,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ fundId, isAdmin }) => {
         setDraggedItem({ type, index: idx });
       };
 
-      const handleTouchMove = (e: React.TouchEvent, idx: number) => {
+      const handleTouchMove = (e: React.TouchEvent) => {
         if (!draggedItem || draggedItem.type !== type) return;
         
         // Find the element under the finger
@@ -587,7 +587,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ fundId, isAdmin }) => {
                   <div 
                     className="drag-handle"
                     onTouchStart={() => handleTouchStart(idx)}
-                    onTouchMove={(e) => handleTouchMove(e, idx)}
+                    onTouchMove={handleTouchMove}
                     onTouchEnd={handleTouchEnd}
                     style={{ 
                       fontSize: '1.2rem', 

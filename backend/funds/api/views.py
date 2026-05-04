@@ -836,6 +836,7 @@ def get_fund_performance_data(fund):
             "focus": fund.focus,
             "strategy": fund.strategy,
             "structure": fund.structure,
+            "risk_measures": fund.risk_measures,
         },
         "investment_deals": deals_data,
         "current_deals": c_deals_data
