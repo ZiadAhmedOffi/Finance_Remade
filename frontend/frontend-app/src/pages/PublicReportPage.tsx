@@ -22,7 +22,6 @@ import "./PublicReport.css";
 import { calculateLiquidityIndex } from "../utils/liquidityUtils";
 import LiquidityGauge from "../components/LiquidityGauge";
 import FundPerformanceRadarChart from "../components/FundPerformanceRadarChart";
-import { format } from "echarts/types/src/util/time.js";
 
 const COLORS = ["#2563eb", "#7c3aed", "#db2777", "#ea580c", "#16a34a", "#0891b2"];
 
