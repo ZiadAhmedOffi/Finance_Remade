@@ -22,6 +22,7 @@ import "./PublicReport.css";
 import { calculateLiquidityIndex } from "../utils/liquidityUtils";
 import LiquidityGauge from "../components/LiquidityGauge";
 import FundPerformanceRadarChart from "../components/FundPerformanceRadarChart";
+import { format } from "echarts/types/src/util/time.js";
 
 const COLORS = ["#2563eb", "#7c3aed", "#db2777", "#ea580c", "#16a34a", "#0891b2"];
 
@@ -709,10 +710,10 @@ const PublicReportPage: React.FC = () => {
                     <div className="metric-card-modern">
                       <div className="m-icon">📈</div>
                       <span className="m-label">Annualized Return</span>
-                      <span className="m-value">{formatPercent((targetAppreciation + targetYield) / 100)}</span>
+                      <span className="m-value">{formatPercent((targetAppreciation + targetYield) / 100) || formatPercent(cIrr)}</span>
                       <div className="m-subvalue">
                         <span style={{ color: getMetricColor(targetYield) }}>Yield: {formatPercent(targetYield / 100)}</span>
-                        <span style={{ color: getMetricColor(targetAppreciation) }}>Gain: {formatPercent(targetAppreciation / 100)}</span>
+                        <span style={{ color: getMetricColor(targetAppreciation) }}>Gain: {formatPercent(targetAppreciation / 100) || formatPercent(cIrr)}</span>
                       </div>
                     </div>
                     <div className="metric-card-modern">
@@ -929,7 +930,7 @@ const PublicReportPage: React.FC = () => {
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
-
+                {targetYield > 0 &&
                 <div className="table-wrapper" style={{ marginTop: '2rem' }}>
                    <table className="modern-table">
                       <thead>
@@ -962,6 +963,7 @@ const PublicReportPage: React.FC = () => {
                       </tbody>
                    </table>
                 </div>
+                }
               </section>
             );
 
