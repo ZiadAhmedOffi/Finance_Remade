@@ -109,7 +109,7 @@ const FundPerformanceTab: React.FC<FundPerformanceTabProps> = ({ fundId }) => {
         const response = await api.get(`/funds/${fundId}/performance/`);
         setData(response.data);
       } catch (err) {
-        setError("Failed to fetch performance data.");
+        setError("Failed to fetch performance data:"  + err);
       } finally {
         setLoading(false);
       }
