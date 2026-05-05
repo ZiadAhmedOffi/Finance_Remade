@@ -10,6 +10,8 @@ __pycache__/
 backend-venv/
 venv/
 env/
+.env
+.env.example
 
 # Node
 node_modules/
@@ -19,7 +21,6 @@ coverage/
 # IDEs
 .vscode/
 .idea/
-
 
 # Agentic Coding
 .gemini/

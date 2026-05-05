@@ -88,12 +88,12 @@ class InvestorActionListView(APIView):
         serializer = InvestorActionSerializer(data=request.data)
         if serializer.is_valid():
             try:
-                investor_service.create_investor_action(
+                action = investor_service.create_investor_action(
                     actor=request.user,
                     validated_data=serializer.validated_data,
                     ip_address=request.META.get("REMOTE_ADDR")
                 )
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
+                return Response(InvestorActionSerializer(action).data, status=status.HTTP_201_CREATED)
             except ValueError as e:
                 return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -117,13 +117,13 @@ class InvestorActionDetailView(APIView):
         serializer = InvestorActionSerializer(action, data=request.data, partial=True)
         if serializer.is_valid():
             try:
-                investor_service.update_investor_action(
+                action = investor_service.update_investor_action(
                     action_id=action_id,
                     actor=request.user,
                     data=serializer.validated_data,
                     ip_address=request.META.get("REMOTE_ADDR")
                 )
-                return Response(serializer.data)
+                return Response(InvestorActionSerializer(action).data)
             except ValueError as e:
                 return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -294,13 +294,13 @@ class InvestmentDealListView(APIView):
         
         serializer = InvestmentDealSerializer(data=request.data)
         if serializer.is_valid():
-            deal_service.create_investment_deal(
+            deal = deal_service.create_investment_deal(
                 fund=fund,
                 actor=request.user,
                 data=serializer.validated_data,
                 ip_address=request.META.get("REMOTE_ADDR")
             )
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(InvestmentDealSerializer(deal).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -325,13 +325,13 @@ class InvestmentDealDetailView(APIView):
         serializer = InvestmentDealSerializer(data=request.data, partial=True)
         if serializer.is_valid():
             try:
-                deal_service.update_investment_deal(
+                deal = deal_service.update_investment_deal(
                     deal_id=deal_id,
                     actor=request.user,
                     data=serializer.validated_data,
                     ip_address=request.META.get("REMOTE_ADDR")
                 )
-                return Response(serializer.data)
+                return Response(InvestmentDealSerializer(deal).data)
             except ValueError as e:
                 return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -396,13 +396,13 @@ class CurrentDealListView(APIView):
         
         serializer = CurrentDealSerializer(data=request.data)
         if serializer.is_valid():
-            deal_service.create_current_deal(
+            deal = deal_service.create_current_deal(
                 fund=fund,
                 actor=request.user,
                 data=serializer.validated_data,
                 ip_address=request.META.get("REMOTE_ADDR")
             )
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(CurrentDealSerializer(deal).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -426,13 +426,13 @@ class CurrentDealDetailView(APIView):
         serializer = CurrentDealSerializer(data=request.data, partial=True)
         if serializer.is_valid():
             try:
-                deal_service.update_current_deal(
+                deal = deal_service.update_current_deal(
                     deal_id=deal_id,
                     actor=request.user,
                     data=serializer.validated_data,
                     ip_address=request.META.get("REMOTE_ADDR")
                 )
-                return Response(serializer.data)
+                return Response(CurrentDealSerializer(deal).data)
             except ValueError as e:
                 return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -494,13 +494,13 @@ class InvestmentRoundListView(APIView):
         serializer = InvestmentRoundSerializer(data=request.data)
         if serializer.is_valid():
             try:
-                deal_service.create_investment_round(
+                round_obj = deal_service.create_investment_round(
                     fund=fund,
                     actor=request.user,
                     data=serializer.validated_data,
                     ip_address=request.META.get("REMOTE_ADDR")
                 )
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
+                return Response(InvestmentRoundSerializer(round_obj).data, status=status.HTTP_201_CREATED)
             except ValueError as e:
                 return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -522,13 +522,13 @@ class InvestmentRoundDetailView(APIView):
         serializer = InvestmentRoundSerializer(data=request.data, partial=True)
         if serializer.is_valid():
             try:
-                deal_service.update_investment_round(
+                round_obj = deal_service.update_investment_round(
                     round_id=round_id,
                     actor=request.user,
                     data=serializer.validated_data,
                     ip_address=request.META.get("REMOTE_ADDR")
                 )
-                return Response(serializer.data)
+                return Response(InvestmentRoundSerializer(round_obj).data)
             except ValueError as e:
                 return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -581,8 +581,6 @@ class RiskAssessmentListView(APIView):
 
 
 class FundListView(APIView):
-
-
     """
     Lists funds accessible to the user or creates new funds (Super Admin only).
     """

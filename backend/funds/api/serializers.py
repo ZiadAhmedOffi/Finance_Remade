@@ -258,7 +258,9 @@ class CurrentDealSerializer(serializers.ModelSerializer):
     def get_holding_period(self, obj):
         """Calculated by subtracting entry year from current year."""
         current_year = datetime.now().year
-        return current_year - obj.entry_year
+        if isinstance(obj,  dict):
+            return current_year - obj.get('entry_year')
+        return current_year - getattr(obj, 'entry_year', None)
 
     def get_post_money_ownership(self, obj):
         from funds.selectors import deal_selectors
