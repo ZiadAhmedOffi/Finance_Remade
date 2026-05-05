@@ -233,7 +233,7 @@ const PublicReportPage: React.FC = () => {
     const rateFactor = multipliers[selectedScenario] || 1.0;
     let appreciationRate = (targetAppreciation / 100) * rateFactor;
     if(inceptionYear < currentYear){
-      appreciationRate = cIrr;
+      appreciationRate = cIrr *  rateFactor;
     }
     
     const endYear = inceptionYear + fundLife;

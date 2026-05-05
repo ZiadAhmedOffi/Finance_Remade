@@ -52,7 +52,7 @@ def get_total_fund_portfolio(fund, year):
     deals = deal_selectors.get_deals_for_fund(fund)
     p_injections_by_year = deal_selectors.get_prognosis_injections(fund)
     
-    gross_exit_value_future = sum(float(d.exit_value) for d in deals if d.entry_year >= current_year)
+    gross_exit_value_future = sum(float(deal_selectors.calculate_investment_deal_exit_value(d)) for d in deals if d.entry_year >= current_year)
     p_injections_future = {yr: amt for yr, amt in p_injections_by_year.items() if yr >= current_year}
     p_solver_injections = p_injections_future if p_injections_future else p_injections_by_year
     irr = calculators.solve_implied_return_rate(p_solver_injections, fund_end_year, gross_exit_value_future)
