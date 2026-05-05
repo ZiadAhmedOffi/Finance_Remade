@@ -41,7 +41,7 @@ def get_prognosis_injections(fund):
         
         # Distributed pro-rata across years
         if deal.pro_rata_rights and deal.expected_number_of_rounds > 0:
-            total_pro_rata = float(deal.expected_pro_rata_investments)
+            total_pro_rata = float(calculate_investment_deal_expected_pro_rata_investments(deal))
             round_amt = total_pro_rata / deal.expected_number_of_rounds
             for i in range(1, deal.expected_number_of_rounds + 1):
                 p_yr = deal.entry_year + i
