@@ -51,6 +51,7 @@ INSTALLED_APPS = [
 
     'users',
     'funds',
+    'real_estate',
 ]
 
 REST_FRAMEWORK = {

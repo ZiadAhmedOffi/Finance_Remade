@@ -20,7 +20,6 @@ class Fund(models.Model):
         ("VS", "VS"),
         ("AIG", "AIG"),
         ("SF", "SF"),
-        ("REAL_ESTATE", "Real estate"),
     ]
 
     FOCUS_CHOICES = [

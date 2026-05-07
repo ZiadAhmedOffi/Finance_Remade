@@ -133,4 +133,13 @@ export const fundsApi = {
   getMyHoldings: () => api.get("/funds/my-holdings/"),
 };
 
+export const realEstateApi = {
+  getPortfolios: () => api.get("/real-estate/"),
+  getPortfolio: (id: string) => api.get(`/real-estate/${id}/`),
+  createPortfolio: (data: any) => api.post("/real-estate/", data),
+  updatePortfolio: (id: string, data: any) => api.patch(`/real-estate/${id}/`, data),
+  getAssumptions: (id: string) => api.get(`/real-estate/${id}/assumptions/`),
+  updateAssumptions: (id: string, data: any) => api.patch(`/real-estate/${id}/assumptions/`, data),
+};
+
 export { api, publicApi };

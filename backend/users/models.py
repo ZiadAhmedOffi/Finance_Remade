@@ -199,6 +199,8 @@ class AuditLog(models.Model):
         ("LOGIN_SUCCESS", "Login Success"),
         ("LOGIN_FAILED", "Login Failed"),
         ("PASSWORD_RESET", "Password Reset"),
+        ("RE_PORTFOLIO_CREATED", "Real Estate Portfolio Created"),
+        ("RE_ASSUMPTIONS_UPDATED", "Real Estate Assumptions Updated"),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

@@ -7,6 +7,8 @@ import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import AdminDashboard from "./pages/AdminDashboard";
 import FundDashboard from "./pages/FundDashboard";
+import RealEstateDashboard from "./pages/RealEstateDashboard";
+import RealEstatePortfolioDashboard from "./pages/RealEstatePortfolioDashboard";
 import InvestorDashboard from "./pages/InvestorDashboard";
 import PrivateRoute from "./components/PrivateRoute";
 import AdminRoute from "./components/AdminRoute";
@@ -129,6 +131,8 @@ function App() {
 
         <Route path="/investor-dashboard" element={<InvestorDashboard />} />
         <Route path="/funds/:fundId" element={<FundDashboard />} />
+        <Route path="/real-estate" element={<RealEstateDashboard />} />
+        <Route path="/real-estate/:portfolioId" element={<RealEstatePortfolioDashboard />} />
       </Route>
       
       <Route path="/reports/public/:slug" element={<PublicReportPage />} />
