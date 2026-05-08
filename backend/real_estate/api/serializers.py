@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from ..models import RealEstatePortfolio, RealEstateAssumptions
+from ..models import RealEstatePortfolio, RealEstateAssumptions, Property
 
 class RealEstateAssumptionsSerializer(serializers.ModelSerializer):
     class Meta:
@@ -26,3 +26,20 @@ class RealEstatePortfolioSerializer(serializers.ModelSerializer):
             'assumptions'
         ]
         read_only_fields = ['id', 'created_at', 'created_by_email']
+
+class PropertySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Property
+        fields = [
+            'id', 'portfolio', 'name', 'city', 'country', 'submarket',
+            'property_type', 'financing_type', 'status',
+            'purchase_date', 'purchase_price', 'monthly_rent',
+            'other_operational_expenses', 'acq_fee_percentage',
+            'appreciation_rate_percentage', 'vacancy_rate_percentage',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+class PropertyWithMetricsSerializer(serializers.Serializer):
+    property = PropertySerializer()
+    metrics = serializers.JSONField()

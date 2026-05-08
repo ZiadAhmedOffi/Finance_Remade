@@ -91,10 +91,11 @@ class RoleSerializer(serializers.ModelSerializer):
 class UserRoleAssignmentSerializer(serializers.ModelSerializer):
     role = RoleSerializer()
     fund_name = serializers.CharField(source="fund.name", read_only=True)
+    portfolio_name = serializers.CharField(source="real_estate_portfolio.name", read_only=True)
 
     class Meta:
         model = UserRoleAssignment
-        fields = ["id", "role", "fund", "fund_name"]
+        fields = ["id", "role", "fund", "fund_name", "real_estate_portfolio", "portfolio_name"]
 
 
 # -----------------------------
@@ -136,6 +137,7 @@ class AuditLogSerializer(serializers.ModelSerializer):
     actor_email = serializers.EmailField(source="actor.email", read_only=True)
     target_user_email = serializers.EmailField(source="target_user.email", read_only=True)
     fund_name = serializers.CharField(source="fund.name", read_only=True)
+    portfolio_name = serializers.CharField(source="real_estate_portfolio.name", read_only=True)
 
     class Meta:
         model = AuditLog
@@ -145,6 +147,7 @@ class AuditLogSerializer(serializers.ModelSerializer):
             "target_user_email",
             "action",
             "fund_name",
+            "portfolio_name",
             "metadata",
             "ip_address",
             "timestamp",

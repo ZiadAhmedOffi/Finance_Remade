@@ -26,6 +26,8 @@ interface UserRole {
   };
   fund: string | null;
   fund_name?: string | null;
+  real_estate_portfolio?: string | null;
+  portfolio_name?: string | null;
 }
 
 interface User {
@@ -37,6 +39,11 @@ interface User {
   status: string;
   is_staff: boolean;
   roles: UserRole[];
+}
+
+interface RealEstatePortfolio {
+  id: string;
+  name: string;
 }
 
 interface AuditLog {
@@ -63,6 +70,7 @@ const AdminDashboard: React.FC = () => {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [funds, setFunds] = useState<Fund[]>([]);
+  const [portfolios, setPortfolios] = useState<RealEstatePortfolio[]>([]);
   
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,6 +88,7 @@ const AdminDashboard: React.FC = () => {
   const [selectedLogForDetails, setSelectedLogForDetails] = useState<AuditLog | null>(null);
   const [selectedRoleId, setSelectedRoleId] = useState("");
   const [selectedFundId, setSelectedFundId] = useState("");
+  const [selectedPortfolioId, setSelectedPortfolioId] = useState("");
   const [newPassword, setNewPassword] = useState("");
 
   const [newFundName, setNewFundName] = useState("");
@@ -141,6 +150,15 @@ const AdminDashboard: React.FC = () => {
     }
   }, []);
 
+  const fetchPortfolios = useCallback(async () => {
+    try {
+      const response = await api.get("/real-estate/");
+      setPortfolios(response.data);
+    } catch (err) {
+      console.error("Failed to fetch portfolios", err);
+    }
+  }, []);
+
   const fetchRolesOnly = useCallback(async () => {
     try {
       const response = await api.get("/users/roles/");
@@ -158,12 +176,13 @@ const AdminDashboard: React.FC = () => {
         fetchActiveUsers(1),
         fetchAuditLogs(1),
         fetchFunds(),
+        fetchPortfolios(),
         fetchRolesOnly(),
       ]);
       setLoading(false);
     };
     init();
-  }, [fetchPendingUsers, fetchActiveUsers, fetchAuditLogs, fetchFunds, fetchRolesOnly]);
+  }, [fetchPendingUsers, fetchActiveUsers, fetchAuditLogs, fetchFunds, fetchPortfolios, fetchRolesOnly]);
 
   const handleLogout = () => {
     localStorage.removeItem("access_token");
@@ -276,18 +295,26 @@ const AdminDashboard: React.FC = () => {
     if (!selectedUserId || !selectedRoleId) return;
     
     const role = roles.find(r => r.id === selectedRoleId);
-    if (role && (role.name === "INVESTOR" || role.name === "STEERING_COMMITTEE") && !selectedFundId) {
-      alert("Please select a fund for this role.");
+    if (role && (role.name === "INVESTOR" || role.name === "STEERING_COMMITTEE") && !selectedFundId && !selectedPortfolioId) {
+      alert("Please select a fund or portfolio for this role.");
+      return;
+    }
+
+    if (role && role.name === "PORTFOLIO_MANAGER" && !selectedPortfolioId) {
+      alert("Please select a portfolio for this role.");
       return;
     }
 
     try {
       await api.post(`/users/assign-role/${selectedUserId}/`, {
         role_id: selectedRoleId,
-        fund_id: selectedFundId || null
+        fund_id: selectedFundId || null,
+        portfolio_id: selectedPortfolioId || null
       });
       setMessage("Role assigned successfully.");
       setIsModalOpen(false);
+      setSelectedFundId("");
+      setSelectedPortfolioId("");
       fetchActiveUsers(currentPage);
       fetchAuditLogs(logPage);
     } catch (err: any) {
@@ -295,12 +322,13 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleRemoveRole = async (userId: string, roleId: string, fundId: string | null) => {
+  const handleRemoveRole = async (userId: string, roleId: string, fundId: string | null, portfolioId: string | null) => {
     if (!window.confirm("Are you sure you want to remove this role?")) return;
     try {
       await api.post(`/users/remove-role/${userId}/`, {
         role_id: roleId,
-        fund_id: fundId
+        fund_id: fundId,
+        portfolio_id: portfolioId
       });
       setMessage("Role removed successfully.");
       fetchActiveUsers(currentPage);
@@ -426,10 +454,12 @@ const AdminDashboard: React.FC = () => {
                           <div className="role-tags">
                             {user.roles.length > 0 ? user.roles.map((r, i) => (
                               <span key={i} className="role-tag">
-                                {r.role.name} {r.fund_name && `(${r.fund_name})`}
+                                {r.role.name} 
+                                {r.fund_name && ` (Fund: ${r.fund_name})`}
+                                {r.portfolio_name && ` (Portfolio: ${r.portfolio_name})`}
                                 <button 
                                   className="remove-role-btn" 
-                                  onClick={() => handleRemoveRole(user.id, r.role.id || "", r.fund || null)}
+                                  onClick={() => handleRemoveRole(user.id, r.role.id || "", r.fund || null, r.real_estate_portfolio || null)}
                                   title="Remove Role"
                                 >
                                   &times;
@@ -644,6 +674,7 @@ const AdminDashboard: React.FC = () => {
                 onChange={(e) => {
                   setSelectedRoleId(e.target.value);
                   setSelectedFundId("");
+                  setSelectedPortfolioId("");
                 }}
               >
                 <option value="">-- Select Role --</option>
@@ -656,11 +687,30 @@ const AdminDashboard: React.FC = () => {
             {(roles.find(r => r.id === selectedRoleId)?.name === "INVESTOR" || 
               roles.find(r => r.id === selectedRoleId)?.name === "STEERING_COMMITTEE") && (
               <div className="form-group">
-                <label>Select Fund</label>
-                <select value={selectedFundId} onChange={(e) => setSelectedFundId(e.target.value)}>
+                <label>Select Fund (Optional if choosing Portfolio)</label>
+                <select value={selectedFundId} onChange={(e) => {
+                  setSelectedFundId(e.target.value);
+                  if (e.target.value) setSelectedPortfolioId("");
+                }}>
                   <option value="">-- Select Fund --</option>
                   {funds.map(fund => (
                     <option key={fund.id} value={fund.id}>{fund.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {(roles.find(r => r.id === selectedRoleId)?.name === "INVESTOR" || 
+              roles.find(r => r.id === selectedRoleId)?.name === "PORTFOLIO_MANAGER") && (
+              <div className="form-group">
+                <label>Select Portfolio (Required for Portfolio Manager)</label>
+                <select value={selectedPortfolioId} onChange={(e) => {
+                  setSelectedPortfolioId(e.target.value);
+                  if (e.target.value) setSelectedFundId("");
+                }}>
+                  <option value="">-- Select Portfolio --</option>
+                  {portfolios.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
               </div>

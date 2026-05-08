@@ -87,3 +87,72 @@ class RealEstateAssumptions(models.Model):
 
     def __str__(self):
         return f"Assumptions for {self.portfolio.name}"
+
+class Property(models.Model):
+    """
+    Represents an individual real estate asset within a portfolio.
+    Stores both inputs and snapshotted assumptions for per-property overrides.
+    """
+    STATUS_CHOICES = [
+        ("HELD", "Held"),
+        ("OFF_PLAN", "Off-Plan"),
+    ]
+
+    TYPE_CHOICES = [
+        ("RESIDENTIAL", "Residential"),
+        ("COMMERCIAL", "Commercial"),
+        ("INDUSTRIAL", "Industrial"),
+        ("RETAIL", "Retail"),
+        ("MIXED_USE", "Mixed-Use"),
+    ]
+
+    FINANCING_CHOICES = [
+        ("ALL_CASH", "All Cash"),
+        ("MORTGAGED", "Mortgaged"),
+        ("MEZZANINE", "Mezzanine"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    portfolio = models.ForeignKey(
+        RealEstatePortfolio, 
+        on_delete=models.CASCADE, 
+        related_name="properties"
+    )
+
+    # Basic Info
+    name = models.CharField(max_length=255)
+    city = models.CharField(max_length=255)
+    country = models.CharField(max_length=255)
+    submarket = models.CharField(max_length=255, blank=True)
+    
+    # Categories
+    property_type = models.CharField(max_length=50, choices=TYPE_CHOICES)
+    financing_type = models.CharField(max_length=50, choices=FINANCING_CHOICES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="HELD")
+
+    # Financial Inputs
+    purchase_date = models.DateField()
+    purchase_price = models.DecimalField(max_digits=15, decimal_places=2)
+    monthly_rent = models.DecimalField(max_digits=15, decimal_places=2)
+    other_operational_expenses = models.DecimalField(
+        max_digits=15, 
+        decimal_places=2, 
+        help_text="Annual expenses",
+        default=0.00
+    )
+
+    # Snapshotted assumptions (Overrides)
+    acq_fee_percentage = models.DecimalField(max_digits=5, decimal_places=2)
+    appreciation_rate_percentage = models.DecimalField(max_digits=5, decimal_places=2)
+    vacancy_rate_percentage = models.DecimalField(max_digits=5, decimal_places=2)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-purchase_date"]
+        verbose_name = "Property"
+        verbose_name_plural = "Properties"
+
+    def __str__(self):
+        return f"{self.name} ({self.city})"

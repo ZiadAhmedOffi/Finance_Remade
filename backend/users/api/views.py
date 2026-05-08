@@ -46,12 +46,13 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token["email"] = user.email
         token["is_staff"] = user.is_staff
         token["is_superuser"] = user.is_superuser
-        roles = user.role_assignments.select_related("role", "fund").all()
+        roles = user.role_assignments.select_related("role", "fund", "real_estate_portfolio").all()
         token["roles"] = [
             {
                 "role": role.role.name,
                 "fund": role.fund.name if role.fund else None,
                 "fund_id": str(role.fund.id) if role.fund else None,
+                "portfolio_id": str(role.real_estate_portfolio.id) if role.real_estate_portfolio else None,
             }
             for role in roles
         ]
@@ -296,7 +297,7 @@ class ResetPasswordView(APIView):
 
 class AssignRoleView(APIView):
     """
-    API view to assign a role (and optionally a fund) to a user.
+    API view to assign a role (and optionally a fund or portfolio) to a user.
     Enforces hierarchical restrictions for Super Admin and Access Manager roles.
     """
     permission_classes = [IsAccessManager]
@@ -304,12 +305,14 @@ class AssignRoleView(APIView):
     def post(self, request, user_id):
         role_id = request.data.get("role_id")
         fund_id = request.data.get("fund_id")
+        portfolio_id = request.data.get("portfolio_id")
 
         try:
             assignment, created = user_service.assign_role(
                 user_id=user_id,
                 role_id=role_id,
                 fund_id=fund_id,
+                portfolio_id=portfolio_id,
                 actor=request.user,
                 ip_address=request.META.get("REMOTE_ADDR")
             )
@@ -331,12 +334,14 @@ class RemoveRoleView(APIView):
     def post(self, request, user_id):
         role_id = request.data.get("role_id")
         fund_id = request.data.get("fund_id")
+        portfolio_id = request.data.get("portfolio_id")
 
         try:
             user_service.remove_role(
                 user_id=user_id,
                 role_id=role_id,
                 fund_id=fund_id,
+                portfolio_id=portfolio_id,
                 actor=request.user,
                 ip_address=request.META.get("REMOTE_ADDR")
             )

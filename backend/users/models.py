@@ -146,6 +146,15 @@ class UserRoleAssignment(models.Model):
         db_index=True
     )
 
+    real_estate_portfolio = models.ForeignKey(
+        "real_estate.RealEstatePortfolio",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="role_assignments",
+        db_index=True
+    )
+
     assigned_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -156,11 +165,13 @@ class UserRoleAssignment(models.Model):
     assigned_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("user", "role", "fund")
+        unique_together = ("user", "role", "fund", "real_estate_portfolio")
         indexes = [
             models.Index(fields=["user", "role"]),
             models.Index(fields=["user", "fund"]),
+            models.Index(fields=["user", "real_estate_portfolio"]),
             models.Index(fields=["role", "fund"]),
+            models.Index(fields=["role", "real_estate_portfolio"]),
         ]
 
     def __str__(self):

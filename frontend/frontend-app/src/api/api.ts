@@ -140,6 +140,16 @@ export const realEstateApi = {
   updatePortfolio: (id: string, data: any) => api.patch(`/real-estate/${id}/`, data),
   getAssumptions: (id: string) => api.get(`/real-estate/${id}/assumptions/`),
   updateAssumptions: (id: string, data: any) => api.patch(`/real-estate/${id}/assumptions/`, data),
+  
+  getProperties: (portfolioId: string, referenceDate?: string) => {
+    const params = referenceDate ? { reference_date: referenceDate } : {};
+    return api.get(`/real-estate/${portfolioId}/properties/`, { params });
+  },
+  createProperty: (portfolioId: string, data: any) => api.post(`/real-estate/${portfolioId}/properties/`, data),
+  updateProperty: (portfolioId: string, propertyId: string, data: any) => 
+    api.patch(`/real-estate/${portfolioId}/properties/${propertyId}/`, data),
+  deleteProperty: (portfolioId: string, propertyId: string) => 
+    api.delete(`/real-estate/${portfolioId}/properties/${propertyId}/`),
 };
 
 export { api, publicApi };

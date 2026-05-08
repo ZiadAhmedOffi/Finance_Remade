@@ -88,7 +88,7 @@ class UserService:
         return user
 
     @transaction.atomic
-    def assign_role(self, user_id, role_id, fund_id, actor, ip_address):
+    def assign_role(self, user_id, role_id, fund_id, portfolio_id, actor, ip_address):
         try:
             target_user = User.objects.get(id=user_id)
             role = Role.objects.get(id=role_id)
@@ -101,18 +101,33 @@ class UserService:
             raise PermissionError("Only Super Admins can assign Admin/Manager roles.")
 
         fund = None
-        if role.name in ["INVESTOR", "STEERING_COMMITTEE"]:
-            if not fund_id:
-                raise ValueError(f"Role {role.name} requires a fund.")
-            
+        if fund_id:
             fund = self.fund_interface.get_fund_by_id(fund_id)
             if not fund:
                 raise ValueError("Fund not found")
+
+        portfolio = None
+        if portfolio_id:
+            from real_estate.models import RealEstatePortfolio
+            try:
+                portfolio = RealEstatePortfolio.objects.get(id=portfolio_id)
+            except RealEstatePortfolio.DoesNotExist:
+                raise ValueError("Portfolio not found")
+
+        # Validation for roles that require a scope
+        if role.name in ["INVESTOR", "STEERING_COMMITTEE"] and not fund_id and not portfolio_id:
+             # In this case it could be a global investor? 
+             # But usually it's tied to something. 
+             pass
+        
+        if role.name == "PORTFOLIO_MANAGER" and not portfolio_id:
+            raise ValueError("PORTFOLIO_MANAGER role requires a portfolio.")
 
         assignment, created = UserRoleAssignment.objects.get_or_create(
             user=target_user,
             role=role,
             fund=fund,
+            real_estate_portfolio=portfolio,
             defaults={"assigned_by": actor}
         )
 
@@ -141,14 +156,18 @@ class UserService:
             action="ROLE_ASSIGNED",
             target_user=target_user,
             fund=fund,
-            metadata={"role": role.name},
+            metadata={
+                "role": role.name,
+                "portfolio_id": str(portfolio.id) if portfolio else None,
+                "portfolio_name": portfolio.name if portfolio else None
+            },
             ip=ip_address
         )
 
         return assignment, True
 
     @transaction.atomic
-    def remove_role(self, user_id, role_id, fund_id, actor, ip_address):
+    def remove_role(self, user_id, role_id, fund_id, portfolio_id, actor, ip_address):
         try:
             target_user = User.objects.get(id=user_id)
             role = Role.objects.get(id=role_id)
@@ -164,7 +183,8 @@ class UserService:
             assignment = UserRoleAssignment.objects.get(
                 user=target_user,
                 role=role,
-                fund=fund_id if fund_id else None
+                fund=fund_id if fund_id else None,
+                real_estate_portfolio=portfolio_id if portfolio_id else None
             )
             assignment.delete()
             
@@ -175,6 +195,7 @@ class UserService:
                 fund=assignment.fund,
                 metadata={
                     "role": role.name,
+                    "portfolio_id": str(portfolio_id) if portfolio_id else None,
                     "description": f"Role {role.name} was removed from {target_user.email}."
                 },
                 ip=ip_address

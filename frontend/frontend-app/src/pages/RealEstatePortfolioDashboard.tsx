@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { realEstateApi } from "../api/api";
 import RealEstateAssumptionsTab from "../components/RealEstateAssumptionsTab";
+import PropertyDataTab from "../components/PropertyDataTab";
 import "./FundDashboard.css"; // Reuse dashboard styles
 
 interface RealEstatePortfolio {
@@ -18,7 +19,8 @@ const RealEstatePortfolioDashboard: React.FC = () => {
   const [portfolio, setPortfolio] = useState<RealEstatePortfolio | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"assumptions">("assumptions");
+  const [activeTab, setActiveTab] = useState<"properties" | "assumptions">("properties");
+  const [canEdit, setCanEdit] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
@@ -27,15 +29,20 @@ const RealEstatePortfolioDashboard: React.FC = () => {
       try {
         const payload = JSON.parse(atob(token.split(".")[1]));
         const roles = payload.roles || [];
-        const hasAdminPrivilege = roles.some((r: any) => 
-          r.role === "SUPER_ADMIN" || r.role === "ACCESS_MANAGER"
+        
+        const isSuperAdmin = roles.some((r: any) => r.role === "SUPER_ADMIN");
+        setIsAdmin(isSuperAdmin);
+
+        const hasEditPrivilege = roles.some((r: any) => 
+          r.role === "SUPER_ADMIN" || 
+          (r.role === "PORTFOLIO_MANAGER" && r.portfolio_id === portfolioId)
         );
-        setIsAdmin(hasAdminPrivilege);
+        setCanEdit(hasEditPrivilege);
       } catch (e) {
         console.error("Error decoding token", e);
       }
     }
-  }, []);
+  }, [portfolioId]);
 
   const fetchPortfolioData = useCallback(async () => {
     if (!portfolioId) return;
@@ -66,6 +73,7 @@ const RealEstatePortfolioDashboard: React.FC = () => {
   if (error || !portfolio) return <div className="error-message">{error || "Portfolio not found."}</div>;
 
   const menuItems = [
+    { id: "properties", label: "Property Data", icon: "🏢" },
     { id: "assumptions", label: "Assumptions", icon: "⚙️" },
   ];
 
@@ -95,7 +103,7 @@ const RealEstatePortfolioDashboard: React.FC = () => {
         <div className="sidebar-footer">
           <div className="user-info">
             <span className="user-icon">👤</span>
-            <span className="user-role">{isAdmin ? "Admin" : "User"}</span>
+            <span className="user-role">{isAdmin ? "Admin" : (canEdit ? "Portfolio Manager" : "Investor")}</span>
           </div>
           <button className="logout-button" onClick={handleLogout}>
             Logout
@@ -114,8 +122,11 @@ const RealEstatePortfolioDashboard: React.FC = () => {
         </header>
 
         <div className="scrollable-content">
+          {activeTab === "properties" && portfolioId && (
+            <PropertyDataTab portfolioId={portfolioId} canEdit={canEdit} />
+          )}
           {activeTab === "assumptions" && portfolioId && (
-            <RealEstateAssumptionsTab portfolioId={portfolioId} canEdit={isAdmin} />
+            <RealEstateAssumptionsTab portfolioId={portfolioId} canEdit={canEdit} />
           )}
         </div>
       </main>
