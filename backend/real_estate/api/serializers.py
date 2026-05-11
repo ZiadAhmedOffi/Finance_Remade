@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from ..models import RealEstatePortfolio, RealEstateAssumptions, Property
+from ..models import RealEstatePortfolio, RealEstateAssumptions, Property, FinancingEntry
 
 class RealEstateAssumptionsSerializer(serializers.ModelSerializer):
     class Meta:
@@ -39,6 +39,24 @@ class PropertySerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+class FinancingEntrySerializer(serializers.ModelSerializer):
+    property_name = serializers.CharField(source='property.name', read_only=True)
+    purchase_price = serializers.DecimalField(source='property.purchase_price', max_digits=15, decimal_places=2, read_only=True)
+
+    class Meta:
+        model = FinancingEntry
+        fields = [
+            'id', 'property', 'property_name', 'purchase_price',
+            'loan_amount', 'base_interest_rate', 'tenor',
+            'payments_per_year', 'loan_start_date',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+class FinancingEntryWithMetricsSerializer(serializers.Serializer):
+    entry = FinancingEntrySerializer()
+    metrics = serializers.JSONField()
 
 class PropertyWithMetricsSerializer(serializers.Serializer):
     property = PropertySerializer()

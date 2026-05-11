@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { realEstateApi } from "../api/api";
 import RealEstateAssumptionsTab from "../components/RealEstateAssumptionsTab";
 import PropertyDataTab from "../components/PropertyDataTab";
+import FinancingModelTab from "../components/FinancingModelTab";
 import "./FundDashboard.css"; // Reuse dashboard styles
 
 interface RealEstatePortfolio {
@@ -19,7 +20,7 @@ const RealEstatePortfolioDashboard: React.FC = () => {
   const [portfolio, setPortfolio] = useState<RealEstatePortfolio | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"properties" | "assumptions">("properties");
+  const [activeTab, setActiveTab] = useState<"properties" | "assumptions" | "financing">("properties");
   const [canEdit, setCanEdit] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -74,6 +75,7 @@ const RealEstatePortfolioDashboard: React.FC = () => {
 
   const menuItems = [
     { id: "properties", label: "Property Data", icon: "🏢" },
+    { id: "financing", label: "Financing Model", icon: "💰" },
     { id: "assumptions", label: "Assumptions", icon: "⚙️" },
   ];
 
@@ -127,6 +129,9 @@ const RealEstatePortfolioDashboard: React.FC = () => {
           )}
           {activeTab === "assumptions" && portfolioId && (
             <RealEstateAssumptionsTab portfolioId={portfolioId} canEdit={canEdit} />
+          )}
+          {activeTab === "financing" && portfolioId && (
+            <FinancingModelTab portfolioId={portfolioId} canEdit={canEdit} />
           )}
         </div>
       </main>

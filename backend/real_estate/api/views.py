@@ -9,12 +9,17 @@ from .serializers import (
     RealEstatePortfolioSerializer, 
     RealEstateAssumptionsSerializer,
     PropertySerializer,
-    PropertyWithMetricsSerializer
+    PropertyWithMetricsSerializer,
+    FinancingEntrySerializer,
+    FinancingEntryWithMetricsSerializer
 )
+from ..models import FinancingEntry
 from ..selectors.portfolio_selectors import PortfolioSelectors
 from ..selectors.property_selectors import PropertySelector
+from ..selectors.financing_selectors import FinancingSelectors
 from ..services.portfolio_service import PortfolioService
 from ..services.property_service import PropertyService
+from ..services.financing_service import FinancingService
 from users.services.permission_service import PermissionService
 
 class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
@@ -115,3 +120,78 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
         elif request.method == 'DELETE':
             property_obj.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['get', 'post'], url_path='financing')
+    def financing(self, request, pk=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        
+        if not PermissionService.can_view_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("You do not have permission to view this portfolio's financing model.")
+
+        if request.method == 'GET':
+            entries_with_metrics = FinancingSelectors.get_financing_entries_for_portfolio(portfolio)
+            serializer = FinancingEntryWithMetricsSerializer(entries_with_metrics, many=True)
+            return Response(serializer.data)
+        
+        elif request.method == 'POST':
+            if not PermissionService.can_edit_re_portfolio(request.user, portfolio):
+                raise PermissionDenied("You do not have permission to add financing entries to this portfolio.")
+            
+            try:
+                property_id = request.data.get('property')
+                property_obj = portfolio.properties.get(id=property_id)
+            except:
+                return Response({"error": "Property not found in this portfolio."}, status=status.HTTP_404_NOT_FOUND)
+                
+            try:
+                entry = FinancingService.create_financing_entry(property_obj=property_obj, data=request.data)
+                serializer = FinancingEntrySerializer(entry)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            except Exception as e:
+                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['put', 'patch', 'delete'], url_path='financing/(?P<entry_id>[0-9a-f-]+)')
+    def manage_financing(self, request, pk=None, entry_id=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        
+        if not PermissionService.can_edit_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("You do not have permission to manage financing entries in this portfolio.")
+            
+        try:
+            entry = FinancingEntry.objects.get(id=entry_id, property__portfolio=portfolio)
+        except:
+            return Response({"error": "Financing entry not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.method in ['PUT', 'PATCH']:
+            updated_entry = FinancingService.update_financing_entry(entry=entry, data=request.data)
+            serializer = FinancingEntrySerializer(updated_entry)
+            return Response(serializer.data)
+            
+        elif request.method == 'DELETE':
+            FinancingService.delete_financing_entry(entry=entry)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['get'], url_path='financing/amortization-total')
+    def portfolio_amortization(self, request, pk=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        
+        if not PermissionService.can_view_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("You do not have permission to view this portfolio's amortization schedule.")
+
+        schedule = FinancingSelectors.get_portfolio_total_amortization(portfolio)
+        return Response(schedule)
+
+    @action(detail=True, methods=['get'], url_path='financing/(?P<entry_id>[^/.]+)/amortization')
+    def entry_amortization(self, request, pk=None, entry_id=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        
+        if not PermissionService.can_view_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("You do not have permission to view this amortization schedule.")
+            
+        try:
+            entry = FinancingEntry.objects.get(id=entry_id, property__portfolio=portfolio)
+        except:
+            return Response({"error": "Financing entry not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        schedule = FinancingSelectors.get_amortization_schedule(entry)
+        return Response(schedule)

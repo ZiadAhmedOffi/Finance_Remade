@@ -156,3 +156,35 @@ class Property(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.city})"
+
+class FinancingEntry(models.Model):
+    """
+    Stores financing details for a specific property.
+    One-to-one relationship with Property.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    property = models.OneToOneField(
+        Property,
+        on_delete=models.CASCADE,
+        related_name="financing"
+    )
+
+    loan_amount = models.DecimalField(max_digits=15, decimal_places=2)
+    base_interest_rate = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        help_text="Base interest rate as a percentage"
+    )
+    tenor = models.PositiveIntegerField(help_text="Tenor in years")
+    payments_per_year = models.PositiveIntegerField(default=12)
+    loan_start_date = models.DateField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Financing Entry"
+        verbose_name_plural = "Financing Entries"
+
+    def __str__(self):
+        return f"Financing for {self.property.name}"

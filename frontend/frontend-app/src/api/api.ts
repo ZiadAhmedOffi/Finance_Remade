@@ -150,6 +150,17 @@ export const realEstateApi = {
     api.patch(`/real-estate/${portfolioId}/properties/${propertyId}/`, data),
   deleteProperty: (portfolioId: string, propertyId: string) => 
     api.delete(`/real-estate/${portfolioId}/properties/${propertyId}/`),
+
+  getFinancing: (portfolioId: string) => api.get(`/real-estate/${portfolioId}/financing/`),
+  createFinancing: (portfolioId: string, data: any) => api.post(`/real-estate/${portfolioId}/financing/`, data),
+  updateFinancing: (portfolioId: string, entryId: string, data: any) => 
+    api.patch(`/real-estate/${portfolioId}/financing/${entryId}/`, data),
+  deleteFinancing: (portfolioId: string, entryId: string) => 
+    api.delete(`/real-estate/${portfolioId}/financing/${entryId}/`),
+  getPortfolioAmortization: (portfolioId: string) => 
+    api.get(`/real-estate/${portfolioId}/financing/amortization-total/`),
+  getEntryAmortization: (portfolioId: string, entryId: string) => 
+    api.get(`/real-estate/${portfolioId}/financing/${entryId}/amortization/`),
 };
 
 export { api, publicApi };
