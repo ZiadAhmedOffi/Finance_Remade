@@ -169,6 +169,13 @@ export const realEstateApi = {
     api.get(`/real-estate/${portfolioId}/off-plan/${propertyId}/schedule/`),
   updateOffPlanMilestone: (portfolioId: string, milestoneId: string, data: any) => 
     api.patch(`/real-estate/${portfolioId}/off-plan/milestones/${milestoneId}/`, data),
+
+  getSales: (portfolioId: string) => api.get(`/real-estate/${portfolioId}/sales/`),
+  createSale: (portfolioId: string, data: any) => api.post(`/real-estate/${portfolioId}/sales/`, data),
+  updateSale: (portfolioId: string, saleId: string, data: any) => 
+    api.patch(`/real-estate/${portfolioId}/sales/${saleId}/`, data),
+  deleteSale: (portfolioId: string, saleId: string) => 
+    api.delete(`/real-estate/${portfolioId}/sales/${saleId}/`),
 };
 
 export { api, publicApi };

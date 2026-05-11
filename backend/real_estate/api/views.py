@@ -13,17 +13,21 @@ from .serializers import (
     FinancingEntrySerializer,
     FinancingEntryWithMetricsSerializer,
     OffPlanDetailsSerializer,
-    OffPlanMilestoneSerializer
+    OffPlanMilestoneSerializer,
+    PropertySaleSerializer,
+    PropertySaleWithMetricsSerializer
 )
-from ..models import FinancingEntry, Property, OffPlanMilestone
+from ..models import FinancingEntry, Property, OffPlanMilestone, PropertySale
 from ..selectors.portfolio_selectors import PortfolioSelectors
 from ..selectors.property_selectors import PropertySelector
 from ..selectors.financing_selectors import FinancingSelectors
 from ..selectors.off_plan_selectors import OffPlanSelectors
+from ..selectors.property_sale_selectors import PropertySaleSelector
 from ..services.portfolio_service import PortfolioService
 from ..services.property_service import PropertyService
 from ..services.financing_service import FinancingService
 from ..services.off_plan_service import OffPlanService
+from ..services.property_sale_service import PropertySaleService
 from users.services.permission_service import PermissionService
 
 class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
@@ -36,8 +40,6 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
             return PortfolioSelectors.get_portfolios()
         
         # For non-superadmins, we should filter based on role assignments
-        # This is a bit complex for a single query, so we'll just filter 
-        # in the selector or here.
         portfolios = PortfolioSelectors.get_portfolios()
         return [p for p in portfolios if PermissionService.can_view_re_portfolio(user, p)]
 
@@ -200,7 +202,7 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
         schedule = FinancingSelectors.get_amortization_schedule(entry)
         return Response(schedule)
 
-    @action(detail=True, methods=['get'], url_path='off-plan')
+    @action(detail=True, methods=['get', 'post'], url_path='off-plan')
     def off_plan_model(self, request, pk=None):
         portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
         if not PermissionService.can_view_re_portfolio(request.user, portfolio):
@@ -252,3 +254,53 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
         updated_milestone = OffPlanService.update_milestone(milestone_id, request.data)
         serializer = OffPlanMilestoneSerializer(updated_milestone)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['get', 'post'], url_path='sales')
+    def sales(self, request, pk=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        
+        if not PermissionService.can_view_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("You do not have permission to view this portfolio's sales and disposals.")
+
+        if request.method == 'GET':
+            sales_with_metrics = PropertySaleSelector.get_sales_for_portfolio(portfolio)
+            serializer = PropertySaleWithMetricsSerializer(sales_with_metrics, many=True)
+            return Response(serializer.data)
+        
+        elif request.method == 'POST':
+            if not PermissionService.can_edit_re_portfolio(request.user, portfolio):
+                raise PermissionDenied("You do not have permission to add sales entries to this portfolio.")
+            
+            try:
+                property_id = request.data.get('property')
+                property_obj = portfolio.properties.get(id=property_id)
+            except:
+                return Response({"error": "Property not found in this portfolio."}, status=status.HTTP_404_NOT_FOUND)
+                
+            try:
+                sale = PropertySaleService.create_property_sale(property_obj=property_obj, data=request.data)
+                serializer = PropertySaleSerializer(sale)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            except Exception as e:
+                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['put', 'patch', 'delete'], url_path='sales/(?P<sale_id>[0-9a-f-]+)')
+    def manage_sale(self, request, pk=None, sale_id=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        
+        if not PermissionService.can_edit_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("You do not have permission to manage sales entries in this portfolio.")
+            
+        try:
+            sale = PropertySale.objects.get(id=sale_id, property__portfolio=portfolio)
+        except:
+            return Response({"error": "Sale entry not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.method in ['PUT', 'PATCH']:
+            updated_sale = PropertySaleService.update_property_sale(sale=sale, data=request.data)
+            serializer = PropertySaleSerializer(updated_sale)
+            return Response(serializer.data)
+            
+        elif request.method == 'DELETE':
+            PropertySaleService.delete_property_sale(sale=sale)
+            return Response(status=status.HTTP_204_NO_CONTENT)

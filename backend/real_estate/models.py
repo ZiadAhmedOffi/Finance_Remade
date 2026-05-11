@@ -244,3 +244,34 @@ class OffPlanMilestone(models.Model):
 
     def __str__(self):
         return f"{self.milestone_name} for {self.property.name}"
+
+class PropertySale(models.Model):
+    """
+    Represents the sale or disposal of a property.
+    One-to-one relationship with Property.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    property = models.OneToOneField(
+        Property,
+        on_delete=models.CASCADE,
+        related_name="sale"
+    )
+
+    sale_date = models.DateField()
+    selling_price = models.DecimalField(max_digits=15, decimal_places=2)
+    selling_fee_percentage = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        help_text="Selling fee as a percentage of selling price"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Property Sale"
+        verbose_name_plural = "Property Sales"
+        ordering = ["-sale_date"]
+
+    def __str__(self):
+        return f"Sale of {self.property.name} on {self.sale_date}"

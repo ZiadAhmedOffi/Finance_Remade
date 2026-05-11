@@ -1,5 +1,13 @@
 from rest_framework import serializers
-from ..models import RealEstatePortfolio, RealEstateAssumptions, Property, FinancingEntry, OffPlanDetails, OffPlanMilestone
+from ..models import (
+    RealEstatePortfolio, 
+    RealEstateAssumptions, 
+    Property, 
+    FinancingEntry, 
+    OffPlanDetails, 
+    OffPlanMilestone,
+    PropertySale
+)
 
 class RealEstateAssumptionsSerializer(serializers.ModelSerializer):
     class Meta:
@@ -79,4 +87,20 @@ class OffPlanMilestoneSerializer(serializers.ModelSerializer):
 
 class PropertyWithMetricsSerializer(serializers.Serializer):
     property = PropertySerializer()
+    metrics = serializers.JSONField()
+
+class PropertySaleSerializer(serializers.ModelSerializer):
+    property_name = serializers.ReadOnlyField(source='property.name')
+
+    class Meta:
+        model = PropertySale
+        fields = [
+            'id', 'property', 'property_name', 'sale_date', 
+            'selling_price', 'selling_fee_percentage', 
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+class PropertySaleWithMetricsSerializer(serializers.Serializer):
+    sale = PropertySaleSerializer()
     metrics = serializers.JSONField()
