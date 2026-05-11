@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { realEstateApi } from "../api/api";
+import { formatCurrency, formatPercent, formatNumber } from "../utils/formatters";
 
 interface PropertySale {
   id: string;
@@ -129,18 +130,8 @@ const SalesAndDisposalsTab: React.FC<{ portfolioId: string; canEdit: boolean }> 
     }
   };
 
-  const formatCurrency = (val: number | string) => {
-    const num = typeof val === 'string' ? parseFloat(val) : val;
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
-  };
-
-  const formatPercent = (val: number | string) => {
-    const num = typeof val === 'string' ? parseFloat(val) : val;
-    return num.toFixed(2) + "%";
-  };
-
   const formatROI = (val: number) => {
-    return val.toFixed(2) + "x";
+    return formatNumber(val, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "x";
   };
 
   // Pagination logic

@@ -60,6 +60,24 @@ class PropertySalesTestCase(TestCase):
         self.assertEqual(PropertySale.objects.count(), 1)
         self.assertEqual(sale.property, self.prop)
         self.assertEqual(sale.selling_price, Decimal('1200000.00'))
+        
+        # Verify status change
+        self.prop.refresh_from_db()
+        self.assertEqual(self.prop.status, "SOLD")
+
+    def test_delete_property_sale(self):
+        sale_data = {
+            'sale_date': date(2025, 1, 1),
+            'selling_price': Decimal('1200000.00'),
+            'selling_fee_percentage': Decimal('2.00')
+        }
+        sale = PropertySaleService.create_property_sale(property_obj=self.prop, data=sale_data)
+        
+        PropertySaleService.delete_property_sale(sale=sale)
+        
+        self.assertEqual(PropertySale.objects.count(), 0)
+        self.prop.refresh_from_db()
+        self.assertEqual(self.prop.status, "HELD")
 
     def test_duplicate_sale_prevented(self):
         sale_data = {
@@ -87,11 +105,11 @@ class PropertySalesTestCase(TestCase):
         # selling_costs = 1,200,000 * 0.02 = 24,000
         self.assertEqual(metrics['selling_costs'], Decimal('24000.00'))
         
-        # realized_gain = 1,200,000 - 1,000,000 - 24,000 = 176,000
-        self.assertEqual(metrics['realized_gain'], Decimal('176000.00'))
+        # realized_gain = 1,200,000 - 1,010,000 - 24,000 = 166,000
+        self.assertEqual(metrics['realized_gain'], Decimal('166000.00'))
         
-        # roi = 1,200,000 / 1,000,000 = 1.2
-        self.assertEqual(metrics['roi'], Decimal('1.2000'))
+        # roi = 1,200,000 / 1,010,000 = 1.1881
+        self.assertEqual(metrics['roi'], Decimal('1.1881'))
         
         # loan_payoff should be the ending balance after 12 payments
         self.assertLess(metrics['loan_payoff'], Decimal('700000.00'))

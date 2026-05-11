@@ -8,7 +8,7 @@ class PropertySaleService:
     @transaction.atomic
     def create_property_sale(*, property_obj: Property, data: dict) -> PropertySale:
         """
-        Creates a new property sale entry.
+        Creates a new property sale entry and marks the property as SOLD.
         """
         # Check if sale already exists for this property
         if hasattr(property_obj, 'sale'):
@@ -25,6 +25,10 @@ class PropertySaleService:
             selling_price=Decimal(str(data.get('selling_price'))),
             selling_fee_percentage=Decimal(str(selling_fee_percentage))
         )
+        
+        # Update property status
+        property_obj.status = "SOLD"
+        property_obj.save()
         
         return sale
 
@@ -50,6 +54,10 @@ class PropertySaleService:
     @transaction.atomic
     def delete_property_sale(*, sale: PropertySale):
         """
-        Deletes a property sale entry.
+        Deletes a property sale entry and reverts property status to HELD.
         """
+        property_obj = sale.property
         sale.delete()
+        
+        property_obj.status = "HELD"
+        property_obj.save()

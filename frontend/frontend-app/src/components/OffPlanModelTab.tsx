@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { realEstateApi } from "../api/api";
+import { formatCurrency, formatPercent } from "../utils/formatters";
 
 interface OffPlanProperty {
   property_id: string;
@@ -8,6 +9,7 @@ interface OffPlanProperty {
   construction_start: string;
   expected_completion: string;
   appreciation_rate: string;
+  sale_at_completion: boolean;
   value_at_completion: number;
   details_id: string;
 }
@@ -68,7 +70,8 @@ const OffPlanModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
         initialInputs[p.property_id] = {
           construction_start: p.construction_start,
           expected_completion: p.expected_completion,
-          appreciation_rate: p.appreciation_rate
+          appreciation_rate: p.appreciation_rate,
+          sale_at_completion: p.sale_at_completion
         };
       });
       setLocalPropertyInputs(initialInputs);
@@ -112,7 +115,7 @@ const OffPlanModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
     }));
   };
 
-  const handlePropertyDetailBlur = async (propertyId: string, field: string, value: string) => {
+  const handlePropertyDetailBlur = async (propertyId: string, field: string, value: any) => {
     // Check if value actually changed compared to the properties state
     const prop = properties.find(p => p.property_id === propertyId);
     if (prop && (prop as any)[field] === value) return;
@@ -121,7 +124,8 @@ const OffPlanModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
       const fieldMapping: Record<string, string> = {
         "construction_start": "construction_start_date",
         "expected_completion": "expected_completion_date",
-        "appreciation_rate": "appreciation_rate_at_completion"
+        "appreciation_rate": "appreciation_rate_at_completion",
+        "sale_at_completion": "sale_at_completion"
       };
       await realEstateApi.updateOffPlanDetails(portfolioId, propertyId, { [fieldMapping[field]]: value });
       fetchProperties();
@@ -155,18 +159,6 @@ const OffPlanModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
     } catch (err) {
       console.error("Failed to update milestone", err);
     }
-  };
-
-  const formatCurrency = (val: number) => {
-    const isNegative = val < 0;
-    const absVal = Math.abs(val);
-    const formatted = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(absVal);
-    return isNegative ? `(${formatted})` : formatted;
-  };
-
-  const formatPercent = (val: number | string) => {
-    const num = typeof val === 'string' ? parseFloat(val) : val;
-    return num.toFixed(2) + "%";
   };
 
   return (
@@ -261,6 +253,7 @@ const OffPlanModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                     <th>Construction Start</th>
                     <th>Expected Completion</th>
                     <th>Appreciation Rate</th>
+                    <th>Sale at Completion</th>
                     <th>Value at Completion</th>
                   </tr>
                 </thead>
@@ -303,11 +296,23 @@ const OffPlanModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                           <span>%</span>
                         </div>
                       </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={localPropertyInputs[p.property_id]?.sale_at_completion || false} 
+                          onChange={(e) => {
+                            const val = e.target.checked;
+                            handlePropertyDetailChange(p.property_id, "sale_at_completion", val as any);
+                            handlePropertyDetailBlur(p.property_id, "sale_at_completion", val);
+                          }}
+                          disabled={!canEdit}
+                        />
+                      </td>
                       <td style={{ fontWeight: 700, color: '#2563eb' }}>{formatCurrency(p.value_at_completion)}</td>
                     </tr>
                   ))}
                   {properties.length === 0 && (
-                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: '2rem' }}>No off-plan properties found.</td></tr>
+                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: '2rem' }}>No off-plan properties found.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -367,7 +372,9 @@ const OffPlanModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                     </tr>
                   </thead>
                   <tbody>
-                    {scheduleData.schedule.map((m) => (
+                    {scheduleData.schedule
+                      .filter(m => m.milestone !== "Sale at Completion" || properties.find(p => p.property_id === selectedPropertyId)?.sale_at_completion)
+                      .map((m) => (
                       <tr key={m.id}>
                         <td style={{ fontWeight: 600 }}>{m.milestone}</td>
                         <td>

@@ -36,6 +36,7 @@ class OffPlanSelectors:
             "construction_start": details.construction_start_date,
             "expected_completion": details.expected_completion_date,
             "appreciation_rate": details.appreciation_rate_at_completion,
+            "sale_at_completion": details.sale_at_completion,
             "value_at_completion": value_at_completion,
             "details_id": details.id
         }

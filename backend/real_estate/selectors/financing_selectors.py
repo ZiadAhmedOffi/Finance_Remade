@@ -9,9 +9,14 @@ class FinancingSelectors:
     @staticmethod
     def get_financing_entries_for_portfolio(portfolio: RealEstatePortfolio) -> list:
         """
-        Retrieves all financing entries for a portfolio with calculated derived metrics.
+        Retrieves all financing entries for a portfolio (excluding sold properties)
+        with calculated derived metrics.
         """
-        entries = FinancingEntry.objects.filter(property__portfolio=portfolio).select_related('property', 'property__portfolio__assumptions')
+        entries = FinancingEntry.objects.filter(
+            property__portfolio=portfolio
+        ).exclude(
+            property__status="SOLD"
+        ).select_related('property', 'property__portfolio__assumptions')
         
         results = []
         for entry in entries:
@@ -78,10 +83,14 @@ class FinancingSelectors:
     @staticmethod
     def get_portfolio_total_amortization(portfolio: RealEstatePortfolio):
         """
-        Aggregates amortization schedules across all loans in a portfolio.
+        Aggregates amortization schedules across all active loans in a portfolio.
         Returns a monthly timeline.
         """
-        entries = FinancingEntry.objects.filter(property__portfolio=portfolio).select_related('property', 'property__portfolio__assumptions')
+        entries = FinancingEntry.objects.filter(
+            property__portfolio=portfolio
+        ).exclude(
+            property__status="SOLD"
+        ).select_related('property', 'property__portfolio__assumptions')
         
         # Aggregate by month and year
         # Key: (year, month), Value: totals
@@ -95,15 +104,11 @@ class FinancingSelectors:
             schedule = FinancingSelectors.get_amortization_schedule(entry)
             
             # For each period in the schedule, calculate the date
-            # This is slightly complex because payments might not be monthly
-            # But the recommendation was to aggregate it as a monthly timeline.
-            
             start_date = entry.loan_start_date
             months_per_period = 12 // entry.payments_per_year
             
             for item in schedule:
                 # Calculate the date for this period
-                # Simplification: add months_per_period * (period - 1)
                 period = item['period']
                 total_months_offset = months_per_period * (period - 1)
                 

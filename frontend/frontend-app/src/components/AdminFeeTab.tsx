@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../api/api";
+import { formatCurrency } from "../utils/formatters";
 import {
   LineChart,
   Line,
@@ -71,13 +72,6 @@ const AdminFeeTab: React.FC<AdminFeeTabProps> = ({ fundId }) => {
 
   const { admin_fee } = data;
   const { inception_year, fund_life, total_admin_cost, operations_fee, management_fees } = admin_fee;
-
-  // Formatting Utilities
-  const formatCurrency = (val: number) => 
-    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(val);
-
-  const formatCurrencyShort = (val: number) => 
-    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact" }).format(val);
 
   const years = Array.from({ length: fund_life }, (_, i) => inception_year + i);
 
@@ -255,7 +249,7 @@ const AdminFeeTab: React.FC<AdminFeeTabProps> = ({ fundId }) => {
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="year" />
-              <YAxis tickFormatter={formatCurrencyShort} />
+              <YAxis tickFormatter={(v) => formatCurrency(v, { notation: 'compact' })} />
               <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
               <Legend />
               <Line type="monotone" dataKey="Total G&A" stroke="#2c3e50" strokeWidth={3} dot={{ r: 5 }} />
@@ -269,7 +263,7 @@ const AdminFeeTab: React.FC<AdminFeeTabProps> = ({ fundId }) => {
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="year" />
-              <YAxis tickFormatter={formatCurrencyShort} />
+              <YAxis tickFormatter={(v) => formatCurrency(v, { notation: 'compact' })} />
               <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
               <Legend />
               <Line type="monotone" dataKey="Startups Onboarding" stroke="#3498db" strokeWidth={2} />
@@ -287,7 +281,7 @@ const AdminFeeTab: React.FC<AdminFeeTabProps> = ({ fundId }) => {
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="year" />
-              <YAxis tickFormatter={formatCurrencyShort} />
+              <YAxis tickFormatter={(v) => formatCurrency(v, { notation: 'compact' })} />
               <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
               <Legend />
               <Line type="monotone" dataKey="Fund Estabilishment & Licensing" stroke="#27ae60" strokeWidth={2} />

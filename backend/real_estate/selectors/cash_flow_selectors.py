@@ -1,0 +1,226 @@
+from decimal import Decimal
+from datetime import date
+from collections import defaultdict
+from ..models import RealEstatePortfolio, Property, OffPlanMilestone
+from .financing_selectors import FinancingSelectors
+from ..constants import SCENARIO_ADJUSTMENTS
+
+class CashFlowSelectors:
+    @staticmethod
+    def get_portfolio_cash_flow(portfolio: RealEstatePortfolio, start_year: int = None, end_year: int = None) -> dict:
+        """
+        Calculates annual cash flows for all properties in a portfolio.
+        Follows lifecycle and off-plan specific logic.
+        """
+        assumptions = portfolio.assumptions
+        inception_year = assumptions.inception_date.year
+        
+        if start_year is None:
+            start_year = inception_year
+        if end_year is None:
+            end_year = inception_year + min(9, assumptions.forecast_horizon - 1)
+            
+        max_year = inception_year + assumptions.forecast_horizon - 1
+        end_year = min(end_year, max_year)
+        
+        full_years_range = list(range(inception_year, end_year + 1))
+        requested_years = list(range(start_year, end_year + 1))
+        
+        # Include properties that are SOLD but might have historical cash flow
+        properties = portfolio.properties.select_related('financing', 'off_plan_details').prefetch_related('milestones', 'sale')
+        
+        property_cash_flows = {}
+        portfolio_totals = defaultdict(Decimal)
+        
+        active_scenario = assumptions.active_scenario
+        adjustments = SCENARIO_ADJUSTMENTS.get(active_scenario, {})
+        
+        app_adj = adjustments.get('appreciation_rate', Decimal('0.00'))
+        rent_adj = adjustments.get('rental_growth', Decimal('0.00'))
+        vacancy_adj = adjustments.get('vacancy_rate', Decimal('0.00'))
+        
+        for prop in properties:
+            prop_data = {"name": prop.name, "annual_cf": {}, "metadata": {}}
+            
+            # Common rates
+            app_rate = (prop.appreciation_rate_percentage + app_adj) / Decimal('100')
+            rent_growth_rate = (assumptions.default_rental_growth_rate + rent_adj) / Decimal('100')
+            vacancy_rate = (prop.vacancy_rate_percentage + vacancy_adj) / Decimal('100')
+            mgmt_fee_pct = assumptions.property_mgmt_fee_percentage / Decimal('100')
+            maint_fee_pct = assumptions.maintenance_percentage_of_value / Decimal('100')
+            selling_fee_pct = assumptions.selling_fee_percentage / Decimal('100')
+            
+            # Lifecycle bounds
+            purchase_year = prop.purchase_date.year
+            sale_year = None
+            if hasattr(prop, 'sale'):
+                sale_year = prop.sale.sale_date.year
+            
+            # Off-plan specifics
+            is_off_plan_initial = prop.status == "OFF_PLAN"
+            completion_year = None
+            sale_at_completion = False
+            if hasattr(prop, 'off_plan_details'):
+                completion_year = prop.off_plan_details.expected_completion_date.year
+                sale_at_completion = prop.off_plan_details.sale_at_completion
+
+            # Milestones for Off-Plan
+            milestones_by_year = defaultdict(Decimal)
+            for m in prop.milestones.all():
+                milestones_by_year[m.date.year] += (prop.purchase_price * (m.percentage_of_price / Decimal('100')))
+
+            # Financing
+            debt_service_by_year = defaultdict(Decimal)
+            if hasattr(prop, 'financing'):
+                schedule = FinancingSelectors.get_amortization_schedule(prop.financing)
+                loan_start_date = prop.financing.loan_start_date
+                months_per_period = 12 // prop.financing.payments_per_year
+                for item in schedule:
+                    y = loan_start_date.year + (loan_start_date.month + (months_per_period * (item['period'] - 1)) - 1) // 12
+                    debt_service_by_year[y] += item['periodic_payment']
+
+            for year in full_years_range:
+                # Initialize variables for metadata
+                months_owned = 0
+                current_market_value = Decimal('0.00')
+                effective_rent = Decimal('0.00')
+                mgmt_fee = Decimal('0.00')
+                maint_fee = Decimal('0.00')
+                total_opex = Decimal('0.00')
+                noi = Decimal('0.00')
+                construction_cost = Decimal('0.00')
+                net_sale_inflow = Decimal('0.00')
+                debt_service = Decimal('0.00')
+
+                # 1. Check if property is within lifecycle
+                if year < purchase_year or (sale_year and year > sale_year):
+                    cf = None # Signal to show (-)
+                else:
+                    cf = Decimal('0.00')
+                    
+                    # 2. Handle Sale Year inflow
+                    if sale_year and year == sale_year:
+                        # If explicitly sold in the sales tab
+                        from .property_sale_selectors import PropertySaleSelector
+                        sale_metrics = PropertySaleSelector.calculate_sale_metrics(prop.sale)
+                        net_sale_inflow = sale_metrics['metrics']['net_proceeds']
+                        cf += net_sale_inflow
+                    
+                    # 3. Handle Operating CF
+                    elif is_off_plan_initial and completion_year and year < completion_year:
+                        # Off-Plan construction phase
+                        construction_cost = milestones_by_year.get(year, Decimal('0.00'))
+                        debt_service = debt_service_by_year.get(year, Decimal('0.00'))
+                        cf = -(construction_cost + debt_service)
+                        months_owned = 12
+                    
+                    elif is_off_plan_initial and completion_year and year == completion_year:
+                        # Completion Year
+                        if sale_at_completion:
+                            # Sale at completion logic
+                            appreciation_rate = prop.off_plan_details.appreciation_rate_at_completion / Decimal("100")
+                            value_at_completion = prop.purchase_price * (Decimal("1") + appreciation_rate)
+                            net_sale_inflow = value_at_completion * (Decimal("1") - selling_fee_pct)
+                            # Subtract construction costs in that year if any
+                            construction_cost = milestones_by_year.get(year, Decimal('0.00'))
+                            debt_service = debt_service_by_year.get(year, Decimal('0.00'))
+                            cf = net_sale_inflow - construction_cost - debt_service
+                            # Signal that it's "sold" effectively
+                            sale_year = year 
+                        else:
+                            # Transition to rental property
+                            # Pro-rate based on completion date
+                            months_owned = 12 - prop.off_plan_details.expected_completion_date.month + 1
+                            t = year - purchase_year
+                            completion_jump = prop.off_plan_details.appreciation_rate_at_completion / Decimal('100')
+                            
+                            # Appreciate rent and value
+                            current_monthly_rent = prop.monthly_rent * (Decimal('1') + rent_growth_rate) ** t
+                            current_monthly_rent *= (Decimal('1') + completion_jump)
+                            
+                            base_rent = current_monthly_rent * Decimal(str(months_owned))
+                            effective_rent = base_rent * (Decimal('1') - vacancy_rate)
+                            
+                            current_market_value = prop.purchase_price * (Decimal('1') + app_rate) ** t
+                            current_market_value *= (Decimal('1') + completion_jump)
+                            
+                            maint_fee = current_market_value * maint_fee_pct
+                            mgmt_fee = effective_rent * mgmt_fee_pct
+                            
+                            total_opex = mgmt_fee + maint_fee + Decimal(str(prop.other_operational_expenses))
+                            noi = effective_rent - total_opex
+                            
+                            # Subtract remaining construction costs and debt service
+                            construction_cost = milestones_by_year.get(year, Decimal('0.00'))
+                            debt_service = debt_service_by_year.get(year, Decimal('0.00'))
+                            cf = noi - construction_cost - debt_service
+                    
+                    else:
+                        # Normal Held Property or post-completion off-plan
+                        t = year - purchase_year
+                        
+                        # Market Value & Rent Base
+                        current_market_value = prop.purchase_price * (Decimal('1') + app_rate) ** t
+                        current_monthly_rent = prop.monthly_rent * (Decimal('1') + rent_growth_rate) ** t
+                        
+                        if is_off_plan_initial and completion_year and year >= completion_year:
+                            completion_jump = prop.off_plan_details.appreciation_rate_at_completion / Decimal('100')
+                            current_market_value *= (Decimal('1') + completion_jump)
+                            current_monthly_rent *= (Decimal('1') + completion_jump)
+
+                        # Purchase Price & Pro-rating for non-off-plan purchase year
+                        if year == purchase_year and not is_off_plan_initial:
+                            cf -= prop.purchase_price
+                            months_owned = 12 - prop.purchase_date.month + 1
+                        else:
+                            months_owned = 12
+                        
+                        base_rent = current_monthly_rent * Decimal(str(months_owned))
+                        effective_rent = base_rent * (Decimal('1') - vacancy_rate)
+                        
+                        maint_fee = current_market_value * maint_fee_pct
+                        mgmt_fee = effective_rent * mgmt_fee_pct
+                        
+                        total_opex = mgmt_fee + maint_fee + Decimal(str(prop.other_operational_expenses))
+                        noi = effective_rent - total_opex
+                        debt_service = debt_service_by_year.get(year, Decimal('0.00'))
+                        cf += noi - debt_service
+
+                # Aggregation
+                if cf is not None:
+                    portfolio_totals[year] += cf
+                
+                if year in requested_years:
+                    prop_data["annual_cf"][year] = str(cf.quantize(Decimal('0.01'))) if cf is not None else None
+                    if cf is not None:
+                        # Store metadata for drill-down
+                        prop_data["metadata"][year] = {
+                            "months_held": months_owned,
+                            "market_value": str(current_market_value.quantize(Decimal('0.01'))),
+                            "effective_rent": str(effective_rent.quantize(Decimal('0.01'))),
+                            "mgmt_fees": str(mgmt_fee.quantize(Decimal('0.01'))),
+                            "maintenance_fees": str(maint_fee.quantize(Decimal('0.01'))),
+                            "opex": str(total_opex.quantize(Decimal('0.01'))),
+                            "noi": str(noi.quantize(Decimal('0.01'))),
+                            "debt_service": str(debt_service.quantize(Decimal('0.01'))),
+                            "purchase_price": str(prop.purchase_price) if year == purchase_year and not is_off_plan_initial else "0.00",
+                            "construction_costs": str(construction_cost.quantize(Decimal('0.01'))),
+                            "sale_proceeds": str(net_sale_inflow.quantize(Decimal('0.01')))
+                        }
+            
+            property_cash_flows[str(prop.id)] = prop_data
+
+        # Cumulative CF from inception
+        current_cumulative = Decimal('0.00')
+        cumulative_by_year = {}
+        for year in full_years_range:
+            current_cumulative += portfolio_totals[year]
+            cumulative_by_year[year] = current_cumulative.quantize(Decimal('0.01'))
+
+        return {
+            "inception_year": inception_year,
+            "years": requested_years,
+            "properties": property_cash_flows,
+            "portfolio_totals": {y: str(portfolio_totals[y].quantize(Decimal('0.01'))) for y in requested_years},
+            "cumulative_cf": {y: str(cumulative_by_year[y]) for y in requested_years}
+        }

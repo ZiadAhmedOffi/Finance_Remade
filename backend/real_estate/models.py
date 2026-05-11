@@ -96,6 +96,7 @@ class Property(models.Model):
     STATUS_CHOICES = [
         ("HELD", "Held"),
         ("OFF_PLAN", "Off-Plan"),
+        ("SOLD", "Sold"),
     ]
 
     TYPE_CHOICES = [
@@ -208,6 +209,7 @@ class OffPlanDetails(models.Model):
         default=25.00,
         help_text="Expected appreciation percentage at completion"
     )
+    sale_at_completion = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -23,6 +23,7 @@ from ..selectors.property_selectors import PropertySelector
 from ..selectors.financing_selectors import FinancingSelectors
 from ..selectors.off_plan_selectors import OffPlanSelectors
 from ..selectors.property_sale_selectors import PropertySaleSelector
+from ..selectors.cash_flow_selectors import CashFlowSelectors
 from ..services.portfolio_service import PortfolioService
 from ..services.property_service import PropertyService
 from ..services.financing_service import FinancingService
@@ -43,14 +44,16 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
         portfolios = PortfolioSelectors.get_portfolios()
         return [p for p in portfolios if PermissionService.can_view_re_portfolio(user, p)]
 
-    def perform_create(self, serializer):
-        if not PermissionService.is_super_admin(self.request.user):
+    def create(self, request, *args, **kwargs):
+        if not PermissionService.is_super_admin(request.user):
             raise PermissionDenied("Only superadmins can create portfolios.")
         
-        PortfolioService.create_portfolio(
-            actor=self.request.user,
-            data=self.request.data
+        portfolio = PortfolioService.create_portfolio(
+            actor=request.user,
+            data=request.data
         )
+        serializer = self.get_serializer(portfolio)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['get', 'put', 'patch'], url_path='assumptions')
     def assumptions(self, request, pk=None):
@@ -254,6 +257,21 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
         updated_milestone = OffPlanService.update_milestone(milestone_id, request.data)
         serializer = OffPlanMilestoneSerializer(updated_milestone)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['get'], url_path='cash-flow')
+    def cash_flow(self, request, pk=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_view_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("You do not have permission to view this portfolio's cash flow model.")
+
+        start_year = request.query_params.get('start_year')
+        end_year = request.query_params.get('end_year')
+        
+        if start_year: start_year = int(start_year)
+        if end_year: end_year = int(end_year)
+
+        data = CashFlowSelectors.get_portfolio_cash_flow(portfolio, start_year, end_year)
+        return Response(data)
 
     @action(detail=True, methods=['get', 'post'], url_path='sales')
     def sales(self, request, pk=None):

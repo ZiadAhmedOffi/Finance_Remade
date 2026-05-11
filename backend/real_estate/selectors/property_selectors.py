@@ -16,7 +16,7 @@ class PropertySelector:
         if reference_date is None:
             reference_date = timezone.now().date()
         
-        properties = portfolio.properties.all().select_related('portfolio__assumptions')
+        properties = portfolio.properties.exclude(status="SOLD").select_related('portfolio__assumptions')
         
         results = []
         for prop in properties:
@@ -64,11 +64,11 @@ class PropertySelector:
         management_fees = mgmt_fee_pct * effective_rent
         maintenance_fees = maint_fee_pct * current_market_value
         
-        total_operational_expenses = management_fees + maintenance_fees + prop.other_operational_expenses
+        total_operational_expenses = management_fees + maintenance_fees + Decimal(str(prop.other_operational_expenses))
         
-        noi = effective_rent - total_operational_expenses if is_held else Decimal('0')
+        noi = effective_rent - total_operational_expenses
         
-        gross_yield = (annual_rent / purchase_price) if purchase_price > 0 else Decimal('0')
+        gross_yield = (effective_rent / purchase_price) if purchase_price > 0 else Decimal('0')
         net_yield = (noi / current_market_value) if current_market_value > 0 else Decimal('0')
 
         return {

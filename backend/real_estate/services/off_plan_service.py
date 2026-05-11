@@ -72,6 +72,8 @@ class OffPlanService:
             details.expected_completion_date = data["expected_completion_date"]
         if "appreciation_rate_at_completion" in data:
             details.appreciation_rate_at_completion = Decimal(str(data["appreciation_rate_at_completion"]))
+        if "sale_at_completion" in data:
+            details.sale_at_completion = data["sale_at_completion"]
             
         details.save()
         return details

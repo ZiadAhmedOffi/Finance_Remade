@@ -170,6 +170,13 @@ export const realEstateApi = {
   updateOffPlanMilestone: (portfolioId: string, milestoneId: string, data: any) => 
     api.patch(`/real-estate/${portfolioId}/off-plan/milestones/${milestoneId}/`, data),
 
+  getCashFlow: (portfolioId: string, startYear?: number, endYear?: number) => {
+    const params: any = {};
+    if (startYear) params.start_year = startYear;
+    if (endYear) params.end_year = endYear;
+    return api.get(`/real-estate/${portfolioId}/cash-flow/`, { params });
+  },
+
   getSales: (portfolioId: string) => api.get(`/real-estate/${portfolioId}/sales/`),
   createSale: (portfolioId: string, data: any) => api.post(`/real-estate/${portfolioId}/sales/`, data),
   updateSale: (portfolioId: string, saleId: string, data: any) => 

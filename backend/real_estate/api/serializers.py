@@ -72,7 +72,7 @@ class OffPlanDetailsSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'property', 'construction_start_date', 
             'expected_completion_date', 'appreciation_rate_at_completion',
-            'created_at', 'updated_at'
+            'sale_at_completion', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 

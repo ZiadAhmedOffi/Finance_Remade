@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { realEstateApi } from "../api/api";
+import { formatCurrency, formatPercent } from "../utils/formatters";
 
 interface Property {
   id: string;
@@ -172,14 +173,6 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
         console.error("Failed to delete property", err);
       }
     }
-  };
-
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
-  };
-
-  const formatPercent = (val: number) => {
-    return val.toFixed(2) + "%";
   };
 
   return (

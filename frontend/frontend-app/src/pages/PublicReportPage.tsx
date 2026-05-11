@@ -27,6 +27,7 @@ import "./PublicReport.css";
 import { calculateLiquidityIndex } from "../utils/liquidityUtils";
 import LiquidityGauge from "../components/LiquidityGauge";
 import FundPerformanceRadarChart from "../components/FundPerformanceRadarChart";
+import { formatCurrency, formatPercent, formatNumber } from "../utils/formatters";
 
 const COLORS = ["#2563eb", "#7c3aed", "#db2777", "#ea580c", "#16a34a", "#0891b2"];
 
@@ -169,15 +170,7 @@ const PublicReportPage: React.FC = () => {
 
   const currentYear = dashboard?.current_year || new Date().getFullYear();
 
-  // Formatting Utilities
-  const formatCurrency = (val: number) => 
-    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact" }).format(val);
-
-  const formatCurrencyLong = (val: number) => 
-    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(val);
-  
-  const formatPercent = (val: number) => (val * 100).toFixed(2) + "%";
-  const formatMultiple = (val: number) => val.toFixed(2) + "x";
+  const formatMultiple = (val: number) => formatNumber(val, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "x";
 
   const getMetricColor = (val: number) => val > 0 ? "#10b981" : "#94a3b8";
 
@@ -450,7 +443,7 @@ const PublicReportPage: React.FC = () => {
                     <p className="prose-text">
                       This report provides a comprehensive overview of the fund's current standing, realized returns, and future growth projections. 
                       As of {currentYear}, the portfolio shows strong resilience with a current MOIC of <strong>{formatMultiple(current_deals_metrics?.moic)}</strong> 
-                      and a projected IRR of <strong>{formatPercent(dashboard?.irr)}</strong> upon full deployment.
+                      and a projected IRR of <strong>{formatPercent((dashboard?.irr || 0) * 100)}</strong> upon full deployment.
                     </p>
                     
                     <div className="metrics-grid">
@@ -462,17 +455,17 @@ const PublicReportPage: React.FC = () => {
                       <div className="metric-card-revamp future">
                         <span className="card-icon">🚀</span>
                         <span className="metric-label">Target IRR</span>
-                        <span className="metric-value">{formatPercent(dashboard?.irr)}</span>
+                        <span className="metric-value">{formatPercent((dashboard?.irr || 0) * 100)}</span>
                       </div>
                       <div className="metric-card-revamp past">
                         <span className="card-icon">💰</span>
                         <span className="metric-label">Capital Deployed</span>
-                        <span className="metric-value">{formatCurrency(current_deals_metrics?.total_invested)}</span>
+                        <span className="metric-value">{formatCurrency(current_deals_metrics?.total_invested, { notation: "compact" })}</span>
                       </div>
                       <div className="metric-card-revamp future">
                         <span className="card-icon">📈</span>
                         <span className="metric-label">Projected Value</span>
-                        <span className="metric-value">{formatCurrency(dashboard?.gross_exit_value)}</span>
+                        <span className="metric-value">{formatCurrency(dashboard?.gross_exit_value, { notation: "compact" })}</span>
                       </div>
                     </div>
                   </section>
@@ -502,7 +495,7 @@ const PublicReportPage: React.FC = () => {
                             <Pie data={chartDataSectorCapital} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, percent }) => `${name} (${((percent || 0) * 100).toFixed(0)}%)`}>
                               {chartDataSectorCapital.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                             </Pie>
-                            <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
+                            <Tooltip formatter={(v: any) => formatCurrency(Number(v), { notation: "compact" })} />
                             <Legend />
                           </PieChart>
                         </ResponsiveContainer>
@@ -521,8 +514,8 @@ const PublicReportPage: React.FC = () => {
                         <ComposedChart data={waterfallData}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} />
                           <XAxis dataKey="year" />
-                          <YAxis tickFormatter={formatCurrency} />
-                          <Tooltip formatter={(value: any) => formatCurrencyLong(Number(value))} />
+                          <YAxis tickFormatter={(v) => formatCurrency(v, { notation: "compact" })} />
+                          <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
                           <Legend />
                           <ReferenceLine x={currentYear} stroke="#ef4444" strokeDasharray="3 3" label={{ position: 'top', value: 'Current', fill: '#ef4444' }} />
                           <Bar dataKey="startValue" stackId="a" fill="transparent" legendType="none" />
@@ -568,7 +561,7 @@ const PublicReportPage: React.FC = () => {
                         <tbody>
                           <tr>
                             <td><strong>Gross Exit Value</strong></td>
-                            {aggregated_exits.map((c: any) => <td key={c.case}>{formatCurrency(c.gev)}</td>)}
+                            {aggregated_exits.map((c: any) => <td key={c.case}>{formatCurrency(c.gev, { notation: "compact" })}</td>)}
                           </tr>
                           <tr>
                             <td><strong>Gross MOIC</strong></td>
@@ -576,11 +569,11 @@ const PublicReportPage: React.FC = () => {
                           </tr>
                           <tr>
                             <td><strong>Net to Investors</strong></td>
-                            {aggregated_exits.map((c: any) => <td key={c.case}>{formatCurrency(c.net_to_investors)}</td>)}
+                            {aggregated_exits.map((c: any) => <td key={c.case}>{formatCurrency(c.net_to_investors, { notation: "compact" })}</td>)}
                           </tr>
                           <tr>
                             <td><strong>Net IRR</strong></td>
-                            {aggregated_exits.map((c: any) => <td key={c.case}>{formatPercent(c.irr)}</td>)}
+                            {aggregated_exits.map((c: any) => <td key={c.case}>{formatPercent((c.irr || 0) * 100)}</td>)}
                           </tr>
                         </tbody>
                       </table>
@@ -664,11 +657,11 @@ const PublicReportPage: React.FC = () => {
             
             <div style={{ display: 'flex', justifyContent: 'center', gap: '4rem' }}>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '3rem', fontWeight: '900', color: '#60a5fa' }}>{formatCurrency(report.config_json?.target_capital)}</div>
+                <div style={{ fontSize: '3rem', fontWeight: '900', color: '#60a5fa' }}>{formatCurrency(report.config_json?.target_capital, { notation: "compact" })}</div>
                 <div style={{ fontSize: '0.9rem', textTransform: 'uppercase', opacity: 0.8, letterSpacing: '0.15em', marginTop: '0.5rem', color: 'white' }}>Target Capital</div>
               </div>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '3rem', fontWeight: '900', color: '#34d399' }}>{formatCurrency(report.config_json?.capital_raised)}</div>
+                <div style={{ fontSize: '3rem', fontWeight: '900', color: '#34d399' }}>{formatCurrency(report.config_json?.capital_raised, { notation: "compact" })}</div>
                 <div style={{ fontSize: '0.9rem', textTransform: 'uppercase', opacity: 0.8, letterSpacing: '0.15em', marginTop: '0.5rem', color: 'white' }}>Already Raised</div>
               </div>
             </div>
@@ -715,10 +708,10 @@ const PublicReportPage: React.FC = () => {
                     <div className="metric-card-modern">
                       <div className="m-icon">📈</div>
                       <span className="m-label">Annualized Return</span>
-                      <span className="m-value">{formatPercent(total)}</span>
+                      <span className="m-value">{formatPercent(total * 100)}</span>
                       <div className="m-subvalue">
-                        <span style={{ color: getMetricColor(targetYield) }}>Yield: {formatPercent(targetYield / 100)}</span>
-                        <span style={{ color: getMetricColor(targetAppreciation) }}>Gain: {formatPercent(gain)}</span>
+                        <span style={{ color: getMetricColor(targetYield) }}>Yield: {formatPercent(targetYield)}</span>
+                        <span style={{ color: getMetricColor(targetAppreciation) }}>Gain: {formatPercent(targetAppreciation)}</span>
                       </div>
                     </div>
                     <div className="metric-card-modern">
@@ -860,8 +853,8 @@ const PublicReportPage: React.FC = () => {
                             <td>{deal.company_type || 'N/A'}</td>
                             <td>{deal.entry_year}</td>
                             <td>{deal.exit_year}</td>
-                            <td>{formatCurrency(deal.entry_valuation)}</td>
-                            <td>{formatCurrency(exitValuation)}</td>
+                            <td>{formatCurrency(deal.entry_valuation, { notation: "compact" })}</td>
+                            <td>{formatCurrency(exitValuation, { notation: "compact" })}</td>
                             <td>{investmentTypeLabel}</td>
                           </tr>
                         );
@@ -910,8 +903,8 @@ const PublicReportPage: React.FC = () => {
                     <ComposedChart data={cashFlowProjectionData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                       <XAxis dataKey="year" axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
-                      <YAxis tickFormatter={formatCurrency} axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
-                      <Tooltip formatter={(v: any) => formatCurrencyLong(Number(v))} />
+                      <YAxis tickFormatter={(v) => formatCurrency(v, { notation: "compact" })} axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
+                      <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
                       <Legend />
                       <defs>
                         <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
@@ -957,8 +950,8 @@ const PublicReportPage: React.FC = () => {
                             rows.push(
                               <tr key={i}>
                                 <td>Year {i}</td>
-                                <td>{formatCurrency(val)}</td>
-                                <td>{formatCurrency(val * yieldRate)}</td>
+                                <td>{formatCurrency(val, { notation: "compact" })}</td>
+                                <td>{formatCurrency(val * yieldRate, { notation: "compact" })}</td>
                               </tr>
                             );
                             val *= (1 + appreciationRate);
@@ -1117,9 +1110,9 @@ const PublicReportPage: React.FC = () => {
                                     }}>
                                       <p style={{ fontWeight: 'bold', marginBottom: '8px', color: '#1e293b', borderBottom: '1px solid #f1f5f9', paddingBottom: '4px' }}>{d.full_name}</p>
                                       <p style={{ margin: '2px 0' }}><span style={{ color: '#64748b' }}>Ownership:</span> <strong>{d.ownership.toFixed(2)}%</strong></p>
-                                      <p style={{ margin: '2px 0' }}><span style={{ color: '#3498db' }}>Entry Val:</span> <strong>{formatCurrencyLong(d.raw_entry)}</strong> ({d.entry.toFixed(1)}%)</p>
-                                      <p style={{ margin: '2px 0' }}><span style={{ color: '#2ecc71' }}>Current Val:</span> <strong>{formatCurrencyLong(d.raw_current)}</strong> ({d.current.toFixed(1)}%)</p>
-                                      <p style={{ margin: '2px 0' }}><span style={{ color: '#129448' }}>Expected Exit Val:</span> <strong>{formatCurrencyLong(d.raw_expected)}</strong> ({100}%)</p>
+                                      <p style={{ margin: '2px 0' }}><span style={{ color: '#3498db' }}>Entry Val:</span> <strong>{formatCurrency(d.raw_entry)}</strong> ({d.entry.toFixed(1)}%)</p>
+                                      <p style={{ margin: '2px 0' }}><span style={{ color: '#2ecc71' }}>Current Val:</span> <strong>{formatCurrency(d.raw_current)}</strong> ({d.current.toFixed(1)}%)</p>
+                                      <p style={{ margin: '2px 0' }}><span style={{ color: '#129448' }}>Expected Exit Val:</span> <strong>{formatCurrency(d.raw_expected)}</strong> ({100}%)</p>
                                       <p style={{ margin: '8px 0 0', fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>Achieved Scenario: {achievedScenario}</p>
                                     </div>
                                   );
