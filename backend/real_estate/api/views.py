@@ -11,15 +11,19 @@ from .serializers import (
     PropertySerializer,
     PropertyWithMetricsSerializer,
     FinancingEntrySerializer,
-    FinancingEntryWithMetricsSerializer
+    FinancingEntryWithMetricsSerializer,
+    OffPlanDetailsSerializer,
+    OffPlanMilestoneSerializer
 )
-from ..models import FinancingEntry
+from ..models import FinancingEntry, Property, OffPlanMilestone
 from ..selectors.portfolio_selectors import PortfolioSelectors
 from ..selectors.property_selectors import PropertySelector
 from ..selectors.financing_selectors import FinancingSelectors
+from ..selectors.off_plan_selectors import OffPlanSelectors
 from ..services.portfolio_service import PortfolioService
 from ..services.property_service import PropertyService
 from ..services.financing_service import FinancingService
+from ..services.off_plan_service import OffPlanService
 from users.services.permission_service import PermissionService
 
 class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
@@ -195,3 +199,56 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
 
         schedule = FinancingSelectors.get_amortization_schedule(entry)
         return Response(schedule)
+
+    @action(detail=True, methods=['get'], url_path='off-plan')
+    def off_plan_model(self, request, pk=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_view_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("You do not have permission to view this portfolio's off-plan model.")
+
+        data = OffPlanSelectors.get_off_plan_data_for_portfolio(portfolio)
+        return Response(data)
+
+    @action(detail=True, methods=['patch'], url_path='off-plan/(?P<property_id>[0-9a-f-]+)/details')
+    def update_off_plan_details(self, request, pk=None, property_id=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_edit_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("You do not have permission to edit off-plan details.")
+
+        try:
+            property_obj = portfolio.properties.get(id=property_id, status="OFF_PLAN")
+        except Property.DoesNotExist:
+            return Response({"error": "Off-plan property not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        details = OffPlanService.update_off_plan_details(property_obj, request.data)
+        serializer = OffPlanDetailsSerializer(details)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'], url_path='off-plan/(?P<property_id>[0-9a-f-]+)/schedule')
+    def off_plan_schedule(self, request, pk=None, property_id=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_view_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("You do not have permission to view this off-plan schedule.")
+
+        try:
+            property_obj = portfolio.properties.get(id=property_id, status="OFF_PLAN")
+        except Property.DoesNotExist:
+            return Response({"error": "Off-plan property not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        data = OffPlanSelectors.get_payment_schedule(property_obj)
+        return Response(data)
+
+    @action(detail=True, methods=['patch'], url_path='off-plan/milestones/(?P<milestone_id>[0-9a-f-]+)')
+    def update_milestone(self, request, pk=None, milestone_id=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_edit_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("You do not have permission to edit milestones.")
+
+        try:
+            milestone = OffPlanMilestone.objects.get(id=milestone_id, property__portfolio=portfolio)
+        except OffPlanMilestone.DoesNotExist:
+            return Response({"error": "Milestone not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        updated_milestone = OffPlanService.update_milestone(milestone_id, request.data)
+        serializer = OffPlanMilestoneSerializer(updated_milestone)
+        return Response(serializer.data)

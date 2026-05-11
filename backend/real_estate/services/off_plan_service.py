@@ -1,0 +1,94 @@
+from decimal import Decimal
+from django.db import transaction
+from django.utils import timezone
+from datetime import timedelta
+from ..models import Property, OffPlanDetails, OffPlanMilestone
+
+class OffPlanService:
+    @staticmethod
+    @transaction.atomic
+    def ensure_off_plan_details(property_obj: Property) -> OffPlanDetails:
+        """
+        Ensures a property has OffPlanDetails and default milestones if it's OFF_PLAN.
+        """
+        if property_obj.status != "OFF_PLAN":
+            return None
+            
+        details, created = OffPlanDetails.objects.get_or_create(
+            property=property_obj,
+            defaults={
+                "construction_start_date": property_obj.purchase_date,
+                "expected_completion_date": property_obj.purchase_date + timedelta(days=365*2),
+                "appreciation_rate_at_completion": Decimal("25.00")
+            }
+        )
+        
+        if created:
+            # Create default milestones
+            OffPlanService.create_default_milestones(property_obj)
+            
+        return details
+
+    @staticmethod
+    @transaction.atomic
+    def create_default_milestones(property_obj: Property):
+        """
+        Creates standard milestones for an off-plan property.
+        """
+        # Delete existing ones to avoid duplicates if reset
+        property_obj.milestones.all().delete()
+        
+        start_date = property_obj.purchase_date
+        completion_date = start_date + timedelta(days=365*2)
+        
+        milestones = [
+            ("Down Payment", start_date, Decimal("20.00")),
+            ("Construction at 30%", start_date + timedelta(days=180), Decimal("10.00")),
+            ("Handover 50%", start_date + timedelta(days=365), Decimal("20.00")),
+            ("Sale at Completion", completion_date, Decimal("0.00")), # Percentage is not used for Sale
+        ]
+        
+        for name, date, pct in milestones:
+            OffPlanMilestone.objects.create(
+                property=property_obj,
+                milestone_name=name,
+                date=date,
+                percentage_of_price=pct
+            )
+
+    @staticmethod
+    @transaction.atomic
+    def update_off_plan_details(property_obj: Property, data: dict) -> OffPlanDetails:
+        """
+        Updates Off-Plan details.
+        """
+        details = OffPlanService.ensure_off_plan_details(property_obj)
+        if not details:
+            return None
+            
+        if "construction_start_date" in data:
+            details.construction_start_date = data["construction_start_date"]
+        if "expected_completion_date" in data:
+            details.expected_completion_date = data["expected_completion_date"]
+        if "appreciation_rate_at_completion" in data:
+            details.appreciation_rate_at_completion = Decimal(str(data["appreciation_rate_at_completion"]))
+            
+        details.save()
+        return details
+
+    @staticmethod
+    @transaction.atomic
+    def update_milestone(milestone_id: str, data: dict) -> OffPlanMilestone:
+        """
+        Updates a specific milestone.
+        """
+        milestone = OffPlanMilestone.objects.get(id=milestone_id)
+        if "date" in data:
+            milestone.date = data["date"]
+        if "percentage_of_price" in data:
+            milestone.percentage_of_price = Decimal(str(data["percentage_of_price"]))
+        if "milestone_name" in data:
+            milestone.milestone_name = data["milestone_name"]
+            
+        milestone.save()
+        return milestone

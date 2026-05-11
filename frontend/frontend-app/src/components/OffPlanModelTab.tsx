@@ -1,0 +1,422 @@
+import React, { useState, useEffect } from "react";
+import { realEstateApi } from "../api/api";
+
+interface OffPlanProperty {
+  property_id: string;
+  property_name: string;
+  purchase_price: string;
+  construction_start: string;
+  expected_completion: string;
+  appreciation_rate: string;
+  value_at_completion: number;
+  details_id: string;
+}
+
+interface Milestone {
+  id: string;
+  milestone: string;
+  date: string;
+  percentage: string;
+  cash_flow: number;
+  cumulative_deployed: number;
+}
+
+interface ScheduleData {
+  schedule: Milestone[];
+  metrics: {
+    xirr: number;
+    total_expected_profit: number;
+  };
+}
+
+const OffPlanModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ portfolioId, canEdit }) => {
+  const [properties, setProperties] = useState<OffPlanProperty[]>([]);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string>("");
+  const [scheduleData, setScheduleData] = useState<ScheduleData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+
+  // Local state for inputs to avoid immediate refreshes
+  const [localPropertyInputs, setLocalPropertyInputs] = useState<Record<string, Partial<OffPlanProperty>>>({});
+  const [localMilestoneInputs, setLocalMilestoneInputs] = useState<Record<string, { date?: string; percentage?: string }>>({});
+
+  // Visibility toggles
+  const [showPropertiesTable, setShowPropertiesTable] = useState(true);
+  const [showScheduleTable, setShowScheduleTable] = useState(true);
+
+  useEffect(() => {
+    fetchProperties();
+  }, [portfolioId]);
+
+  useEffect(() => {
+    if (selectedPropertyId) {
+      fetchSchedule();
+    } else {
+      setScheduleData(null);
+    }
+  }, [selectedPropertyId]);
+
+  const fetchProperties = async () => {
+    try {
+      setLoading(true);
+      const response = await realEstateApi.getOffPlanModel(portfolioId);
+      setProperties(response.data);
+      
+      // Initialize local inputs
+      const initialInputs: Record<string, Partial<OffPlanProperty>> = {};
+      response.data.forEach((p: OffPlanProperty) => {
+        initialInputs[p.property_id] = {
+          construction_start: p.construction_start,
+          expected_completion: p.expected_completion,
+          appreciation_rate: p.appreciation_rate
+        };
+      });
+      setLocalPropertyInputs(initialInputs);
+
+      if (response.data.length > 0 && !selectedPropertyId) {
+        setSelectedPropertyId(response.data[0].property_id);
+      }
+    } catch (err) {
+      console.error("Failed to fetch off-plan properties", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchSchedule = async () => {
+    try {
+      setScheduleLoading(true);
+      const response = await realEstateApi.getOffPlanSchedule(portfolioId, selectedPropertyId);
+      setScheduleData(response.data);
+
+      // Initialize local milestone inputs
+      const initialMilestones: Record<string, { date?: string; percentage?: string }> = {};
+      response.data.schedule.forEach((m: Milestone) => {
+        initialMilestones[m.id] = {
+          date: m.date,
+          percentage: m.percentage
+        };
+      });
+      setLocalMilestoneInputs(initialMilestones);
+    } catch (err) {
+      console.error("Failed to fetch schedule", err);
+    } finally {
+      setScheduleLoading(false);
+    }
+  };
+
+  const handlePropertyDetailChange = (propertyId: string, field: string, value: string) => {
+    setLocalPropertyInputs(prev => ({
+      ...prev,
+      [propertyId]: { ...prev[propertyId], [field]: value }
+    }));
+  };
+
+  const handlePropertyDetailBlur = async (propertyId: string, field: string, value: string) => {
+    // Check if value actually changed compared to the properties state
+    const prop = properties.find(p => p.property_id === propertyId);
+    if (prop && (prop as any)[field] === value) return;
+
+    try {
+      const fieldMapping: Record<string, string> = {
+        "construction_start": "construction_start_date",
+        "expected_completion": "expected_completion_date",
+        "appreciation_rate": "appreciation_rate_at_completion"
+      };
+      await realEstateApi.updateOffPlanDetails(portfolioId, propertyId, { [fieldMapping[field]]: value });
+      fetchProperties();
+      if (selectedPropertyId === propertyId) {
+        fetchSchedule();
+      }
+    } catch (err) {
+      console.error("Failed to update details", err);
+    }
+  };
+
+  const handleMilestoneChange = (milestoneId: string, field: string, value: string) => {
+    setLocalMilestoneInputs(prev => ({
+      ...prev,
+      [milestoneId]: { ...prev[milestoneId], [field]: value }
+    }));
+  };
+
+  const handleMilestoneBlur = async (milestoneId: string, field: string, value: string) => {
+    // Check if value actually changed
+    const milestone = scheduleData?.schedule.find(m => m.id === milestoneId);
+    if (milestone && (milestone as any)[field] === value) return;
+
+    try {
+      const fieldMapping: Record<string, string> = {
+        "date": "date",
+        "percentage": "percentage_of_price"
+      };
+      await realEstateApi.updateOffPlanMilestone(portfolioId, milestoneId, { [fieldMapping[field]]: value });
+      fetchSchedule();
+    } catch (err) {
+      console.error("Failed to update milestone", err);
+    }
+  };
+
+  const formatCurrency = (val: number) => {
+    const isNegative = val < 0;
+    const absVal = Math.abs(val);
+    const formatted = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(absVal);
+    return isNegative ? `(${formatted})` : formatted;
+  };
+
+  const formatPercent = (val: number | string) => {
+    const num = typeof val === 'string' ? parseFloat(val) : val;
+    return num.toFixed(2) + "%";
+  };
+
+  return (
+    <div className="off-plan-model-container">
+      <style>{`
+        .off-plan-model-container { padding: 1rem; }
+        .section-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 1rem;
+          background: #f8fafc;
+          padding: 0.75rem 1rem;
+          border-radius: 8px;
+          cursor: pointer;
+        }
+        .section-content {
+          overflow: hidden;
+          transition: max-height 0.5s ease-out, opacity 0.3s ease-in;
+          max-height: 2000px;
+          opacity: 1;
+        }
+        .section-content.collapsed {
+          max-height: 0;
+          opacity: 0;
+          pointer-events: none;
+        }
+        .table-wrapper {
+          overflow-x: auto;
+          background: white;
+          border-radius: 8px;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+          margin-bottom: 2rem;
+        }
+        .data-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 0.875rem;
+        }
+        .data-table th, .data-table td {
+          padding: 0.75rem 1rem;
+          text-align: left;
+          border-bottom: 1px solid #e2e8f0;
+          white-space: nowrap;
+        }
+        .data-table th { background: #f8fafc; font-weight: 600; color: #475569; }
+        .data-table tr:hover { background: #f1f5f9; }
+        .editable-input {
+          border: 1px solid transparent;
+          background: transparent;
+          padding: 0.25rem;
+          width: 100%;
+          border-radius: 4px;
+        }
+        .editable-input:focus {
+          border-color: #3b82f6;
+          background: white;
+          outline: none;
+        }
+        .editable-input:hover { background: rgba(0,0,0,0.05); }
+        .metrics-card {
+          background: #f1f5f9;
+          padding: 1rem;
+          border-radius: 8px;
+          display: flex;
+          gap: 2rem;
+          margin-bottom: 1rem;
+        }
+        .metric-item { display: flex; flex-direction: column; }
+        .metric-label { font-size: 0.75rem; color: #64748b; font-weight: 600; text-transform: uppercase; }
+        .metric-value { font-size: 1.25rem; font-weight: 700; color: #1e293b; }
+      `}</style>
+
+      <div className="section">
+        <div className="section-header" onClick={() => setShowPropertiesTable(!showPropertiesTable)}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ transform: showPropertiesTable ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▶</span>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1e293b', margin: 0 }}>Off-Plan Properties</h2>
+          </div>
+        </div>
+
+        <div className={`section-content ${showPropertiesTable ? '' : 'collapsed'}`}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '2rem' }}>Loading properties...</div>
+          ) : (
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Property Name</th>
+                    <th>Total Purchase Price</th>
+                    <th>Construction Start</th>
+                    <th>Expected Completion</th>
+                    <th>Appreciation Rate</th>
+                    <th>Value at Completion</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {properties.map((p) => (
+                    <tr key={p.property_id}>
+                      <td style={{ fontWeight: 600 }}>{p.property_name}</td>
+                      <td>{formatCurrency(parseFloat(p.purchase_price))}</td>
+                      <td>
+                        <input 
+                          type="date" 
+                          className="editable-input" 
+                          value={localPropertyInputs[p.property_id]?.construction_start || ""} 
+                          onChange={(e) => handlePropertyDetailChange(p.property_id, "construction_start", e.target.value)}
+                          onBlur={(e) => handlePropertyDetailBlur(p.property_id, "construction_start", e.target.value)}
+                          disabled={!canEdit}
+                        />
+                      </td>
+                      <td>
+                        <input 
+                          type="date" 
+                          className="editable-input" 
+                          value={localPropertyInputs[p.property_id]?.expected_completion || ""} 
+                          onChange={(e) => handlePropertyDetailChange(p.property_id, "expected_completion", e.target.value)}
+                          onBlur={(e) => handlePropertyDetailBlur(p.property_id, "expected_completion", e.target.value)}
+                          disabled={!canEdit}
+                        />
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <input 
+                            type="number" 
+                            className="editable-input" 
+                            style={{ width: '60px' }}
+                            value={localPropertyInputs[p.property_id]?.appreciation_rate || ""} 
+                            onChange={(e) => handlePropertyDetailChange(p.property_id, "appreciation_rate", e.target.value)}
+                            onBlur={(e) => handlePropertyDetailBlur(p.property_id, "appreciation_rate", e.target.value)}
+                            disabled={!canEdit}
+                          />
+                          <span>%</span>
+                        </div>
+                      </td>
+                      <td style={{ fontWeight: 700, color: '#2563eb' }}>{formatCurrency(p.value_at_completion)}</td>
+                    </tr>
+                  ))}
+                  {properties.length === 0 && (
+                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: '2rem' }}>No off-plan properties found.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="section" style={{ marginTop: '1rem' }}>
+        <div className="section-header" onClick={() => setShowScheduleTable(!showScheduleTable)}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ transform: showScheduleTable ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▶</span>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1e293b', margin: 0 }}>Payment Schedule</h2>
+          </div>
+        </div>
+
+        <div className={`section-content ${showScheduleTable ? '' : 'collapsed'}`}>
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{ fontWeight: 500, marginRight: '1rem' }}>Select Property:</label>
+            <select 
+              style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+              value={selectedPropertyId} 
+              onChange={(e) => setSelectedPropertyId(e.target.value)}
+            >
+              {properties.map(p => (
+                <option key={p.property_id} value={p.property_id}>{p.property_name}</option>
+              ))}
+            </select>
+          </div>
+
+          {scheduleLoading ? (
+            <div style={{ textAlign: 'center', padding: '2rem' }}>Loading schedule...</div>
+          ) : scheduleData && (
+            <>
+              <div className="metrics-card">
+                <div className="metric-item">
+                  <span className="metric-label">Projected XIRR</span>
+                  <span className="metric-value" style={{ color: scheduleData.metrics.xirr >= 0 ? '#10b981' : '#ef4444' }}>
+                    {scheduleData.metrics.xirr}%
+                  </span>
+                </div>
+                <div className="metric-item">
+                  <span className="metric-label">Total Expected Profit</span>
+                  <span className="metric-value">{formatCurrency(scheduleData.metrics.total_expected_profit)}</span>
+                </div>
+              </div>
+
+              <div className="table-wrapper">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Milestone</th>
+                      <th>Date / Expected Date</th>
+                      <th>% of Price</th>
+                      <th>Cash Flow</th>
+                      <th>Cumulative Deployed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scheduleData.schedule.map((m) => (
+                      <tr key={m.id}>
+                        <td style={{ fontWeight: 600 }}>{m.milestone}</td>
+                        <td>
+                          {m.milestone === "Sale at Completion" ? (
+                            <span>{m.date}</span>
+                          ) : (
+                            <input 
+                              type="date" 
+                              className="editable-input" 
+                              value={localMilestoneInputs[m.id]?.date || ""} 
+                              onChange={(e) => handleMilestoneChange(m.id, "date", e.target.value)}
+                              onBlur={(e) => handleMilestoneBlur(m.id, "date", e.target.value)}
+                              disabled={!canEdit}
+                            />
+                          )}
+                        </td>
+                        <td>
+                          {m.milestone === "Sale at Completion" ? (
+                            <span>-</span>
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                              <input 
+                                type="number" 
+                                className="editable-input" 
+                                style={{ width: '60px' }}
+                                value={localMilestoneInputs[m.id]?.percentage || ""} 
+                                onChange={(e) => handleMilestoneChange(m.id, "percentage", e.target.value)}
+                                onBlur={(e) => handleMilestoneBlur(m.id, "percentage", e.target.value)}
+                                disabled={!canEdit}
+                              />
+                              <span>%</span>
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ fontWeight: 600, color: m.cash_flow < 0 ? '#ef4444' : '#10b981' }}>
+                          {formatCurrency(m.cash_flow)}
+                        </td>
+                        <td>{formatCurrency(m.cumulative_deployed)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default OffPlanModelTab;

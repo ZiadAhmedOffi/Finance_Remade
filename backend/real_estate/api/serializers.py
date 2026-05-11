@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from ..models import RealEstatePortfolio, RealEstateAssumptions, Property, FinancingEntry
+from ..models import RealEstatePortfolio, RealEstateAssumptions, Property, FinancingEntry, OffPlanDetails, OffPlanMilestone
 
 class RealEstateAssumptionsSerializer(serializers.ModelSerializer):
     class Meta:
@@ -57,6 +57,25 @@ class FinancingEntrySerializer(serializers.ModelSerializer):
 class FinancingEntryWithMetricsSerializer(serializers.Serializer):
     entry = FinancingEntrySerializer()
     metrics = serializers.JSONField()
+
+class OffPlanDetailsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OffPlanDetails
+        fields = [
+            'id', 'property', 'construction_start_date', 
+            'expected_completion_date', 'appreciation_rate_at_completion',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+class OffPlanMilestoneSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OffPlanMilestone
+        fields = [
+            'id', 'property', 'milestone_name', 'date', 
+            'percentage_of_price', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
 
 class PropertyWithMetricsSerializer(serializers.Serializer):
     property = PropertySerializer()

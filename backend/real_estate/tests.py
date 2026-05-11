@@ -4,14 +4,24 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
 from .models import RealEstatePortfolio, RealEstateAssumptions
+from users.models import Role, UserRoleAssignment
 
 User = get_user_model()
 
 class RealEstateAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.user = User.objects.create_user(email="test@example.com", password="password123")
+        self.user = User.objects.create_user(
+            email="test@example.com", 
+            password="password123",
+            is_active=True,
+            status="ACTIVE"
+        )
         self.client.force_authenticate(user=self.user)
+        
+        # Assign SUPER_ADMIN role
+        super_admin_role, _ = Role.objects.get_or_create(name="SUPER_ADMIN", is_system_role=True)
+        UserRoleAssignment.objects.create(user=self.user, role=super_admin_role)
 
     def test_create_portfolio_creates_assumptions(self):
         url = reverse('real-estate-portfolio-list')

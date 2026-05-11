@@ -188,3 +188,59 @@ class FinancingEntry(models.Model):
 
     def __str__(self):
         return f"Financing for {self.property.name}"
+
+class OffPlanDetails(models.Model):
+    """
+    Stores specific construction and appreciation details for off-plan properties.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    property = models.OneToOneField(
+        Property,
+        on_delete=models.CASCADE,
+        related_name="off_plan_details"
+    )
+
+    construction_start_date = models.DateField()
+    expected_completion_date = models.DateField()
+    appreciation_rate_at_completion = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        default=25.00,
+        help_text="Expected appreciation percentage at completion"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Off-Plan Details"
+        verbose_name_plural = "Off-Plan Details"
+
+    def __str__(self):
+        return f"Off-Plan Details for {self.property.name}"
+
+class OffPlanMilestone(models.Model):
+    """
+    Represents a payment milestone for an off-plan property.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    property = models.ForeignKey(
+        Property,
+        on_delete=models.CASCADE,
+        related_name="milestones"
+    )
+
+    milestone_name = models.CharField(max_length=255)
+    date = models.DateField()
+    percentage_of_price = models.DecimalField(max_digits=5, decimal_places=2)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["date"]
+        verbose_name = "Off-Plan Milestone"
+        verbose_name_plural = "Off-Plan Milestones"
+
+    def __str__(self):
+        return f"{self.milestone_name} for {self.property.name}"

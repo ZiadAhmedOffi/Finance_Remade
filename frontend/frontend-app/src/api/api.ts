@@ -161,6 +161,14 @@ export const realEstateApi = {
     api.get(`/real-estate/${portfolioId}/financing/amortization-total/`),
   getEntryAmortization: (portfolioId: string, entryId: string) => 
     api.get(`/real-estate/${portfolioId}/financing/${entryId}/amortization/`),
+
+  getOffPlanModel: (portfolioId: string) => api.get(`/real-estate/${portfolioId}/off-plan/`),
+  updateOffPlanDetails: (portfolioId: string, propertyId: string, data: any) => 
+    api.patch(`/real-estate/${portfolioId}/off-plan/${propertyId}/details/`, data),
+  getOffPlanSchedule: (portfolioId: string, propertyId: string) => 
+    api.get(`/real-estate/${portfolioId}/off-plan/${propertyId}/schedule/`),
+  updateOffPlanMilestone: (portfolioId: string, milestoneId: string, data: any) => 
+    api.patch(`/real-estate/${portfolioId}/off-plan/milestones/${milestoneId}/`, data),
 };
 
 export { api, publicApi };
