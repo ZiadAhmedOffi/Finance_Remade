@@ -4,6 +4,7 @@ from ..models import FinancingEntry, RealEstatePortfolio
 from ..constants import SCENARIO_ADJUSTMENTS
 from ..utils.financing import calculate_pmt, generate_amortization_schedule
 from collections import defaultdict
+from ..calculation import PropertyDataCalc
 
 class FinancingSelectors:
     @staticmethod
@@ -38,8 +39,7 @@ class FinancingSelectors:
         effective_rate = effective_rate_pct / Decimal('100')
         
         # LTV = Loan Amount / Purchase Price
-        purchase_price = entry.property.purchase_price
-        ltv = (entry.loan_amount / purchase_price * Decimal('100')) if purchase_price > 0 else Decimal('0.00')
+        ltv = PropertyDataCalc.ltv(entry.loan_amount, entry.property.purchase_price)
         
         # Periodic Pmt
         rate_per_period = effective_rate / entry.payments_per_year
@@ -55,7 +55,7 @@ class FinancingSelectors:
         return {
             "entry": entry,
             "metrics": {
-                "ltv": round(ltv, 2),
+                "ltv": float(ltv),
                 "effective_rate": round(effective_rate_pct, 2),
                 "periodic_payment": periodic_payment,
                 "annual_debt_service": annual_debt_service,

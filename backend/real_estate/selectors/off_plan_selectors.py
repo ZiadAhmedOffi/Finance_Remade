@@ -1,6 +1,7 @@
 from decimal import Decimal
 from ..models import Property, OffPlanDetails, OffPlanMilestone, RealEstatePortfolio
 from ..utils.xirr import xirr
+from ..calculation import PropertyDataCalc
 
 class OffPlanSelectors:
     @staticmethod
@@ -25,9 +26,7 @@ class OffPlanSelectors:
         details = OffPlanService.ensure_off_plan_details(prop)
         
         purchase_price = prop.purchase_price
-        appreciation_rate = details.appreciation_rate_at_completion / Decimal("100")
-        
-        value_at_completion = purchase_price * (Decimal("1") + appreciation_rate)
+        value_at_completion = PropertyDataCalc.value_at_completion(purchase_price, details.appreciation_rate_at_completion)
         
         return {
             "property_id": prop.id,
@@ -49,13 +48,12 @@ class OffPlanSelectors:
         from ..services.off_plan_service import OffPlanService
         details = OffPlanService.ensure_off_plan_details(prop)
         assumptions = prop.portfolio.assumptions
-        selling_fee_pct = assumptions.selling_fee_percentage / Decimal("100")
+        selling_fee_pct = assumptions.selling_fee_percentage
         
         milestones = prop.milestones.all().order_by('date')
         
         purchase_price = prop.purchase_price
-        appreciation_rate = details.appreciation_rate_at_completion / Decimal("100")
-        value_at_completion = purchase_price * (Decimal("1") + appreciation_rate)
+        value_at_completion = PropertyDataCalc.value_at_completion(purchase_price, details.appreciation_rate_at_completion)
         
         schedule = []
         cumulative_deployed = Decimal("0.00")
@@ -64,7 +62,8 @@ class OffPlanSelectors:
         for m in milestones:
             if m.milestone_name == "Sale at Completion":
                 # Final inflow
-                cash_flow = value_at_completion * (Decimal("1") - selling_fee_pct)
+                selling_costs = PropertyDataCalc.selling_costs(value_at_completion, selling_fee_pct)
+                cash_flow = value_at_completion - selling_costs
                 date = details.expected_completion_date # Use expected completion date for Sale
             else:
                 # Outflow based on percentage of price

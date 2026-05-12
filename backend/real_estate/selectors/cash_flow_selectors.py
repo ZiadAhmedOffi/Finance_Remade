@@ -4,6 +4,7 @@ from collections import defaultdict
 from ..models import RealEstatePortfolio, Property, OffPlanMilestone
 from .financing_selectors import FinancingSelectors
 from ..constants import SCENARIO_ADJUSTMENTS
+from ..calculation import PropertyDataCalc
 
 class CashFlowSelectors:
     @staticmethod
@@ -43,11 +44,11 @@ class CashFlowSelectors:
             prop_data = {"name": prop.name, "annual_cf": {}, "metadata": {}}
             
             # Common rates
-            app_rate = (prop.appreciation_rate_percentage + app_adj) / Decimal('100')
-            rent_growth_rate = (assumptions.default_rental_growth_rate + rent_adj) / Decimal('100')
-            vacancy_rate = (prop.vacancy_rate_percentage + vacancy_adj) / Decimal('100')
-            mgmt_fee_pct = assumptions.property_mgmt_fee_percentage / Decimal('100')
-            maint_fee_pct = assumptions.maintenance_percentage_of_value / Decimal('100')
+            app_rate = prop.appreciation_rate_percentage + app_adj
+            rent_growth_rate = assumptions.default_rental_growth_rate + rent_adj
+            vacancy_rate = prop.vacancy_rate_percentage + vacancy_adj
+            mgmt_fee_pct = assumptions.property_mgmt_fee_percentage
+            maint_fee_pct = assumptions.maintenance_percentage_of_value
             selling_fee_pct = assumptions.selling_fee_percentage / Decimal('100')
             
             # Lifecycle bounds
@@ -131,24 +132,30 @@ class CashFlowSelectors:
                             # Transition to rental property
                             # Pro-rate based on completion date
                             months_owned = 12 - prop.off_plan_details.expected_completion_date.month + 1
-                            t = year - purchase_year
+                            t = Decimal(str(year - purchase_year))
                             completion_jump = prop.off_plan_details.appreciation_rate_at_completion / Decimal('100')
                             
                             # Appreciate rent and value
-                            current_monthly_rent = prop.monthly_rent * (Decimal('1') + rent_growth_rate) ** t
+                            current_monthly_rent = (prop.monthly_rent * Decimal(str(float(Decimal('1') + (rent_growth_rate / Decimal('100'))) ** float(t)))).quantize(Decimal('0.01'))
                             current_monthly_rent *= (Decimal('1') + completion_jump)
                             
-                            base_rent = current_monthly_rent * Decimal(str(months_owned))
-                            effective_rent = base_rent * (Decimal('1') - vacancy_rate)
+                            effective_rent = PropertyDataCalc.effective_rent(
+                                prop.monthly_rent,
+                                vacancy_rate,
+                                t,
+                                rent_growth_rate,
+                                months_in_period=months_owned
+                            )
+                            effective_rent = (effective_rent * (Decimal('1') + completion_jump)).quantize(Decimal('0.01'))
                             
-                            current_market_value = prop.purchase_price * (Decimal('1') + app_rate) ** t
-                            current_market_value *= (Decimal('1') + completion_jump)
+                            current_market_value = PropertyDataCalc.market_value(prop.purchase_price, app_rate, t)
+                            current_market_value = (current_market_value * (Decimal('1') + completion_jump)).quantize(Decimal('0.01'))
                             
-                            maint_fee = current_market_value * maint_fee_pct
-                            mgmt_fee = effective_rent * mgmt_fee_pct
+                            maint_fee = PropertyDataCalc.maintenance_fees(current_market_value, maint_fee_pct)
+                            mgmt_fee = PropertyDataCalc.management_fees(effective_rent, mgmt_fee_pct)
                             
-                            total_opex = mgmt_fee + maint_fee + Decimal(str(prop.other_operational_expenses))
-                            noi = effective_rent - total_opex
+                            total_opex = (mgmt_fee + maint_fee + Decimal(str(prop.other_operational_expenses))).quantize(Decimal('0.01'))
+                            noi = PropertyDataCalc.noi(effective_rent, total_opex)
                             
                             # Subtract remaining construction costs and debt service
                             construction_cost = milestones_by_year.get(year, Decimal('0.00'))
@@ -157,17 +164,11 @@ class CashFlowSelectors:
                     
                     else:
                         # Normal Held Property or post-completion off-plan
-                        t = year - purchase_year
+                        t = Decimal(str(year - purchase_year))
                         
-                        # Market Value & Rent Base
-                        current_market_value = prop.purchase_price * (Decimal('1') + app_rate) ** t
-                        current_monthly_rent = prop.monthly_rent * (Decimal('1') + rent_growth_rate) ** t
+                        # Market Value
+                        current_market_value = PropertyDataCalc.market_value(prop.purchase_price, app_rate, t)
                         
-                        if is_off_plan_initial and completion_year and year >= completion_year:
-                            completion_jump = prop.off_plan_details.appreciation_rate_at_completion / Decimal('100')
-                            current_market_value *= (Decimal('1') + completion_jump)
-                            current_monthly_rent *= (Decimal('1') + completion_jump)
-
                         # Purchase Price & Pro-rating for non-off-plan purchase year
                         if year == purchase_year and not is_off_plan_initial:
                             cf -= prop.purchase_price
@@ -175,14 +176,24 @@ class CashFlowSelectors:
                         else:
                             months_owned = 12
                         
-                        base_rent = current_monthly_rent * Decimal(str(months_owned))
-                        effective_rent = base_rent * (Decimal('1') - vacancy_rate)
+                        effective_rent = PropertyDataCalc.effective_rent(
+                            prop.monthly_rent,
+                            vacancy_rate,
+                            t,
+                            rent_growth_rate,
+                            months_in_period=months_owned
+                        )
                         
-                        maint_fee = current_market_value * maint_fee_pct
-                        mgmt_fee = effective_rent * mgmt_fee_pct
+                        if is_off_plan_initial and completion_year and year >= completion_year:
+                            completion_jump = prop.off_plan_details.appreciation_rate_at_completion / Decimal('100')
+                            current_market_value = (current_market_value * (Decimal('1') + completion_jump)).quantize(Decimal('0.01'))
+                            effective_rent = (effective_rent * (Decimal('1') + completion_jump)).quantize(Decimal('0.01'))
+
+                        maint_fee = PropertyDataCalc.maintenance_fees(current_market_value, maint_fee_pct)
+                        mgmt_fee = PropertyDataCalc.management_fees(effective_rent, mgmt_fee_pct)
                         
-                        total_opex = mgmt_fee + maint_fee + Decimal(str(prop.other_operational_expenses))
-                        noi = effective_rent - total_opex
+                        total_opex = (mgmt_fee + maint_fee + Decimal(str(prop.other_operational_expenses))).quantize(Decimal('0.01'))
+                        noi = PropertyDataCalc.noi(effective_rent, total_opex)
                         debt_service = debt_service_by_year.get(year, Decimal('0.00'))
                         cf += noi - debt_service
 
@@ -191,21 +202,21 @@ class CashFlowSelectors:
                     portfolio_totals[year] += cf
                 
                 if year in requested_years:
-                    prop_data["annual_cf"][year] = str(cf.quantize(Decimal('0.01'))) if cf is not None else None
+                    prop_data["annual_cf"][year] = cf.quantize(Decimal('0.01')) if cf is not None else None
                     if cf is not None:
                         # Store metadata for drill-down
                         prop_data["metadata"][year] = {
                             "months_held": months_owned,
-                            "market_value": str(current_market_value.quantize(Decimal('0.01'))),
-                            "effective_rent": str(effective_rent.quantize(Decimal('0.01'))),
-                            "mgmt_fees": str(mgmt_fee.quantize(Decimal('0.01'))),
-                            "maintenance_fees": str(maint_fee.quantize(Decimal('0.01'))),
-                            "opex": str(total_opex.quantize(Decimal('0.01'))),
-                            "noi": str(noi.quantize(Decimal('0.01'))),
-                            "debt_service": str(debt_service.quantize(Decimal('0.01'))),
-                            "purchase_price": str(prop.purchase_price) if year == purchase_year and not is_off_plan_initial else "0.00",
-                            "construction_costs": str(construction_cost.quantize(Decimal('0.01'))),
-                            "sale_proceeds": str(net_sale_inflow.quantize(Decimal('0.01')))
+                            "market_value": current_market_value.quantize(Decimal('0.01')),
+                            "effective_rent": effective_rent.quantize(Decimal('0.01')),
+                            "mgmt_fees": mgmt_fee.quantize(Decimal('0.01')),
+                            "maintenance_fees": maint_fee.quantize(Decimal('0.01')),
+                            "opex": total_opex.quantize(Decimal('0.01')),
+                            "noi": noi.quantize(Decimal('0.01')),
+                            "debt_service": debt_service.quantize(Decimal('0.01')),
+                            "purchase_price": prop.purchase_price if year == purchase_year and not is_off_plan_initial else Decimal("0.00"),
+                            "construction_costs": construction_cost.quantize(Decimal('0.01')),
+                            "sale_proceeds": net_sale_inflow.quantize(Decimal('0.01'))
                         }
             
             property_cash_flows[str(prop.id)] = prop_data
@@ -221,6 +232,6 @@ class CashFlowSelectors:
             "inception_year": inception_year,
             "years": requested_years,
             "properties": property_cash_flows,
-            "portfolio_totals": {y: str(portfolio_totals[y].quantize(Decimal('0.01'))) for y in requested_years},
-            "cumulative_cf": {y: str(cumulative_by_year[y]) for y in requested_years}
+            "portfolio_totals": {y: portfolio_totals[y].quantize(Decimal('0.01')) for y in requested_years},
+            "cumulative_cf": {y: cumulative_by_year[y] for y in requested_years}
         }

@@ -2,6 +2,7 @@ from decimal import Decimal
 from django.utils import timezone
 from django.db.models import QuerySet
 from ..models import Property, RealEstatePortfolio
+from ..calculation import PropertyDataCalc
 
 class PropertySelector:
     """
@@ -31,45 +32,47 @@ class PropertySelector:
         """
         assumptions = prop.portfolio.assumptions
         
-        # Inputs
-        purchase_price = prop.purchase_price
-        acq_fee_pct = prop.acq_fee_percentage / Decimal('100')
-        app_rate_pct = prop.appreciation_rate_percentage / Decimal('100')
-        vacancy_rate_pct = prop.vacancy_rate_percentage / Decimal('100')
-        mgmt_fee_pct = assumptions.property_mgmt_fee_percentage / Decimal('100')
-        maint_fee_pct = assumptions.maintenance_percentage_of_value / Decimal('100')
+        # Years Held
+        years_held = PropertyDataCalc.years_held(prop.purchase_date, reference_date)
         
         # Derived Metrics
-        acq_fee_amount = purchase_price * acq_fee_pct
-        total_cost_basis = purchase_price + acq_fee_amount
+        acq_fee_amount = PropertyDataCalc.acq_fee(prop.purchase_price, prop.acq_fee_percentage)
+        total_cost_basis = PropertyDataCalc.total_cost_basis(prop.purchase_price, prop.acq_fee_percentage)
         
-        # Years Held
-        days_held = (reference_date - prop.purchase_date).days
-        years_held = Decimal(str(days_held)) / Decimal('365.25')
-        
-        # Current Market Value: P * (1 + r)^t
-        growth_factor = float(Decimal('1') + app_rate_pct) ** float(years_held)
-        current_market_value = purchase_price * Decimal(str(round(growth_factor, 10)))
-        current_market_value = Decimal(str(round(current_market_value, 2)))
+        # Current Market Value
+        current_market_value = PropertyDataCalc.market_value(
+            prop.purchase_price, 
+            prop.appreciation_rate_percentage, 
+            years_held
+        )
         
         unrealized_gain = current_market_value - total_cost_basis
         
-        annual_rent = prop.monthly_rent * Decimal('12')
-        
-        # Handle Off-Plan logic
+        # Handle Off-Plan logic for rent
         is_held = prop.status == "HELD"
         
-        effective_rent = annual_rent * (Decimal('1') - vacancy_rate_pct) if is_held else Decimal('0')
+        effective_rent = PropertyDataCalc.effective_rent(
+            prop.monthly_rent,
+            prop.vacancy_rate_percentage,
+            years_held,
+            Decimal('0') # No growth for current metrics
+        ) if is_held else Decimal('0.00')
         
-        management_fees = mgmt_fee_pct * effective_rent
-        maintenance_fees = maint_fee_pct * current_market_value
+        if prop.status == "OFF_PLAN":
+            total_operational_expenses = Decimal('0.00')
+            noi = Decimal('0.00')
+        else:
+            total_operational_expenses = PropertyDataCalc.total_operational_expenses(
+                effective_rent,
+                current_market_value,
+                assumptions.property_mgmt_fee_percentage,
+                assumptions.maintenance_percentage_of_value,
+                Decimal(str(prop.other_operational_expenses))
+            )
+            noi = PropertyDataCalc.noi(effective_rent, total_operational_expenses)
         
-        total_operational_expenses = management_fees + maintenance_fees + Decimal(str(prop.other_operational_expenses))
-        
-        noi = effective_rent - total_operational_expenses
-        
-        gross_yield = (effective_rent / purchase_price) if purchase_price > 0 else Decimal('0')
-        net_yield = (noi / current_market_value) if current_market_value > 0 else Decimal('0')
+        gross_yield = PropertyDataCalc.gross_yield(effective_rent, prop.purchase_price)
+        net_yield = PropertyDataCalc.net_yield(noi, current_market_value)
 
         return {
             "property": prop,
@@ -79,13 +82,13 @@ class PropertySelector:
                 "years_held": round(years_held, 2),
                 "current_market_value": current_market_value,
                 "unrealized_gain": unrealized_gain,
-                "annual_rent": annual_rent,
+                "annual_rent": (prop.monthly_rent * Decimal('12')).quantize(Decimal('0.01')),
                 "effective_rent": effective_rent,
-                "management_fees": management_fees,
-                "maintenance_fees": maintenance_fees,
+                "management_fees": PropertyDataCalc.management_fees(effective_rent, assumptions.property_mgmt_fee_percentage),
+                "maintenance_fees": PropertyDataCalc.maintenance_fees(current_market_value, assumptions.maintenance_percentage_of_value),
                 "total_operational_expenses": total_operational_expenses,
                 "noi": noi,
-                "gross_yield": round(gross_yield * Decimal('100'), 2),
-                "net_yield": round(net_yield * Decimal('100'), 2),
+                "gross_yield": gross_yield,
+                "net_yield": net_yield,
             }
         }

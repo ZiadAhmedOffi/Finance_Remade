@@ -75,7 +75,7 @@ class CashFlowModelTestCase(TestCase):
         pmt = (rate * pv) / (1 - (1 + rate)**-n)
         expected_debt_service = pmt.quantize(Decimal('0.01'))
         
-        expected_cf = (expected_noi - expected_debt_service).quantize(Decimal('0.01'))
+        expected_cf = (expected_noi - expected_debt_service - self.prop.purchase_price).quantize(Decimal('0.01'))
         self.assertEqual(cf_year_1, expected_cf)
 
     def test_cash_flow_growth_year_2(self):
