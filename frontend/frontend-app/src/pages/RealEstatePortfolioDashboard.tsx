@@ -7,6 +7,7 @@ import FinancingModelTab from "../components/FinancingModelTab";
 import OffPlanModelTab from "../components/OffPlanModelTab";
 import SalesAndDisposalsTab from "../components/SalesAndDisposalsTab";
 import CashFlowModelTab from "../components/CashFlowModelTab";
+import RealEstateDashboardTab from "../components/RealEstateDashboardTab";
 import "./FundDashboard.css"; // Reuse dashboard styles
 
 interface RealEstatePortfolio {
@@ -23,7 +24,7 @@ const RealEstatePortfolioDashboard: React.FC = () => {
   const [portfolio, setPortfolio] = useState<RealEstatePortfolio | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"properties" | "assumptions" | "financing" | "off-plan" | "sales" | "cash-flow">("properties");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "properties" | "assumptions" | "financing" | "off-plan" | "sales" | "cash-flow">("dashboard");
   const [canEdit, setCanEdit] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -77,6 +78,7 @@ const RealEstatePortfolioDashboard: React.FC = () => {
   if (error || !portfolio) return <div className="error-message">{error || "Portfolio not found."}</div>;
 
   const menuItems = [
+    { id: "dashboard", label: "Dashboard", icon: "📊" },
     { id: "properties", label: "Property Data", icon: "🏢" },
     { id: "financing", label: "Financing Model", icon: "💰" },
     { id: "off-plan", label: "Off-Plan Model", icon: "🏗️" },
@@ -130,6 +132,9 @@ const RealEstatePortfolioDashboard: React.FC = () => {
         </header>
 
         <div className="scrollable-content">
+          {activeTab === "dashboard" && portfolioId && (
+            <RealEstateDashboardTab portfolioId={portfolioId} />
+          )}
           {activeTab === "properties" && portfolioId && (
             <PropertyDataTab portfolioId={portfolioId} canEdit={canEdit} />
           )}

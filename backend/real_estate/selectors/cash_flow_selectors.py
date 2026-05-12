@@ -36,20 +36,20 @@ class CashFlowSelectors:
         active_scenario = assumptions.active_scenario
         adjustments = SCENARIO_ADJUSTMENTS.get(active_scenario, {})
         
-        app_adj = adjustments.get('appreciation_rate', Decimal('0.00'))
+        app_adj = adjustments.get('appreciation', Decimal('0.00'))
         rent_adj = adjustments.get('rental_growth', Decimal('0.00'))
-        vacancy_adj = adjustments.get('vacancy_rate', Decimal('0.00'))
+        vacancy_adj = adjustments.get('vacancy', Decimal('0.00'))
         
         for prop in properties:
             prop_data = {"name": prop.name, "annual_cf": {}, "metadata": {}}
             
             # Common rates
-            app_rate = prop.appreciation_rate_percentage + app_adj
-            rent_growth_rate = assumptions.default_rental_growth_rate + rent_adj
-            vacancy_rate = prop.vacancy_rate_percentage + vacancy_adj
-            mgmt_fee_pct = assumptions.property_mgmt_fee_percentage
-            maint_fee_pct = assumptions.maintenance_percentage_of_value
-            selling_fee_pct = assumptions.selling_fee_percentage / Decimal('100')
+            app_rate = Decimal(str(prop.appreciation_rate_percentage)) + app_adj
+            rent_growth_rate = Decimal(str(assumptions.default_rental_growth_rate)) + rent_adj
+            vacancy_rate = Decimal(str(prop.vacancy_rate_percentage)) + vacancy_adj
+            mgmt_fee_pct = Decimal(str(assumptions.property_mgmt_fee_percentage))
+            maint_fee_pct = Decimal(str(assumptions.maintenance_percentage_of_value))
+            selling_fee_pct = Decimal(str(assumptions.selling_fee_percentage)) / Decimal('100')
             
             # Lifecycle bounds
             purchase_year = prop.purchase_date.year

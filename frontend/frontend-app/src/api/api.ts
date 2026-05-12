@@ -136,6 +136,10 @@ export const fundsApi = {
 export const realEstateApi = {
   getPortfolios: () => api.get("/real-estate/"),
   getPortfolio: (id: string) => api.get(`/real-estate/${id}/`),
+  getDashboard: (id: string, referenceDate?: string) => {
+    const params = referenceDate ? { reference_date: referenceDate } : {};
+    return api.get(`/real-estate/${id}/dashboard/`, { params });
+  },
   createPortfolio: (data: any) => api.post("/real-estate/", data),
   updatePortfolio: (id: string, data: any) => api.patch(`/real-estate/${id}/`, data),
   getAssumptions: (id: string) => api.get(`/real-estate/${id}/assumptions/`),

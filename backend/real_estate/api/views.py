@@ -24,7 +24,9 @@ from ..selectors.financing_selectors import FinancingSelectors
 from ..selectors.off_plan_selectors import OffPlanSelectors
 from ..selectors.property_sale_selectors import PropertySaleSelector
 from ..selectors.cash_flow_selectors import CashFlowSelectors
+from ..selectors.portfolio_dashboard_selectors import PortfolioDashboardSelector
 from ..services.portfolio_service import PortfolioService
+
 from ..services.property_service import PropertyService
 from ..services.financing_service import FinancingService
 from ..services.off_plan_service import OffPlanService
@@ -322,3 +324,20 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
         elif request.method == 'DELETE':
             PropertySaleService.delete_property_sale(sale=sale)
             return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['get'], url_path='dashboard')
+    def dashboard(self, request, pk=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_view_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("You do not have permission to view this portfolio's dashboard.")
+
+        reference_date_str = request.query_params.get('reference_date')
+        reference_date = None
+        if reference_date_str:
+            try:
+                reference_date = datetime.strptime(reference_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return Response({"error": "Invalid date format. Use YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
+
+        data = PortfolioDashboardSelector.get_dashboard_data(portfolio, reference_date=reference_date)
+        return Response(data)
