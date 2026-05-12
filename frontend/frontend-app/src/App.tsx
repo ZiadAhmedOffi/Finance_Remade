@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useRef } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
-import { api } from "./api/api";
+import { api, publicApi } from "./api/api";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
@@ -24,6 +24,28 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const lastRefreshTime = useRef<number>(0);
+
+  /**
+   * Keep-alive ping to prevent Render free tier from sleeping.
+   * Runs every 10 minutes as long as the app is open.
+   */
+  useEffect(() => {
+    const pingServer = async () => {
+      try {
+        await publicApi.get("/ping/");
+      } catch (e) {
+        // Silently ignore ping errors
+        console.debug("Keep-alive ping failed", e);
+      }
+    };
+
+    // Initial ping on mount
+    pingServer();
+
+    const interval = setInterval(pingServer, 60000); // 1 minute in milliseconds
+
+    return () => clearInterval(interval);
+  }, []);
 
   /**
    * Refreshes the access token using the refresh token.
