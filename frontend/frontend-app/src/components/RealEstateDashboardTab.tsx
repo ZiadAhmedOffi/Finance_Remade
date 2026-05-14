@@ -4,7 +4,7 @@ import { formatCurrency, formatPercent } from "../utils/formatters";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
-  LineChart, Line, AreaChart, Area, ComposedChart
+  LineChart, Line
 } from 'recharts';
 import LiquidityGauge from "./LiquidityGauge";
 
@@ -338,7 +338,7 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
                     cx="50%" 
                     cy="50%" 
                     outerRadius={120} 
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                     labelLine={true}
                     paddingAngle={2}
                   >
@@ -382,7 +382,7 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
                     cx="50%" 
                     cy="50%" 
                     outerRadius={120} 
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                     labelLine={true}
                     paddingAngle={2}
                   >

@@ -673,7 +673,6 @@ const PublicReportPage: React.FC = () => {
       {sections.map((section: any) => {
         if (!section.enabled) return null;
         const total = (targetAppreciation + targetYield === 0) ? cIrr : (targetAppreciation + targetYield) / 100;
-        const gain = (targetAppreciation + targetYield === 0) ? cIrr : (targetAppreciation) / 100;
         switch (section.id) {
           case 'cc_overview':
             return (

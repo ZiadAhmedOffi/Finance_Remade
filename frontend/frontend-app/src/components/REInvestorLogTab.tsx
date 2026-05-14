@@ -962,7 +962,7 @@ const REInvestorLogTab: React.FC<REInvestorLogTabProps> = ({ portfolioId, canEdi
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Year</label>
-                  <input type="number" name="year" value={sourceFormData.year} onChange={(e) => setSourceFormData(prev => ({ ...prev, year: e.target.value }))} className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2" required />
+                  <input type="number" name="year" value={sourceFormData.year} onChange={(e) => setSourceFormData(prev => ({ ...prev, year: parseInt(e.target.value) || 0 }))} className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2" required />
                 </div>
               </div>
               <div className="pt-4 flex gap-4">

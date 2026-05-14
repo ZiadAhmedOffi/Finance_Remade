@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { realEstateApi } from "../api/api";
-import { formatCurrency, formatPercent } from "../utils/formatters";
+import { formatCurrency } from "../utils/formatters";
 
 interface OffPlanProperty {
   property_id: string;
