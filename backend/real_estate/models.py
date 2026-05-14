@@ -30,6 +30,7 @@ class RealEstatePortfolio(models.Model):
         default="ACTIVE", 
         db_index=True
     )
+    total_units = models.DecimalField(max_digits=30, decimal_places=4, default=0.0000)
 
     class Meta:
         ordering = ["-created_at"]
@@ -134,6 +135,7 @@ class Property(models.Model):
     # Financial Inputs
     purchase_date = models.DateField()
     purchase_price = models.DecimalField(max_digits=15, decimal_places=2)
+    size = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Size in square meters")
     monthly_rent = models.DecimalField(max_digits=15, decimal_places=2)
     other_operational_expenses = models.DecimalField(
         max_digits=15, 
@@ -277,3 +279,117 @@ class PropertySale(models.Model):
 
     def __str__(self):
         return f"Sale of {self.property.name} on {self.sale_date}"
+
+class RealEstatePossibleCapitalSource(models.Model):
+    """
+    Represents a potential capital source for the real estate portfolio.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    portfolio = models.ForeignKey(
+        RealEstatePortfolio,
+        on_delete=models.CASCADE,
+        related_name="possible_capital_sources"
+    )
+    name = models.CharField(max_length=255)
+    amount = models.DecimalField(max_digits=30, decimal_places=2)
+    year = models.PositiveIntegerField()
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["year", "created_at"]
+        indexes = [
+            models.Index(fields=["portfolio", "year"]),
+        ]
+
+    def __str__(self):
+        return f"{self.name} - {self.portfolio.name} ({self.year})"
+
+class RealEstateInvestorAction(models.Model):
+    """
+    Represents an action associated with an investor in a real estate portfolio.
+    """
+    TYPE_CHOICES = [
+        ("PRIMARY_INVESTMENT", "Primary Investment"),
+        ("SECONDARY_INVESTMENT", "Secondary Investment"),
+        ("SECONDARY_EXIT", "Secondary Exit"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    investor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="re_investor_actions"
+    )
+    portfolio = models.ForeignKey(
+        RealEstatePortfolio,
+        on_delete=models.CASCADE,
+        related_name="investor_actions"
+    )
+    type = models.CharField(max_length=30, choices=TYPE_CHOICES)
+    year = models.PositiveIntegerField()
+    
+    amount = models.DecimalField(max_digits=30, decimal_places=2, null=True, blank=True)
+    
+    # For Secondary Exit
+    percentage_sold = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
+    discount_percentage = models.DecimalField(max_digits=10, decimal_places=4, default=0.0000)
+    
+    investor_selling = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="re_investor_sales"
+    )
+    investor_sold_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="re_investor_purchases"
+    )
+    
+    units = models.DecimalField(max_digits=30, decimal_places=4, default=0.0000)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["year", "created_at"]
+        indexes = [
+            models.Index(fields=["investor", "portfolio"]),
+            models.Index(fields=["year"]),
+        ]
+
+    def __str__(self):
+        return f"{self.type} - {self.investor.email} - {self.portfolio.name} ({self.year})"
+
+class RealEstateInvestorStats(models.Model):
+    """
+    Represents the current amount an investor invested into the real estate portfolio.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    investor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="re_investor_stats"
+    )
+    portfolio = models.ForeignKey(
+        RealEstatePortfolio,
+        on_delete=models.CASCADE,
+        related_name="investor_stats"
+    )
+    
+    amount_invested = models.DecimalField(max_digits=30, decimal_places=2, default=0.00)
+    capital_deployed = models.DecimalField(max_digits=30, decimal_places=2, default=0.00)
+    realized_gain = models.DecimalField(max_digits=30, decimal_places=2, default=0.00)
+    units = models.DecimalField(max_digits=30, decimal_places=4, default=0.0000)
+
+    class Meta:
+        ordering = ["amount_invested"]
+        indexes = [
+            models.Index(fields=["investor", "portfolio"]),
+        ]
+
+    def __str__(self):
+        return f"{self.investor.email} - {self.portfolio.name} - ({self.amount_invested})"

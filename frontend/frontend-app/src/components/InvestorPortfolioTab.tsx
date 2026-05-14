@@ -6,6 +6,7 @@ interface PortfolioItem {
   ownership_pct: number;
   current_value: number;
   net_deployed: number;
+  type?: "FUND" | "REAL_ESTATE";
 }
 
 interface PieChartItem {
@@ -32,7 +33,8 @@ const InvestorPortfolioTab: React.FC<InvestorPortfolioTabProps> = ({ portfolio, 
           <table className="data-table">
             <thead>
               <tr>
-                <th>Fund</th>
+                <th>Portfolio / Fund</th>
+                <th>Type</th>
                 <th>Ownership (%)</th>
                 <th>Net Deployed Capital</th>
                 <th>Current Value</th>
@@ -42,6 +44,18 @@ const InvestorPortfolioTab: React.FC<InvestorPortfolioTabProps> = ({ portfolio, 
               {portfolio.map((item, idx) => (
                 <tr key={idx}>
                   <td className="font-bold">{item.fund_name}</td>
+                  <td>
+                    <span style={{
+                      padding: '0.2rem 0.5rem',
+                      borderRadius: '4px',
+                      fontSize: '0.7rem',
+                      fontWeight: '700',
+                      backgroundColor: item.type === "REAL_ESTATE" ? "#FFF7ED" : "#EEF2FF",
+                      color: item.type === "REAL_ESTATE" ? "#C2410C" : "#4338CA"
+                    }}>
+                      {item.type === "REAL_ESTATE" ? "Real Estate" : "Equity Fund"}
+                    </span>
+                  </td>
                   <td>{item.ownership_pct.toFixed(4)}%</td>
                   <td>{formatCurrency(item.net_deployed)}</td>
                   <td className="font-bold">{formatCurrency(item.current_value)}</td>
@@ -49,7 +63,7 @@ const InvestorPortfolioTab: React.FC<InvestorPortfolioTabProps> = ({ portfolio, 
               ))}
               {portfolio.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="empty-msg">No investments found.</td>
+                  <td colSpan={5} className="empty-msg">No investments found.</td>
                 </tr>
               )}
             </tbody>
@@ -59,7 +73,7 @@ const InvestorPortfolioTab: React.FC<InvestorPortfolioTabProps> = ({ portfolio, 
 
       {pieChartData.length > 0 && (
         <section className="chart-container content-card">
-          <h3>Distribution Across Funds</h3>
+          <h3>Distribution Across Assets</h3>
           <div style={{ width: '100%', height: 400 }}>
             <ResponsiveContainer>
               <PieChart>

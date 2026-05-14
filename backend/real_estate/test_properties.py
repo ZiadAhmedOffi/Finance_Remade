@@ -64,6 +64,7 @@ class PropertyAPITests(TestCase):
             "financing_type": "ALL_CASH",
             "purchase_date": "2024-01-01",
             "purchase_price": "1000000.00",
+            "size": "100.00",
             "monthly_rent": "5000.00"
         }
         response = self.client.post(url, data)
@@ -75,6 +76,33 @@ class PropertyAPITests(TestCase):
         self.assertEqual(prop.acq_fee_percentage, Decimal('1.00'))
         self.assertEqual(prop.appreciation_rate_percentage, Decimal('3.00'))
         self.assertEqual(prop.vacancy_rate_percentage, Decimal('5.00'))
+        self.assertEqual(prop.size, Decimal('100.00'))
+
+    def test_cost_per_sqm_calculation(self):
+        prop = Property.objects.create(
+            portfolio=self.portfolio,
+            name="Size Property",
+            city="London",
+            country="UK",
+            property_type="RESIDENTIAL",
+            financing_type="ALL_CASH",
+            status="HELD",
+            purchase_date="2024-01-01",
+            purchase_price=Decimal('1000000.00'),
+            size=Decimal('200.00'),
+            monthly_rent=Decimal('5000.00'),
+            acq_fee_percentage=Decimal('1.00'),
+            appreciation_rate_percentage=Decimal('3.00'),
+            vacancy_rate_percentage=Decimal('5.00')
+        )
+        
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('real-estate-portfolio-properties', kwargs={'pk': self.portfolio.id})
+        response = self.client.get(url)
+        
+        metrics = response.data[0]['metrics']
+        # Cost/Sqm = 1,000,000 / 200 = 5,000
+        self.assertEqual(Decimal(str(metrics['cost_per_sqm'])), Decimal('5000.00'))
 
     def test_investor_cannot_add_property(self):
         self.client.force_authenticate(user=self.investor_user)

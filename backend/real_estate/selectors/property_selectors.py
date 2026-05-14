@@ -12,15 +12,20 @@ class PropertySelector:
     @staticmethod
     def get_properties_for_portfolio(portfolio: RealEstatePortfolio, reference_date=None) -> list:
         """
-        Retrieves all properties for a portfolio with calculated derived metrics.
+        Retrieves all properties for a portfolio that were active at the reference_date.
         """
         if reference_date is None:
             reference_date = timezone.now().date()
         
-        properties = portfolio.properties.exclude(status="SOLD").select_related('portfolio__assumptions')
+        # Include all properties purchased before or on the reference date
+        properties = portfolio.properties.filter(purchase_date__lte=reference_date).select_related('portfolio__assumptions', 'sale')
         
         results = []
         for prop in properties:
+            # Exclude if it was sold before the reference date
+            if hasattr(prop, 'sale') and prop.sale.sale_date < reference_date:
+                continue
+                
             results.append(PropertySelector.calculate_metrics(prop, reference_date))
         
         return results
@@ -73,6 +78,7 @@ class PropertySelector:
         
         gross_yield = PropertyDataCalc.gross_yield(effective_rent, prop.purchase_price)
         net_yield = PropertyDataCalc.net_yield(noi, current_market_value)
+        cost_per_sqm = PropertyDataCalc.cost_per_sqm(prop.purchase_price, prop.size)
 
         return {
             "property": prop,
@@ -90,5 +96,6 @@ class PropertySelector:
                 "noi": noi,
                 "gross_yield": gross_yield,
                 "net_yield": net_yield,
+                "cost_per_sqm": cost_per_sqm,
             }
         }

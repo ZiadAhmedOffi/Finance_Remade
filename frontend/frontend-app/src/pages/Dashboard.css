@@ -305,6 +305,55 @@ body {
   box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
+/* Slider Switch */
+.switch-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 3rem;
+  background: #e2e8f0;
+  padding: 4px;
+  border-radius: 9999px;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+  position: relative;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.switch-button {
+  padding: 0.6rem 2rem;
+  border-radius: 9999px;
+  border: none;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: transparent;
+  color: #64748b;
+  position: relative;
+  z-index: 2;
+  min-width: 180px;
+}
+
+.switch-button.active {
+  color: #1e293b;
+  background: white;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.switch-button:hover:not(.active) {
+  color: #1e293b;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @media (max-width: 768px) {
   .main-header { padding: 1rem 1.5rem; }
   .header-brand { font-size: 1.25rem; }

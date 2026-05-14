@@ -15,9 +15,11 @@ from .serializers import (
     OffPlanDetailsSerializer,
     OffPlanMilestoneSerializer,
     PropertySaleSerializer,
-    PropertySaleWithMetricsSerializer
+    RealEstatePossibleCapitalSourceSerializer,
+    RealEstateInvestorActionSerializer,
+    RealEstateInvestorStatsSerializer
 )
-from ..models import FinancingEntry, Property, OffPlanMilestone, PropertySale
+from ..models import FinancingEntry, Property, OffPlanMilestone, PropertySale, RealEstateInvestorAction, RealEstatePossibleCapitalSource
 from ..selectors.portfolio_selectors import PortfolioSelectors
 from ..selectors.property_selectors import PropertySelector
 from ..selectors.financing_selectors import FinancingSelectors
@@ -25,13 +27,18 @@ from ..selectors.off_plan_selectors import OffPlanSelectors
 from ..selectors.property_sale_selectors import PropertySaleSelector
 from ..selectors.cash_flow_selectors import CashFlowSelectors
 from ..selectors.portfolio_dashboard_selectors import PortfolioDashboardSelector
+from ..selectors.investor_selectors import RealEstateInvestorSelector
 from ..services.portfolio_service import PortfolioService
 
 from ..services.property_service import PropertyService
 from ..services.financing_service import FinancingService
 from ..services.off_plan_service import OffPlanService
 from ..services.property_sale_service import PropertySaleService
+from ..services.investor_service import RealEstateInvestorService
 from users.services.permission_service import PermissionService
+
+from funds.interfaces.user_service_adapter import UserServiceAdapter
+user_adapter = UserServiceAdapter()
 
 class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
@@ -341,3 +348,177 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
 
         data = PortfolioDashboardSelector.get_dashboard_data(portfolio, reference_date=reference_date)
         return Response(data)
+
+    @action(detail=True, methods=['get'], url_path='investors')
+    def list_investors(self, request, pk=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_view_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("Access denied.")
+        
+        investors = user_adapter.get_investors_for_re_portfolio(pk)
+        data = [{"id": str(u.id), "email": u.email, "first_name": u.first_name, "last_name": u.last_name} for u in investors]
+        return Response(data)
+
+    @action(detail=True, methods=['get'], url_path='investor-log')
+    def investor_log(self, request, pk=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_view_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("Access denied.")
+        
+        assumptions = getattr(portfolio, "assumptions", None)
+        if not assumptions:
+             return Response({"error": "Assumptions not found"}, status=status.HTTP_400_BAD_REQUEST)
+
+        inception_date = assumptions.inception_date
+        inception_year = inception_date.year
+        end_year = inception_year + assumptions.forecast_horizon - 1
+        
+        # 1. Investor Table Data
+        investor_stats = RealEstateInvestorSelector.get_investor_stats(portfolio)
+        investors_list = RealEstateInvestorStatsSerializer(investor_stats, many=True).data
+        total_units = float(portfolio.total_units)
+        for inv in investors_list:
+            inv["ownership_percentage"] = (float(inv["units"]) / total_units * 100.0) if total_units > 0 else 0.0
+
+        # 2. Graph Data
+        graph_data = []
+        yearly_cap_data = RealEstateInvestorSelector.calculate_portfolio_capital_required(portfolio)
+
+        investor_actions = RealEstateInvestorSelector.get_investor_actions(portfolio)
+        invested_by_year = {}
+        for action in investor_actions:
+            if action.type == "PRIMARY_INVESTMENT":
+                invested_by_year[action.year] = invested_by_year.get(action.year, 0.0) + float(action.amount)
+
+        possible_sources = portfolio.possible_capital_sources.all()
+        possible_by_year = {}
+        for source in possible_sources:
+            possible_by_year[source.year] = possible_by_year.get(source.year, 0.0) + float(source.amount)
+
+        cumulative_invested = 0.0
+        cumulative_required = 0.0
+        cumulative_possible = 0.0
+        primary_units_by_year = RealEstateInvestorSelector.get_primary_units_by_year(portfolio)
+        cumulative_units = 0.0
+
+        for yr in range(inception_year, end_year + 1):
+            cumulative_invested += invested_by_year.get(yr, 0.0)
+            
+            # Use the new structure
+            yr_data = yearly_cap_data.get(yr, {"total": 0.0, "breakdown": []})
+            cumulative_required += yr_data["total"]
+            
+            cumulative_possible += possible_by_year.get(yr, 0.0)
+            cumulative_units += primary_units_by_year.get(yr, 0.0)
+            
+            ref_date = datetime(yr, 12, 31).date()
+            nav_metrics = PortfolioSelectors.get_portfolio_nav_metrics(portfolio, reference_date=ref_date)
+            
+            graph_data.append({
+                "year": yr,
+                "total_capital_invested": float(cumulative_invested),
+                "total_capital_required": float(cumulative_required),
+                "total_capital_with_possible": float(cumulative_invested + cumulative_possible),
+                "portfolio_value": float(nav_metrics["nav"]),
+                "units_at_year": float(cumulative_units),
+                "price_per_unit": float(nav_metrics["price_per_unit"]),
+                "cash_reserves": float(nav_metrics["cash_reserves"]),
+                "assets_value": float(nav_metrics["total_market_value_held"]),
+                "capital_breakdown": yr_data["breakdown"],
+                "yearly_required": float(yr_data["total"]),
+                "assets_breakdown": nav_metrics["assets_breakdown"],
+                "cash_breakdown": nav_metrics["cash_change_breakdown"],
+                "assets_change_breakdown": nav_metrics["assets_change_breakdown"]
+            })
+
+        final_nav_metrics = PortfolioSelectors.get_portfolio_nav_metrics(portfolio)
+        return Response({
+            "investors": investors_list,
+            "graph_data": graph_data,
+            "actions": RealEstateInvestorActionSerializer(investor_actions, many=True).data,
+            "possible_capital_sources": RealEstatePossibleCapitalSourceSerializer(possible_sources, many=True).data,
+            "total_units": total_units,
+            "nav_metrics": {
+                "total_market_value_held": float(final_nav_metrics["total_market_value_held"]),
+                "total_investments": float(final_nav_metrics["total_investments"]),
+                "total_net_proceeds": float(final_nav_metrics["total_net_proceeds"]),
+                "cash_reserves": float(final_nav_metrics["cash_reserves"]),
+                "nav": float(final_nav_metrics["nav"]),
+                "total_units": float(final_nav_metrics["total_units"]),
+                "price_per_unit": float(final_nav_metrics["price_per_unit"]),
+            }
+        })
+
+    @action(detail=True, methods=['get', 'post'], url_path='investor-actions')
+    def investor_actions(self, request, pk=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_view_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("Access denied.")
+        
+        if request.method == 'GET':
+            actions = RealEstateInvestorSelector.get_investor_actions(portfolio)
+            serializer = RealEstateInvestorActionSerializer(actions, many=True)
+            return Response(serializer.data)
+        
+        elif request.method == 'POST':
+            if not PermissionService.can_edit_re_portfolio(request.user, portfolio):
+                raise PermissionDenied("Access denied.")
+            
+            serializer = RealEstateInvestorActionSerializer(data=request.data)
+            if serializer.is_valid():
+                try:
+                    action_obj = RealEstateInvestorService.create_investor_action(
+                        actor=request.user,
+                        data={**serializer.validated_data, "portfolio": portfolio}
+                    )
+                    return Response(RealEstateInvestorActionSerializer(action_obj).data, status=status.HTTP_201_CREATED)
+                except ValueError as e:
+                    return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['delete'], url_path='investor-actions/(?P<action_id>[0-9a-f-]+)')
+    def manage_investor_action(self, request, pk=None, action_id=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_edit_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("Access denied.")
+        
+        action_obj = RealEstateInvestorSelector.get_investor_action_by_id(action_id)
+        if not action_obj or action_obj.portfolio != portfolio:
+            return Response({"error": "Action not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        RealEstateInvestorService.delete_investor_action(action_obj)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['get', 'post'], url_path='possible-capital-sources')
+    def possible_capital_sources(self, request, pk=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_view_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("Access denied.")
+        
+        if request.method == 'GET':
+            sources = portfolio.possible_capital_sources.all()
+            serializer = RealEstatePossibleCapitalSourceSerializer(sources, many=True)
+            return Response(serializer.data)
+        
+        elif request.method == 'POST':
+            if not PermissionService.can_edit_re_portfolio(request.user, portfolio):
+                raise PermissionDenied("Access denied.")
+            
+            serializer = RealEstatePossibleCapitalSourceSerializer(data=request.data)
+            if serializer.is_valid():
+                source = serializer.save(portfolio=portfolio)
+                return Response(RealEstatePossibleCapitalSourceSerializer(source).data, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['delete'], url_path='possible-capital-sources/(?P<source_id>[0-9a-f-]+)')
+    def manage_possible_source(self, request, pk=None, source_id=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_edit_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("Access denied.")
+            
+        try:
+            source = portfolio.possible_capital_sources.get(id=source_id)
+            source.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except RealEstatePossibleCapitalSource.DoesNotExist:
+            return Response({"error": "Source not found"}, status=status.HTTP_404_NOT_FOUND)

@@ -187,6 +187,16 @@ export const realEstateApi = {
     api.patch(`/real-estate/${portfolioId}/sales/${saleId}/`, data),
   deleteSale: (portfolioId: string, saleId: string) => 
     api.delete(`/real-estate/${portfolioId}/sales/${saleId}/`),
+
+  // Investor Log Endpoints
+  getInvestorLog: (portfolioId: string) => api.get(`/real-estate/${portfolioId}/investor-log/`),
+  getInvestors: (portfolioId: string) => api.get(`/real-estate/${portfolioId}/investors/`),
+  getInvestorActions: (portfolioId: string) => api.get(`/real-estate/${portfolioId}/investor-actions/`),
+  createInvestorAction: (portfolioId: string, data: any) => api.post(`/real-estate/${portfolioId}/investor-actions/`, data),
+  deleteInvestorAction: (portfolioId: string, actionId: string) => api.delete(`/real-estate/${portfolioId}/investor-actions/${actionId}/`),
+  getPossibleSources: (portfolioId: string) => api.get(`/real-estate/${portfolioId}/possible-capital-sources/`),
+  createPossibleSource: (portfolioId: string, data: any) => api.post(`/real-estate/${portfolioId}/possible-capital-sources/`, data),
+  deletePossibleSource: (portfolioId: string, sourceId: string) => api.delete(`/real-estate/${portfolioId}/possible-capital-sources/${sourceId}/`),
 };
 
 export { api, publicApi };

@@ -8,6 +8,7 @@ import OffPlanModelTab from "../components/OffPlanModelTab";
 import SalesAndDisposalsTab from "../components/SalesAndDisposalsTab";
 import CashFlowModelTab from "../components/CashFlowModelTab";
 import RealEstateDashboardTab from "../components/RealEstateDashboardTab";
+import REInvestorLogTab from "../components/REInvestorLogTab";
 import "./FundDashboard.css"; // Reuse dashboard styles
 
 interface RealEstatePortfolio {
@@ -24,7 +25,7 @@ const RealEstatePortfolioDashboard: React.FC = () => {
   const [portfolio, setPortfolio] = useState<RealEstatePortfolio | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "properties" | "assumptions" | "financing" | "off-plan" | "sales" | "cash-flow">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "properties" | "assumptions" | "financing" | "off-plan" | "sales" | "cash-flow" | "investor-log">("dashboard");
   const [canEdit, setCanEdit] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -80,6 +81,7 @@ const RealEstatePortfolioDashboard: React.FC = () => {
   const menuItems = [
     { id: "dashboard", label: "Dashboard", icon: "📊" },
     { id: "properties", label: "Property Data", icon: "🏢" },
+    { id: "investor-log", label: "Investor Log", icon: "👥" },
     { id: "financing", label: "Financing Model", icon: "💰" },
     { id: "off-plan", label: "Off-Plan Model", icon: "🏗️" },
     { id: "cash-flow", label: "Cash Flow Model", icon: "📈" },
@@ -92,8 +94,8 @@ const RealEstatePortfolioDashboard: React.FC = () => {
       <aside className="sidebar">
         <div className="sidebar-header">
           <div className="brand">Investment Intelligence Tool</div>
-          <button className="back-link" onClick={() => navigate("/real-estate")}>
-            &larr; Back to Real Estate
+          <button className="back-link" onClick={() => navigate("/dashboard")}>
+            &larr; Back to Dashboard
           </button>
         </div>
 
@@ -137,6 +139,9 @@ const RealEstatePortfolioDashboard: React.FC = () => {
           )}
           {activeTab === "properties" && portfolioId && (
             <PropertyDataTab portfolioId={portfolioId} canEdit={canEdit} />
+          )}
+          {activeTab === "investor-log" && portfolioId && (
+            <REInvestorLogTab portfolioId={portfolioId} canEdit={canEdit} />
           )}
           {activeTab === "assumptions" && portfolioId && (
             <RealEstateAssumptionsTab portfolioId={portfolioId} canEdit={canEdit} />

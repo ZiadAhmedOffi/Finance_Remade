@@ -30,6 +30,7 @@ class PropertyService:
             status=data.get('status', 'HELD'),
             purchase_date=data['purchase_date'],
             purchase_price=data['purchase_price'],
+            size=data.get('size', 0.00),
             monthly_rent=data['monthly_rent'],
             other_operational_expenses=data.get('other_operational_expenses', 0.00),
             acq_fee_percentage=acq_fee,
@@ -48,7 +49,7 @@ class PropertyService:
         fields = [
             'name', 'city', 'country', 'submarket', 'property_type', 
             'financing_type', 'status', 'purchase_date', 'purchase_price', 
-            'monthly_rent', 'other_operational_expenses', 
+            'size', 'monthly_rent', 'other_operational_expenses', 
             'acq_fee_percentage', 'appreciation_rate_percentage', 
             'vacancy_rate_percentage'
         ]

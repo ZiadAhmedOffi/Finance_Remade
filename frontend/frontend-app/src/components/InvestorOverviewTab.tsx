@@ -97,7 +97,7 @@ const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, line
         <div className="chart-header">
           <div>
             <h3>Portfolio Growth Analysis</h3>
-            <p className="chart-subtitle">Historical aggregate value of your holdings across all funds</p>
+            <p className="chart-subtitle">Historical aggregate value of your holdings across all funds and real estate portfolios</p>
           </div>
           <div className="chart-actions">
             <span className="badge year-badge">All-Time Performance</span>

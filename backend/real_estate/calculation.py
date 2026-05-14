@@ -91,3 +91,9 @@ class PropertyDataCalc:
     @staticmethod
     def value_at_completion(purchase_price: Decimal, appreciation_rate_at_completion: Decimal) -> Decimal:
         return (purchase_price * (Decimal('1') + (appreciation_rate_at_completion / Decimal('100')))).quantize(Decimal('0.01'))
+
+    @staticmethod
+    def cost_per_sqm(purchase_price: Decimal, size: Decimal) -> Decimal:
+        if size == 0:
+            return Decimal('0.00')
+        return (purchase_price / size).quantize(Decimal('0.01'))

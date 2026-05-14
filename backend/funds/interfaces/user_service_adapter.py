@@ -8,6 +8,12 @@ class UserServiceAdapter(UserInterface):
             role_assignments__role__name="INVESTOR"
         ).distinct()
 
+    def get_investors_for_re_portfolio(self, portfolio_id):
+        return User.objects.filter(
+            role_assignments__role__name="INVESTOR",
+            role_assignments__real_estate_portfolio_id=portfolio_id
+        ).distinct()
+
     def get_user_by_id(self, user_id):
         try:
             return User.objects.get(id=user_id)

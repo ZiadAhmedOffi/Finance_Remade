@@ -6,7 +6,10 @@ from ..models import (
     FinancingEntry, 
     OffPlanDetails, 
     OffPlanMilestone,
-    PropertySale
+    PropertySale,
+    RealEstatePossibleCapitalSource,
+    RealEstateInvestorAction,
+    RealEstateInvestorStats
 )
 
 class RealEstateAssumptionsSerializer(serializers.ModelSerializer):
@@ -41,7 +44,7 @@ class PropertySerializer(serializers.ModelSerializer):
         fields = [
             'id', 'portfolio', 'name', 'city', 'country', 'submarket',
             'property_type', 'financing_type', 'status',
-            'purchase_date', 'purchase_price', 'monthly_rent',
+            'purchase_date', 'purchase_price', 'size', 'monthly_rent',
             'other_operational_expenses', 'acq_fee_percentage',
             'appreciation_rate_percentage', 'vacancy_rate_percentage',
             'created_at', 'updated_at'
@@ -104,3 +107,38 @@ class PropertySaleSerializer(serializers.ModelSerializer):
 class PropertySaleWithMetricsSerializer(serializers.Serializer):
     sale = PropertySaleSerializer()
     metrics = serializers.JSONField()
+
+class RealEstatePossibleCapitalSourceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RealEstatePossibleCapitalSource
+        fields = ['id', 'portfolio', 'name', 'amount', 'year', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+class RealEstateInvestorActionSerializer(serializers.ModelSerializer):
+    investor_email = serializers.EmailField(source='investor.email', read_only=True)
+    investor_selling_email = serializers.EmailField(source='investor_selling.email', read_only=True, allow_null=True)
+    investor_sold_to_email = serializers.EmailField(source='investor_sold_to.email', read_only=True, allow_null=True)
+
+    class Meta:
+        model = RealEstateInvestorAction
+        fields = [
+            'id', 'portfolio', 'investor', 'investor_email', 'type', 'year', 
+            'amount', 'percentage_sold', 'discount_percentage',
+            'investor_selling', 'investor_selling_email',
+            'investor_sold_to', 'investor_sold_to_email',
+            'units', 'created_at'
+        ]
+        read_only_fields = ['id', 'portfolio', 'units', 'created_at']
+
+class RealEstateInvestorStatsSerializer(serializers.ModelSerializer):
+    investor_email = serializers.EmailField(source='investor.email', read_only=True)
+    first_name = serializers.CharField(source='investor.first_name', read_only=True)
+    last_name = serializers.CharField(source='investor.last_name', read_only=True)
+
+    class Meta:
+        model = RealEstateInvestorStats
+        fields = [
+            'id', 'portfolio', 'investor', 'investor_email', 'first_name', 'last_name',
+            'amount_invested', 'capital_deployed', 'realized_gain', 'units'
+        ]
+        read_only_fields = ['id']

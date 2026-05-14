@@ -13,6 +13,7 @@ interface Property {
   status: "HELD" | "OFF_PLAN";
   purchase_date: string;
   purchase_price: string;
+  size: string;
   monthly_rent: string;
   other_operational_expenses: string;
   acq_fee_percentage: string;
@@ -34,6 +35,7 @@ interface Metrics {
   noi: number;
   gross_yield: number;
   net_yield: number;
+  cost_per_sqm: number;
 }
 
 interface PropertyWithMetrics {
@@ -59,6 +61,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
     status: "HELD",
     purchase_date: "",
     purchase_price: "",
+    size: "0",
     monthly_rent: "",
     other_operational_expenses: "0",
     acq_fee_percentage: "",
@@ -129,6 +132,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
       status: "HELD",
       purchase_date: "",
       purchase_price: "",
+      size: "0",
       monthly_rent: "",
       other_operational_expenses: "0",
       acq_fee_percentage: assumptions?.acquisition_fee_percentage?.toString() || "",
@@ -155,6 +159,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
       status: prop.status,
       purchase_date: prop.purchase_date,
       purchase_price: prop.purchase_price,
+      size: prop.size,
       monthly_rent: prop.monthly_rent,
       other_operational_expenses: prop.other_operational_expenses,
       acq_fee_percentage: prop.acq_fee_percentage,
@@ -263,10 +268,10 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
           <table className="property-table">
             <thead>
               <tr>
-                <th colSpan={8} className="group-header">Basic Information</th>
+                <th colSpan={9} className="group-header">Basic Information</th>
                 <th colSpan={3} className="group-header">Investment Inputs</th>
                 <th colSpan={3} className="group-header">Rates & Assumptions</th>
-                <th colSpan={13} className="group-header">Derived Metrics & Performance</th>
+                <th colSpan={14} className="group-header">Derived Metrics & Performance</th>
                 {canEdit && <th rowSpan={2} className="group-header">Actions</th>}
               </tr>
               <tr>
@@ -275,6 +280,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                 <th>Country</th>
                 <th>Submarket</th>
                 <th>Type</th>
+                <th>Size (Sqm)</th>
                 <th>Financing</th>
                 <th>Status</th>
                 <th>Purchase Date</th>
@@ -289,6 +295,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                 
                 <th>Acq Fee$</th>
                 <th>Total Cost Basis</th>
+                <th>Cost/Sqm</th>
                 <th>Years Held</th>
                 <th>Market Value</th>
                 <th>Unrealized Gain</th>
@@ -310,6 +317,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                   <td>{property.country}</td>
                   <td>{property.submarket}</td>
                   <td>{property.property_type}</td>
+                  <td>{parseFloat(property.size).toFixed(2)}</td>
                   <td>{property.financing_type}</td>
                   <td>
                     <span className={property.status === "HELD" ? "status-held" : "status-offplan"}>
@@ -328,6 +336,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                   
                   <td className="metric-cell">{formatCurrency(metrics.acq_fee_amount)}</td>
                   <td className="metric-cell">{formatCurrency(metrics.total_cost_basis)}</td>
+                  <td className="metric-cell">{formatCurrency(metrics.cost_per_sqm)}</td>
                   <td className="metric-cell">{metrics.years_held.toFixed(2)}</td>
                   <td className="metric-cell" style={{color: '#2563eb'}}>{formatCurrency(metrics.current_market_value)}</td>
                   <td className="metric-cell" style={{color: metrics.unrealized_gain >= 0 ? '#10b981' : '#ef4444'}}>
@@ -424,6 +433,10 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                 <div className="form-group">
                   <label>Purchase Price ($)</label>
                   <input type="number" name="purchase_price" value={formData.purchase_price} onChange={handleInputChange} required />
+                </div>
+                <div className="form-group">
+                  <label>Size (Sqm)</label>
+                  <input type="number" step="0.01" name="size" value={formData.size} onChange={handleInputChange} required />
                 </div>
                 <div className="form-group">
                   <label>Monthly Rent ($)</label>
