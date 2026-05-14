@@ -44,6 +44,10 @@ interface User {
 interface RealEstatePortfolio {
   id: string;
   name: string;
+  description: string;
+  region: string;
+  status: "ACTIVE" | "DEACTIVATED";
+  created_by_email: string;
 }
 
 interface AuditLog {
@@ -270,7 +274,7 @@ const AdminDashboard: React.FC = () => {
         name: newREName,
         description: newREDescription,
         region: newRERegion,
-        status: "ESTABLISHED"
+        status: "ACTIVE"
       });
       setMessage("Real Estate Portfolio created successfully.");
       setNewREName("");
@@ -564,75 +568,103 @@ const AdminDashboard: React.FC = () => {
                 </div>
               )}
             </div>
-            {funds.length > 0 ? (
-              <table className="users-table">
-                <thead>
-                  <tr>
-                    <th>Fund Name</th>
-                    <th>Tag</th>
-                    <th>Status</th>
-                    <th>Created By</th>
-                    <th>SC Members</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {funds.map((fund) => {
-                    const canEditFund = isSuperAdmin || currentUser?.roles.some(r => r.fund === fund.id && r.role.name === "STEERING_COMMITTEE");
-                    return (
-                      <tr key={fund.id}>
-                        <td>{fund.name}</td>
-                        <td>
-                          {canEditFund ? (
-                            <select 
-                              value={fund.tag} 
-                              onChange={(e) => handleChangeFundTag(fund.id, e.target.value)}
-                              style={{padding: '0.2rem', borderRadius: '4px'}}
-                            >
-                              <option value="BIC">BIC</option>
-                              <option value="VC">VC</option>
-                              <option value="VS">VS</option>
-                              <option value="AIG">AIG</option>
-                              <option value="SF">SF</option>
-                            </select>
-                          ) : (
-                            <span>{fund.tag}</span>
-                          )}
-                        </td>
-                        <td>
-                          {canEditFund ? (
-                            <select 
-                              value={fund.status} 
-                              onChange={(e) => handleChangeFundStatus(fund.id, e.target.value)}
-                              style={{padding: '0.2rem', borderRadius: '4px'}}
-                            >
-                              <option value="ESTABLISHED">Established</option>
-                              <option value="FUTURE">Future</option>
-                              <option value="DEACTIVATED">Deactivated</option>
-                            </select>
-                          ) : (
-                            <span className={`status-tag ${fund.status.toLowerCase()}`}>{fund.status}</span>
-                          )}
-                        </td>
-                        <td>{fund.created_by_email}</td>
-                        <td>
-                          <div className="sc-members-list">
-                            {fund.steering_committee.length > 0 
-                              ? fund.steering_committee.join(", ") 
-                              : "No SC Members"}
-                          </div>
-                        </td>
-                        <td className="actions">
-                          {canEditFund && fund.status !== "DEACTIVATED" && (
-                            <button onClick={() => handleDeactivateFund(fund.id)} className="btn btn-deactivate">Deactivate</button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            ) : <p className="empty-state">No funds found.</p>}
+            {(() => {
+              const allItems = [
+                ...funds.map(f => ({ ...f, type: 'FUND' })),
+                ...portfolios.map(p => ({ 
+                  ...p, 
+                  tag: 'REAL_ESTATE', 
+                  steering_committee: [], 
+                  type: 'REAL_ESTATE' 
+                }))
+              ];
+              
+              return allItems.length > 0 ? (
+                <table className="users-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Tag</th>
+                      <th>Status</th>
+                      <th>Created By</th>
+                      <th>SC Members</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allItems.map((item) => {
+                      const isFund = item.type === 'FUND';
+                      const canEditFund = isSuperAdmin || (isFund && currentUser?.roles.some(r => r.fund === item.id && r.role.name === "STEERING_COMMITTEE"));
+                      
+                      return (
+                        <tr key={item.id}>
+                          <td>{item.name}</td>
+                          <td>
+                            {isFund && canEditFund ? (
+                              <select 
+                                value={item.tag} 
+                                onChange={(e) => handleChangeFundTag(item.id, e.target.value)}
+                                style={{padding: '0.2rem', borderRadius: '4px'}}
+                              >
+                                <option value="BIC">BIC</option>
+                                <option value="VC">VC</option>
+                                <option value="VS">VS</option>
+                                <option value="AIG">AIG</option>
+                                <option value="SF">SF</option>
+                              </select>
+                            ) : (
+                              <span>{item.tag === "REAL_ESTATE" ? "Real estate" : item.tag}</span>
+                            )}
+                          </td>
+                          <td>
+                            {isFund && canEditFund ? (
+                              <select 
+                                value={item.status} 
+                                onChange={(e) => handleChangeFundStatus(item.id, e.target.value)}
+                                style={{padding: '0.2rem', borderRadius: '4px'}}
+                              >
+                                <option value="ESTABLISHED">Established</option>
+                                <option value="FUTURE">Future</option>
+                                <option value="DEACTIVATED">Deactivated</option>
+                              </select>
+                            ) : isFund ? (
+                              <span className={`status-tag ${item.status.toLowerCase()}`}>{item.status}</span>
+                            ) : (
+                              <span className={`status-tag ${item.status.toLowerCase()}`}>{item.status}</span>
+                            )}
+                          </td>
+                          <td>{item.created_by_email}</td>
+                          <td>
+                            <div className="sc-members-list">
+                              {isFund && item.steering_committee.length > 0 
+                                ? item.steering_committee.join(", ") 
+                                : isFund ? "No SC Members" : "-"}
+                            </div>
+                          </td>
+                          <td className="actions">
+                            {isFund && canEditFund && item.status !== "DEACTIVATED" && (
+                              <button onClick={() => handleDeactivateFund(item.id)} className="btn btn-deactivate">Deactivate</button>
+                            )}
+                            {!isFund && isSuperAdmin && item.status !== "DEACTIVATED" && (
+                              <button onClick={async () => {
+                                if (!window.confirm("Are you sure you want to deactivate this portfolio?")) return;
+                                try {
+                                  await api.patch(`/real-estate/${item.id}/`, { status: "DEACTIVATED" });
+                                  setMessage("Portfolio deactivated successfully.");
+                                  fetchPortfolios();
+                                } catch (err) {
+                                  setError("Failed to deactivate portfolio.");
+                                }
+                              }} className="btn btn-deactivate">Deactivate</button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : <p className="empty-state">No funds or portfolios found.</p>;
+            })()}
           </section>
         ) : activeTab === "logs" ? (
           <section>

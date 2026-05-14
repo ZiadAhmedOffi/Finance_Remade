@@ -235,3 +235,26 @@
   font-size: 0.85rem;
   margin-top: 1rem;
 }
+
+.status-tag {
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.status-tag.established, .status-tag.active {
+  background-color: var(--success-bg);
+  color: var(--success);
+}
+
+.status-tag.future {
+  background-color: var(--warning-bg);
+  color: var(--warning);
+}
+
+.status-tag.deactivated {
+  background-color: var(--error-bg);
+  color: var(--error);
+}
