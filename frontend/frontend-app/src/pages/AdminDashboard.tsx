@@ -84,6 +84,7 @@ const AdminDashboard: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
+  const [isREModalOpen, setIsREModalOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedLogForDetails, setSelectedLogForDetails] = useState<AuditLog | null>(null);
   const [selectedRoleId, setSelectedRoleId] = useState("");
@@ -94,6 +95,10 @@ const AdminDashboard: React.FC = () => {
   const [newFundName, setNewFundName] = useState("");
   const [newFundDescription, setNewFundDescription] = useState("");
   const [newFundTag, setNewFundTag] = useState("VC");
+
+  const [newREName, setNewREName] = useState("");
+  const [newREDescription, setNewREDescription] = useState("");
+  const [newRERegion, setNewRERegion] = useState("");
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [privilegeError, setPrivilegeError] = useState<{title: string, message: string} | null>(null);
@@ -248,6 +253,33 @@ const AdminDashboard: React.FC = () => {
       fetchFunds();
     } catch (err: any) {
       setError(err.response?.data?.error || "Failed to create fund.");
+    }
+  };
+
+  const handleCreateREPortfolio = async () => {
+    if (!isSuperAdmin) {
+      setPrivilegeError({
+        title: "Privilege Error",
+        message: "Only Super Administrators are authorized to create new real estate portfolios."
+      });
+      return;
+    }
+    if (!newREName) return;
+    try {
+      await api.post("/real-estate/", {
+        name: newREName,
+        description: newREDescription,
+        region: newRERegion,
+        status: "ESTABLISHED"
+      });
+      setMessage("Real Estate Portfolio created successfully.");
+      setNewREName("");
+      setNewREDescription("");
+      setNewRERegion("");
+      setIsREModalOpen(false);
+      fetchPortfolios();
+    } catch (err: any) {
+      setError(err.response?.data?.error || "Failed to create portfolio.");
     }
   };
 
@@ -526,7 +558,10 @@ const AdminDashboard: React.FC = () => {
             <div className="section-header">
               <h2>Funds Management</h2>
               {isSuperAdmin && (
-                <button onClick={() => setIsFundModalOpen(true)} className="btn btn-approve">Create New Fund</button>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <button onClick={() => setIsFundModalOpen(true)} className="btn btn-approve">Create New Fund</button>
+                  <button onClick={() => setIsREModalOpen(true)} className="btn btn-approve">Create Real Estate Portfolio</button>
+                </div>
               )}
             </div>
             {funds.length > 0 ? (
@@ -559,10 +594,9 @@ const AdminDashboard: React.FC = () => {
                               <option value="VS">VS</option>
                               <option value="AIG">AIG</option>
                               <option value="SF">SF</option>
-                              <option value="REAL_ESTATE">Real estate</option>
                             </select>
                           ) : (
-                            <span>{fund.tag === "REAL_ESTATE" ? "Real estate" : fund.tag}</span>
+                            <span>{fund.tag}</span>
                           )}
                         </td>
                         <td>
@@ -750,7 +784,6 @@ const AdminDashboard: React.FC = () => {
                 <option value="VS">VS</option>
                 <option value="AIG">AIG</option>
                 <option value="SF">SF</option>
-                <option value="REAL_ESTATE">Real estate</option>
               </select>
             </div>
             <div className="form-group">
@@ -765,6 +798,45 @@ const AdminDashboard: React.FC = () => {
             <div className="modal-actions">
               <button onClick={handleCreateFund} className="btn btn-approve">Create Fund</button>
               <button onClick={() => setIsFundModalOpen(false)} className="btn btn-reject">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isREModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h3>Create Real Estate Portfolio</h3>
+            <div className="form-group">
+              <label>Portfolio Name</label>
+              <input 
+                type="text" 
+                value={newREName} 
+                onChange={(e) => setNewREName(e.target.value)}
+                placeholder="Enter portfolio name"
+              />
+            </div>
+            <div className="form-group">
+              <label>Region</label>
+              <input 
+                type="text" 
+                value={newRERegion} 
+                onChange={(e) => setNewRERegion(e.target.value)}
+                placeholder="Enter region (e.g. Dubai, London)"
+              />
+            </div>
+            <div className="form-group">
+              <label>Description</label>
+              <textarea 
+                value={newREDescription} 
+                onChange={(e) => setNewREDescription(e.target.value)}
+                placeholder="Enter portfolio description"
+                rows={4}
+              />
+            </div>
+            <div className="modal-actions">
+              <button onClick={handleCreateREPortfolio} className="btn btn-approve">Create Portfolio</button>
+              <button onClick={() => setIsREModalOpen(false)} className="btn btn-reject">Cancel</button>
             </div>
           </div>
         </div>
