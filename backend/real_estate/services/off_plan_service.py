@@ -45,7 +45,6 @@ class OffPlanService:
             ("Down Payment", start_date, Decimal("20.00")),
             ("Construction at 30%", start_date + timedelta(days=180), Decimal("10.00")),
             ("Handover 50%", start_date + timedelta(days=365), Decimal("20.00")),
-            ("Sale at Completion", completion_date, Decimal("0.00")), # Percentage is not used for Sale
         ]
         
         for name, date, pct in milestones:
@@ -80,6 +79,19 @@ class OffPlanService:
 
     @staticmethod
     @transaction.atomic
+    def create_milestone(property_obj: Property, data: dict) -> OffPlanMilestone:
+        """
+        Creates a new milestone for an off-plan property.
+        """
+        return OffPlanMilestone.objects.create(
+            property=property_obj,
+            milestone_name=data.get('milestone_name', 'New Milestone'),
+            date=data.get('date', timezone.now().date()),
+            percentage_of_price=Decimal(str(data.get('percentage_of_price', '0.00')))
+        )
+
+    @staticmethod
+    @transaction.atomic
     def update_milestone(milestone_id: str, data: dict) -> OffPlanMilestone:
         """
         Updates a specific milestone.
@@ -94,3 +106,11 @@ class OffPlanService:
             
         milestone.save()
         return milestone
+
+    @staticmethod
+    @transaction.atomic
+    def delete_milestone(milestone_id: str):
+        """
+        Deletes a milestone.
+        """
+        OffPlanMilestone.objects.filter(id=milestone_id).delete()

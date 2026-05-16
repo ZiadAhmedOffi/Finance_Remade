@@ -9,7 +9,8 @@ from ..models import (
     PropertySale,
     RealEstatePossibleCapitalSource,
     RealEstateInvestorAction,
-    RealEstateInvestorStats
+    RealEstateInvestorStats,
+    InstallmentEntry
 )
 
 class RealEstateAssumptionsSerializer(serializers.ModelSerializer):
@@ -65,8 +66,25 @@ class FinancingEntrySerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
+class InstallmentEntrySerializer(serializers.ModelSerializer):
+    property_name = serializers.CharField(source='property.name', read_only=True)
+    purchase_price = serializers.DecimalField(source='property.purchase_price', max_digits=15, decimal_places=2, read_only=True)
+
+    class Meta:
+        model = InstallmentEntry
+        fields = [
+            'id', 'property', 'property_name', 'purchase_price',
+            'down_payment', 'tenor', 'payments_per_year', 'start_date',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
 class FinancingEntryWithMetricsSerializer(serializers.Serializer):
     entry = FinancingEntrySerializer()
+    metrics = serializers.JSONField()
+
+class InstallmentEntryWithMetricsSerializer(serializers.Serializer):
+    entry = InstallmentEntrySerializer()
     metrics = serializers.JSONField()
 
 class OffPlanDetailsSerializer(serializers.ModelSerializer):

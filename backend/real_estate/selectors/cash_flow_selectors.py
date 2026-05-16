@@ -1,7 +1,7 @@
 from decimal import Decimal
 from datetime import date
 from collections import defaultdict
-from ..models import RealEstatePortfolio, Property, OffPlanMilestone, FinancingEntry
+from ..models import RealEstatePortfolio, Property, OffPlanMilestone
 from .financing_selectors import FinancingSelectors
 from ..constants import SCENARIO_ADJUSTMENTS
 from ..calculation import PropertyDataCalc
@@ -12,6 +12,7 @@ class CashFlowSelectors:
         """
         Calculates annual cash flows for all properties in a portfolio.
         Follows lifecycle and off-plan specific logic.
+        Integrates Mortgages and Primary Installments.
         """
         assumptions = portfolio.assumptions
         inception_year = assumptions.inception_date.year
@@ -28,7 +29,7 @@ class CashFlowSelectors:
         requested_years = list(range(start_year, end_year + 1))
         
         # Include properties that are SOLD but might have historical cash flow
-        properties = portfolio.properties.select_related('financing', 'off_plan_details').prefetch_related('milestones', 'sale')
+        properties = portfolio.properties.select_related('financing', 'off_plan_details', 'installment').prefetch_related('milestones', 'sale')
         
         property_cash_flows = {}
         portfolio_totals = defaultdict(Decimal)
@@ -61,7 +62,6 @@ class CashFlowSelectors:
             
             # Off-plan specifics
             is_off_plan_initial = prop.status == "OFF_PLAN"
-            is_mortgaged = prop.financing_type == "MORTGAGED"
             completion_year = None
             sale_at_completion = False
             if hasattr(prop, 'off_plan_details'):
@@ -70,10 +70,19 @@ class CashFlowSelectors:
 
             # Milestones for Off-Plan
             milestones_by_year = defaultdict(Decimal)
-            for m in prop.milestones.all():
-                milestones_by_year[m.date.year] += (prop.purchase_price * (m.percentage_of_price / Decimal('100')))
+            user_milestones = prop.milestones.all()
+            user_pct_sum = sum(m.percentage_of_price for m in user_milestones)
+            completion_pct = max(Decimal("0.00"), Decimal("100.00") - user_pct_sum)
 
-            # Financing
+            for m in user_milestones:
+                milestones_by_year[m.date.year] += (prop.purchase_price * (m.percentage_of_price / Decimal('100')))
+            
+            # Add Completion milestone (at completion_year)
+            if hasattr(prop, 'off_plan_details'):
+                comp_yr = prop.off_plan_details.expected_completion_date.year
+                milestones_by_year[comp_yr] += (prop.purchase_price * (completion_pct / Decimal('100')))
+
+            # Financing & Installments
             debt_service_by_year = defaultdict(Decimal)
             if hasattr(prop, 'financing'):
                 schedule = FinancingSelectors.get_amortization_schedule(prop.financing)
@@ -82,6 +91,17 @@ class CashFlowSelectors:
                 for item in schedule:
                     y = loan_start_date.year + (loan_start_date.month + (months_per_period * (item['period'] - 1)) - 1) // 12
                     debt_service_by_year[y] += item['periodic_payment']
+            
+            installment_payments_by_year = defaultdict(Decimal)
+            installment_down_payment = Decimal('0.00')
+            if hasattr(prop, 'installment'):
+                from .installment_selectors import InstallmentSelectors
+                schedule = InstallmentSelectors.get_installment_schedule(prop.installment)
+                installment_down_payment = prop.installment.down_payment
+                for item in schedule:
+                    # date format: "YYYY-MM"
+                    y = int(item['date'].split('-')[0])
+                    installment_payments_by_year[y] += item['payment']
 
             for year in full_years_range:
                 # Initialize variables for metadata
@@ -95,6 +115,7 @@ class CashFlowSelectors:
                 construction_cost = Decimal('0.00')
                 net_sale_inflow = Decimal('0.00')
                 debt_service = Decimal('0.00')
+                installments = Decimal('0.00')
 
                 # 1. Check if property is within lifecycle
                 if year < purchase_year or (sale_year and year > sale_year):
@@ -115,7 +136,8 @@ class CashFlowSelectors:
                         # Off-Plan construction phase
                         construction_cost = milestones_by_year.get(year, Decimal('0.00'))
                         debt_service = debt_service_by_year.get(year, Decimal('0.00'))
-                        cf = -(construction_cost + debt_service)
+                        installments = installment_payments_by_year.get(year, Decimal('0.00'))
+                        cf = -(construction_cost + debt_service + installments)
                         months_owned = 12
                     
                     elif is_off_plan_initial and completion_year and year == completion_year:
@@ -128,7 +150,8 @@ class CashFlowSelectors:
                             # Subtract construction costs in that year if any
                             construction_cost = milestones_by_year.get(year, Decimal('0.00'))
                             debt_service = debt_service_by_year.get(year, Decimal('0.00'))
-                            cf = net_sale_inflow - construction_cost - debt_service
+                            installments = installment_payments_by_year.get(year, Decimal('0.00'))
+                            cf = net_sale_inflow - construction_cost - debt_service - installments
                             # Signal that it's "sold" effectively
                             sale_year = year 
                         else:
@@ -163,7 +186,8 @@ class CashFlowSelectors:
                             # Subtract remaining construction costs and debt service
                             construction_cost = milestones_by_year.get(year, Decimal('0.00'))
                             debt_service = debt_service_by_year.get(year, Decimal('0.00'))
-                            cf = noi - construction_cost - debt_service
+                            installments = installment_payments_by_year.get(year, Decimal('0.00'))
+                            cf = noi - construction_cost - debt_service - installments
                     
                     else:
                         # Normal Held Property or post-completion off-plan
@@ -172,12 +196,16 @@ class CashFlowSelectors:
                         # Market Value
                         current_market_value = PropertyDataCalc.market_value(prop.purchase_price, app_rate, t)
                         
-                        # Purchase Price & Pro-rating for non-off-plan purchase year
-                        if year == purchase_year and not is_off_plan_initial and not is_mortgaged:
-                            cf -= prop.purchase_price
-                            months_owned = 12 - prop.purchase_date.month + 1
-                        elif year == purchase_year and is_mortgaged:
-                            cf -= prop.purchase_price - FinancingEntry.objects.get(property=prop).loan_amount
+                        # Purchase Price & Down Payment
+                        if year == purchase_year and not is_off_plan_initial:
+                            if prop.financing_type == "PRIMARY_INSTALLMENTS":
+                                cf -= installment_down_payment
+                            elif prop.financing_type == "MORTGAGED" and hasattr(prop, 'financing'):
+                                down_payment = prop.purchase_price - prop.financing.loan_amount
+                                cf -= down_payment
+                            else:
+                                cf -= prop.purchase_price
+                            
                             months_owned = 12 - prop.purchase_date.month + 1
                         else:
                             months_owned = 12
@@ -201,7 +229,8 @@ class CashFlowSelectors:
                         total_opex = (mgmt_fee + maint_fee + Decimal(str(prop.other_operational_expenses))).quantize(Decimal('0.01'))
                         noi = PropertyDataCalc.noi(effective_rent, total_opex)
                         debt_service = debt_service_by_year.get(year, Decimal('0.00'))
-                        cf += noi - debt_service
+                        installments = installment_payments_by_year.get(year, Decimal('0.00'))
+                        cf += noi - debt_service - installments
 
                 # Aggregation
                 if cf is not None:
@@ -222,7 +251,9 @@ class CashFlowSelectors:
                             "opex": total_opex.quantize(Decimal('0.01')),
                             "noi": noi.quantize(Decimal('0.01')),
                             "debt_service": debt_service.quantize(Decimal('0.01')),
-                            "purchase_price": prop.purchase_price if year == purchase_year and not is_off_plan_initial else Decimal("0.00"),
+                            "installments": installments.quantize(Decimal('0.01')),
+                            "purchase_price": prop.purchase_price if year == purchase_year and not is_off_plan_initial and prop.financing_type not in ["MORTGAGED", "PRIMARY_INSTALLMENTS"] else Decimal("0.00"),
+                            "down_payment": (installment_down_payment if prop.financing_type == "PRIMARY_INSTALLMENTS" else (prop.purchase_price - prop.financing.loan_amount if prop.financing_type == "MORTGAGED" and hasattr(prop, "financing") else Decimal("0.00"))) if year == purchase_year else Decimal("0.00"),
                             "construction_costs": construction_cost.quantize(Decimal('0.01')),
                             "sale_proceeds": net_sale_inflow.quantize(Decimal('0.01'))
                         }

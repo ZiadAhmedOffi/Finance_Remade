@@ -11,10 +11,11 @@ class FinancingService:
         Creates a new financing entry for a property.
         """
         loan_amount = Decimal(str(data.get('loan_amount')))
+        purchase_price = Decimal(str(property_obj.purchase_price))
         
         # Validation: Loan Amount < Purchase Price
-        if loan_amount >= property_obj.purchase_price:
-            raise ValidationError(f"Loan amount ({loan_amount}) must be lower than the purchase price ({property_obj.purchase_price}).")
+        if loan_amount >= purchase_price:
+            raise ValidationError(f"Loan amount ({loan_amount}) must be lower than the purchase price ({purchase_price}).")
         
         # Check if one already exists (OneToOneField will enforce this anyway, but good to be explicit)
         if hasattr(property_obj, 'financing'):

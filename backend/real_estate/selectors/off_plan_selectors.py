@@ -44,13 +44,15 @@ class OffPlanSelectors:
     def get_payment_schedule(prop: Property):
         """
         Retrieves and calculates the payment schedule for an off-plan property.
+        Automatically adds a 'Completion' milestone and handles 'Sale at Completion' inflow.
         """
         from ..services.off_plan_service import OffPlanService
         details = OffPlanService.ensure_off_plan_details(prop)
         assumptions = prop.portfolio.assumptions
         selling_fee_pct = assumptions.selling_fee_percentage
         
-        milestones = prop.milestones.all().order_by('date')
+        # User defined milestones
+        milestones = list(prop.milestones.all().order_by('date'))
         
         purchase_price = prop.purchase_price
         value_at_completion = PropertyDataCalc.value_at_completion(purchase_price, details.appreciation_rate_at_completion)
@@ -59,34 +61,70 @@ class OffPlanSelectors:
         cumulative_deployed = Decimal("0.00")
         cashflows_for_xirr = []
         
+        # Calculate sum of user milestones
+        user_pct_sum = sum(m.percentage_of_price for m in milestones)
+        completion_pct = max(Decimal("0.00"), Decimal("100.00") - user_pct_sum)
+        
+        # 1. Add user milestones
         for m in milestones:
-            if m.milestone_name == "Sale at Completion":
-                # Final inflow
-                selling_costs = PropertyDataCalc.selling_costs(value_at_completion, selling_fee_pct)
-                cash_flow = value_at_completion - selling_costs
-                date = details.expected_completion_date # Use expected completion date for Sale
-            else:
-                # Outflow based on percentage of price
-                cash_flow = -(purchase_price * (m.percentage_of_price / Decimal("100")))
-                date = m.date
-                cumulative_deployed += abs(cash_flow)
+            cash_flow = -(purchase_price * (m.percentage_of_price / Decimal("100")))
+            cumulative_deployed += abs(cash_flow)
             
             schedule.append({
-                "id": m.id,
+                "id": str(m.id),
                 "milestone": m.milestone_name,
-                "date": date,
+                "date": m.date,
                 "percentage": m.percentage_of_price,
-                "cash_flow": cash_flow,
-                "cumulative_deployed": cumulative_deployed
+                "cash_flow": float(cash_flow),
+                "cumulative_deployed": float(cumulative_deployed)
             })
+            cashflows_for_xirr.append((m.date, float(cash_flow)))
+        
+        # 2. Add automatic Completion milestone (ALWAYS AT THE END of construction)
+        comp_date = details.expected_completion_date
+        comp_cf = -(purchase_price * (completion_pct / Decimal("100")))
+        cumulative_deployed += abs(comp_cf)
+        
+        schedule.append({
+            "id": "completion",
+            "milestone": "Completion",
+            "date": comp_date,
+            "percentage": completion_pct,
+            "cash_flow": float(comp_cf),
+            "cumulative_deployed": float(cumulative_deployed)
+        })
+        cashflows_for_xirr.append((comp_date, float(comp_cf)))
+        
+        # 3. Add Sale at Completion if enabled
+        if details.sale_at_completion:
+            selling_costs = PropertyDataCalc.selling_costs(value_at_completion, selling_fee_pct)
+            sale_inflow = value_at_completion - selling_costs
             
-            cashflows_for_xirr.append((date, float(cash_flow)))
+            schedule.append({
+                "id": "sale",
+                "milestone": "Sale at Completion",
+                "date": comp_date,
+                "percentage": 0,
+                "cash_flow": float(sale_inflow),
+                "cumulative_deployed": float(cumulative_deployed)
+            })
+            cashflows_for_xirr.append((comp_date, float(sale_inflow)))
+        else:
+            # For XIRR/Profit calculation, if NOT selling, we use the value at completion 
+            # as a terminal value inflow to measure the ROI of the construction phase.
+            cashflows_for_xirr.append((comp_date, float(value_at_completion)))
             
         # ROI Metrics
-        property_xirr = xirr(cashflows_for_xirr)
+        # Aggregate by date before XIRR to handle multiple flows on same day
+        aggregated_flows = {}
+        for d, amt in cashflows_for_xirr:
+            aggregated_flows[d] = aggregated_flows.get(d, 0.0) + amt
         
-        total_inflows = sum(float(cf[1]) for cf in cashflows_for_xirr if cf[1] > 0)
-        total_outflows = sum(abs(float(cf[1])) for cf in cashflows_for_xirr if cf[1] < 0)
+        final_flows = [(d, amt) for d, amt in aggregated_flows.items()]
+        property_xirr = xirr(final_flows)
+        
+        total_inflows = sum(amt for amt in aggregated_flows.values() if amt > 0)
+        total_outflows = sum(abs(amt) for amt in aggregated_flows.values() if amt < 0)
         total_expected_profit = total_inflows - total_outflows
         
         return {

@@ -40,7 +40,7 @@ const OffPlanModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
 
   // Local state for inputs to avoid immediate refreshes
   const [localPropertyInputs, setLocalPropertyInputs] = useState<Record<string, Partial<OffPlanProperty>>>({});
-  const [localMilestoneInputs, setLocalMilestoneInputs] = useState<Record<string, { date?: string; percentage?: string }>>({});
+  const [localMilestoneInputs, setLocalMilestoneInputs] = useState<Record<string, { milestone?: string; date?: string; percentage?: string }>>({});
 
   // Visibility toggles
   const [showPropertiesTable, setShowPropertiesTable] = useState(true);
@@ -64,7 +64,6 @@ const OffPlanModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
       const response = await realEstateApi.getOffPlanModel(portfolioId);
       setProperties(response.data);
       
-      // Initialize local inputs
       const initialInputs: Record<string, Partial<OffPlanProperty>> = {};
       response.data.forEach((p: OffPlanProperty) => {
         initialInputs[p.property_id] = {
@@ -92,10 +91,10 @@ const OffPlanModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
       const response = await realEstateApi.getOffPlanSchedule(portfolioId, selectedPropertyId);
       setScheduleData(response.data);
 
-      // Initialize local milestone inputs
-      const initialMilestones: Record<string, { date?: string; percentage?: string }> = {};
+      const initialMilestones: Record<string, any> = {};
       response.data.schedule.forEach((m: Milestone) => {
         initialMilestones[m.id] = {
+          milestone: m.milestone,
           date: m.date,
           percentage: m.percentage
         };
@@ -108,7 +107,7 @@ const OffPlanModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
     }
   };
 
-  const handlePropertyDetailChange = (propertyId: string, field: string, value: string) => {
+  const handlePropertyDetailChange = (propertyId: string, field: string, value: any) => {
     setLocalPropertyInputs(prev => ({
       ...prev,
       [propertyId]: { ...prev[propertyId], [field]: value }
@@ -116,10 +115,6 @@ const OffPlanModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
   };
 
   const handlePropertyDetailBlur = async (propertyId: string, field: string, value: any) => {
-    // Check if value actually changed compared to the properties state
-    const prop = properties.find(p => p.property_id === propertyId);
-    if (prop && (prop as any)[field] === value) return;
-
     try {
       const fieldMapping: Record<string, string> = {
         "construction_start": "construction_start_date",
@@ -145,12 +140,11 @@ const OffPlanModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
   };
 
   const handleMilestoneBlur = async (milestoneId: string, field: string, value: string) => {
-    // Check if value actually changed
-    const milestone = scheduleData?.schedule.find(m => m.id === milestoneId);
-    if (milestone && (milestone as any)[field] === value) return;
+    if (milestoneId === "completion" || milestoneId === "sale") return;
 
     try {
       const fieldMapping: Record<string, string> = {
+        "milestone": "milestone_name",
         "date": "date",
         "percentage": "percentage_of_price"
       };
@@ -158,6 +152,32 @@ const OffPlanModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
       fetchSchedule();
     } catch (err) {
       console.error("Failed to update milestone", err);
+    }
+  };
+
+  const handleAddMilestone = async () => {
+    if (!selectedPropertyId) return;
+    try {
+      const prop = properties.find(p => p.property_id === selectedPropertyId);
+      await realEstateApi.createOffPlanMilestone(portfolioId, selectedPropertyId, {
+        milestone_name: "New Milestone",
+        date: prop?.construction_start || new Date().toISOString().split('T')[0],
+        percentage_of_price: "0.00"
+      });
+      fetchSchedule();
+    } catch (err) {
+      console.error("Failed to create milestone", err);
+    }
+  };
+
+  const handleDeleteMilestone = async (milestoneId: string) => {
+    if (milestoneId === "completion" || milestoneId === "sale") return;
+    if (!window.confirm("Are you sure you want to delete this milestone?")) return;
+    try {
+      await realEstateApi.deleteOffPlanMilestone(portfolioId, milestoneId);
+      fetchSchedule();
+    } catch (err) {
+      console.error("Failed to delete milestone", err);
     }
   };
 
@@ -230,6 +250,15 @@ const OffPlanModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
         .metric-item { display: flex; flex-direction: column; }
         .metric-label { font-size: 0.75rem; color: #64748b; font-weight: 600; text-transform: uppercase; }
         .metric-value { font-size: 1.25rem; font-weight: 700; color: #1e293b; }
+        .btn-delete {
+          background: #fee2e2;
+          color: #991b1b;
+          border: 1px solid #fecaca;
+          padding: 0.25rem 0.5rem;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 0.75rem;
+        }
       `}</style>
 
       <div className="section">
@@ -302,7 +331,7 @@ const OffPlanModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                           checked={localPropertyInputs[p.property_id]?.sale_at_completion || false} 
                           onChange={(e) => {
                             const val = e.target.checked;
-                            handlePropertyDetailChange(p.property_id, "sale_at_completion", val as any);
+                            handlePropertyDetailChange(p.property_id, "sale_at_completion", val);
                             handlePropertyDetailBlur(p.property_id, "sale_at_completion", val);
                           }}
                           disabled={!canEdit}
@@ -327,6 +356,11 @@ const OffPlanModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
             <span style={{ transform: showScheduleTable ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▶</span>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1e293b', margin: 0 }}>Payment Schedule</h2>
           </div>
+          {canEdit && selectedPropertyId && (
+            <button className="btn btn-primary" onClick={(e) => { e.stopPropagation(); handleAddMilestone(); }}>
+              + Add Milestone
+            </button>
+          )}
         </div>
 
         <div className={`section-content ${showScheduleTable ? '' : 'collapsed'}`}>
@@ -369,16 +403,28 @@ const OffPlanModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                       <th>% of Price</th>
                       <th>Cash Flow</th>
                       <th>Cumulative Deployed</th>
+                      {canEdit && <th>Actions</th>}
                     </tr>
                   </thead>
                   <tbody>
-                    {scheduleData.schedule
-                      .filter(m => m.milestone !== "Sale at Completion" || properties.find(p => p.property_id === selectedPropertyId)?.sale_at_completion)
-                      .map((m) => (
+                    {scheduleData.schedule.map((m) => (
                       <tr key={m.id}>
-                        <td style={{ fontWeight: 600 }}>{m.milestone}</td>
+                        <td style={{ fontWeight: 600 }}>
+                          {m.id === "completion" || m.id === "sale" ? (
+                            <span>{m.milestone}</span>
+                          ) : (
+                            <input 
+                              type="text" 
+                              className="editable-input" 
+                              value={localMilestoneInputs[m.id]?.milestone || ""} 
+                              onChange={(e) => handleMilestoneChange(m.id, "milestone", e.target.value)}
+                              onBlur={(e) => handleMilestoneBlur(m.id, "milestone", e.target.value)}
+                              disabled={!canEdit}
+                            />
+                          )}
+                        </td>
                         <td>
-                          {m.milestone === "Sale at Completion" ? (
+                          {m.id === "completion" || m.id === "sale" ? (
                             <span>{m.date}</span>
                           ) : (
                             <input 
@@ -392,8 +438,10 @@ const OffPlanModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                           )}
                         </td>
                         <td>
-                          {m.milestone === "Sale at Completion" ? (
+                          {m.id === "sale" ? (
                             <span>-</span>
+                          ) : m.id === "completion" ? (
+                            <span>{parseFloat(m.percentage.toString()).toFixed(2)}%</span>
                           ) : (
                             <div style={{ display: 'flex', alignItems: 'center' }}>
                               <input 
@@ -413,6 +461,13 @@ const OffPlanModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                           {formatCurrency(m.cash_flow)}
                         </td>
                         <td>{formatCurrency(m.cumulative_deployed)}</td>
+                        {canEdit && (
+                          <td>
+                            {m.id !== "completion" && m.id !== "sale" && (
+                              <button className="btn-delete" onClick={() => handleDeleteMilestone(m.id)}>Delete</button>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

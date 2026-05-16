@@ -166,13 +166,29 @@ export const realEstateApi = {
   getEntryAmortization: (portfolioId: string, entryId: string) => 
     api.get(`/real-estate/${portfolioId}/financing/${entryId}/amortization/`),
 
+  // Installment Endpoints
+  createInstallment: (portfolioId: string, data: any) => api.post(`/real-estate/${portfolioId}/installments/`, data),
+  updateInstallment: (portfolioId: string, installmentId: string, data: any) => 
+    api.patch(`/real-estate/${portfolioId}/installments/${installmentId}/`, data),
+  deleteInstallment: (portfolioId: string, installmentId: string) => 
+    api.delete(`/real-estate/${portfolioId}/installments/${installmentId}/`),
+  getPortfolioInstallmentsSchedule: (portfolioId: string) => 
+    api.get(`/real-estate/${portfolioId}/installments-schedule-total/`),
+  getEntryInstallmentsSchedule: (portfolioId: string, installmentId: string) => 
+    api.get(`/real-estate/${portfolioId}/installments/${installmentId}/schedule/`),
+
   getOffPlanModel: (portfolioId: string) => api.get(`/real-estate/${portfolioId}/off-plan/`),
   updateOffPlanDetails: (portfolioId: string, propertyId: string, data: any) => 
     api.patch(`/real-estate/${portfolioId}/off-plan/${propertyId}/details/`, data),
   getOffPlanSchedule: (portfolioId: string, propertyId: string) => 
     api.get(`/real-estate/${portfolioId}/off-plan/${propertyId}/schedule/`),
+  createOffPlanMilestone: (portfolioId: string, propertyId: string, data: any) =>
+    api.post(`/real-estate/${portfolioId}/off-plan/${propertyId}/schedule/`, data),
   updateOffPlanMilestone: (portfolioId: string, milestoneId: string, data: any) => 
     api.patch(`/real-estate/${portfolioId}/off-plan/milestones/${milestoneId}/`, data),
+  deleteOffPlanMilestone: (portfolioId: string, milestoneId: string) =>
+    api.delete(`/real-estate/${portfolioId}/off-plan/milestones/${milestoneId}/`),
+
 
   getCashFlow: (portfolioId: string, startYear?: number, endYear?: number) => {
     const params: any = {};

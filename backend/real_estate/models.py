@@ -112,6 +112,7 @@ class Property(models.Model):
         ("ALL_CASH", "All Cash"),
         ("MORTGAGED", "Mortgaged"),
         ("MEZZANINE", "Mezzanine"),
+        ("PRIMARY_INSTALLMENTS", "Primary Sales with Installments"),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -191,6 +192,33 @@ class FinancingEntry(models.Model):
 
     def __str__(self):
         return f"Financing for {self.property.name}"
+
+class InstallmentEntry(models.Model):
+    """
+    Stores installment details for a specific property (Primary Sales with Installments).
+    One-to-one relationship with Property.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    property = models.OneToOneField(
+        Property,
+        on_delete=models.CASCADE,
+        related_name="installment"
+    )
+
+    down_payment = models.DecimalField(max_digits=15, decimal_places=2)
+    tenor = models.PositiveIntegerField(help_text="Tenor in years")
+    payments_per_year = models.PositiveIntegerField(default=12)
+    start_date = models.DateField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Installment Entry"
+        verbose_name_plural = "Installment Entries"
+
+    def __str__(self):
+        return f"Installments for {self.property.name}"
 
 class OffPlanDetails(models.Model):
     """

@@ -318,7 +318,11 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                   <td>{property.submarket}</td>
                   <td>{property.property_type}</td>
                   <td>{parseFloat(property.size).toFixed(2)}</td>
-                  <td>{property.financing_type}</td>
+                  <td>
+                    {property.financing_type === "PRIMARY_INSTALLMENTS" ? "Installments" : 
+                     property.financing_type === "ALL_CASH" ? "All Cash" :
+                     property.financing_type === "MORTGAGED" ? "Mortgaged" : "Mezzanine"}
+                  </td>
                   <td>
                     <span className={property.status === "HELD" ? "status-held" : "status-offplan"}>
                       {property.status}
@@ -417,6 +421,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                     <option value="ALL_CASH">All Cash</option>
                     <option value="MORTGAGED">Mortgaged</option>
                     <option value="MEZZANINE">Mezzanine</option>
+                    <option value="PRIMARY_INSTALLMENTS">Primary Sales with Installments</option>
                   </select>
                 </div>
                 <div className="form-group">

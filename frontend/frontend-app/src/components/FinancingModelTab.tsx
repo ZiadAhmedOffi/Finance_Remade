@@ -26,36 +26,66 @@ interface FinancingWithMetrics {
   metrics: FinancingMetrics;
 }
 
-interface AmortizationRow {
+interface InstallmentEntry {
+  id: string;
+  property: string;
+  property_name: string;
+  purchase_price: string;
+  down_payment: string;
+  tenor: number;
+  payments_per_year: number;
+  start_date: string;
+}
+
+interface InstallmentMetrics {
+  balance: number;
+  periodic_payment: number;
+  annual_payment: number;
+  total_periods: number;
+}
+
+interface InstallmentWithMetrics {
+  entry: InstallmentEntry;
+  metrics: InstallmentMetrics;
+}
+
+interface ScheduleRow {
   period?: number;
   date?: string;
   beginning_balance?: number;
-  periodic_payment: number;
-  principal_payment: number;
-  interest_payment: number;
+  periodic_payment?: number;
+  principal_payment?: number;
+  interest_payment?: number;
+  payment?: number;
   ending_balance?: number;
 }
 
 const FinancingModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ portfolioId, canEdit }) => {
-  const [entries, setEntries] = useState<FinancingWithMetrics[]>([]);
+  const [mortgages, setMortgages] = useState<FinancingWithMetrics[]>([]);
+  const [installments, setInstallments] = useState<InstallmentWithMetrics[]>([]);
   const [properties, setProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [editingEntry, setEditingEntry] = useState<FinancingEntry | null>(null);
   
-  // Visibility toggles
-  const [showEntriesTable, setShowEntriesTable] = useState(true);
-  const [showAmortization, setShowAmortization] = useState(true);
+  // Visibility toggles for the two halves
+  const [showMortgages, setShowMortgages] = useState(true);
+  const [showInstallments, setShowInstallments] = useState(true);
+  
+  // Modal state
+  const [showModal, setShowModal] = useState(false);
+  const [modalType, setModalType] = useState<"MORTGAGE" | "INSTALLMENT">("MORTGAGE");
+  const [editingEntry, setEditingEntry] = useState<any | null>(null);
   
   // Pagination
-  const [entriesPage, setEntriesPage] = useState(1);
-  const [amortPage, setAmortPage] = useState(1);
+  const [mortgagePage, setMortgagePage] = useState(1);
+  const [installmentPage, setInstallmentPage] = useState(1);
+  const [schedulePage, setSchedulePage] = useState(1);
   const itemsPerPage = 10;
   
-  // Amortization state
+  // Schedule state
+  const [scheduleMode, setScheduleMode] = useState<"MORTGAGE" | "INSTALLMENT">("MORTGAGE");
   const [selectedEntryId, setSelectedEntryId] = useState<string>("total");
-  const [amortizationSchedule, setAmortizationSchedule] = useState<AmortizationRow[]>([]);
-  const [amortLoading, setAmortLoading] = useState(false);
+  const [scheduleData, setScheduleData] = useState<ScheduleRow[]>([]);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -65,6 +95,8 @@ const FinancingModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = (
     tenor: "",
     payments_per_year: "12",
     loan_start_date: "",
+    down_payment: "",
+    start_date: "",
   });
 
   useEffect(() => {
@@ -72,8 +104,8 @@ const FinancingModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = (
   }, [portfolioId]);
 
   useEffect(() => {
-    fetchAmortization();
-  }, [selectedEntryId, entries]);
+    fetchSchedule();
+  }, [selectedEntryId, scheduleMode, mortgages, installments]);
 
   const fetchData = async () => {
     try {
@@ -82,7 +114,8 @@ const FinancingModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = (
         realEstateApi.getFinancing(portfolioId),
         realEstateApi.getProperties(portfolioId),
       ]);
-      setEntries(finResponse.data);
+      setMortgages(finResponse.data.mortgages || []);
+      setInstallments(finResponse.data.installments || []);
       setProperties(propResponse.data.map((p: any) => p.property));
     } catch (err) {
       console.error("Failed to fetch financing data", err);
@@ -91,43 +124,72 @@ const FinancingModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = (
     }
   };
 
-  const fetchAmortization = async () => {
+  const fetchSchedule = async () => {
     if (!portfolioId) return;
     try {
-      setAmortLoading(true);
+      setScheduleLoading(true);
       let response;
-      if (selectedEntryId === "total") {
-        response = await realEstateApi.getPortfolioAmortization(portfolioId);
+      if (scheduleMode === "MORTGAGE") {
+        if (selectedEntryId === "total") {
+          response = await realEstateApi.getPortfolioAmortization(portfolioId);
+        } else {
+          response = await realEstateApi.getEntryAmortization(portfolioId, selectedEntryId);
+        }
       } else {
-        response = await realEstateApi.getEntryAmortization(portfolioId, selectedEntryId);
+        if (selectedEntryId === "total") {
+          response = await realEstateApi.getPortfolioInstallmentsSchedule(portfolioId);
+        } else {
+          response = await realEstateApi.getEntryInstallmentsSchedule(portfolioId, selectedEntryId);
+        }
       }
-      setAmortizationSchedule(response.data);
-      setAmortPage(1); // Reset to first page when changing selection
+      setScheduleData(response.data);
+      setSchedulePage(1);
     } catch (err) {
-      console.error("Failed to fetch amortization schedule", err);
+      console.error("Failed to fetch schedule", err);
+      setScheduleData([]);
     } finally {
-      setAmortLoading(false);
+      setScheduleLoading(false);
     }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    let nextFormData = { ...formData, [name]: value };
+
+    // Auto-calculate default down payment if property changes
+    if (name === "property" && modalType === "INSTALLMENT") {
+      const prop = properties.find(p => p.id === value);
+      if (prop) {
+        nextFormData.down_payment = (parseFloat(prop.purchase_price) * 0.2).toFixed(2);
+        nextFormData.start_date = prop.purchase_date;
+      }
+    }
+
+    setFormData(nextFormData);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (editingEntry) {
-        await realEstateApi.updateFinancing(portfolioId, editingEntry.id, formData);
+      if (modalType === "MORTGAGE") {
+        if (editingEntry) {
+          await realEstateApi.updateFinancing(portfolioId, editingEntry.id, formData);
+        } else {
+          await realEstateApi.createFinancing(portfolioId, formData);
+        }
       } else {
-        await realEstateApi.createFinancing(portfolioId, formData);
+        if (editingEntry) {
+          await realEstateApi.updateInstallment(portfolioId, editingEntry.id, formData);
+        } else {
+          await realEstateApi.createInstallment(portfolioId, formData);
+        }
       }
       setShowModal(false);
       resetForm();
       fetchData();
     } catch (err: any) {
-      console.error("Failed to save financing entry", err);
-      alert(err.response?.data?.error || "Failed to save financing entry. Please check your inputs.");
+      console.error("Failed to save entry", err);
+      alert(err.response?.data?.error || "Failed to save entry. Please check your inputs.");
     }
   };
 
@@ -137,18 +199,28 @@ const FinancingModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = (
       loan_amount: "",
       base_interest_rate: "",
       tenor: "",
-      payments_per_year: "12",
+      payments_per_year: modalType === "MORTGAGE" ? "12" : "1",
       loan_start_date: "",
+      down_payment: "",
+      start_date: "",
     });
     setEditingEntry(null);
   };
 
-  const handleAddEntry = () => {
+  const handleAddMortgage = () => {
+    setModalType("MORTGAGE");
     resetForm();
     setShowModal(true);
   };
 
-  const handleEdit = (entry: FinancingEntry) => {
+  const handleAddInstallment = () => {
+    setModalType("INSTALLMENT");
+    resetForm();
+    setShowModal(true);
+  };
+
+  const handleEditMortgage = (entry: FinancingEntry) => {
+    setModalType("MORTGAGE");
     setEditingEntry(entry);
     setFormData({
       property: entry.property,
@@ -157,17 +229,46 @@ const FinancingModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = (
       tenor: entry.tenor.toString(),
       payments_per_year: entry.payments_per_year.toString(),
       loan_start_date: entry.loan_start_date,
+      down_payment: "",
+      start_date: "",
     });
     setShowModal(true);
   };
 
-  const handleDelete = async (entryId: string) => {
-    if (window.confirm("Are you sure you want to delete this financing entry?")) {
+  const handleEditInstallment = (entry: InstallmentEntry) => {
+    setModalType("INSTALLMENT");
+    setEditingEntry(entry);
+    setFormData({
+      property: entry.property,
+      loan_amount: "",
+      base_interest_rate: "",
+      tenor: entry.tenor.toString(),
+      payments_per_year: entry.payments_per_year.toString(),
+      loan_start_date: "",
+      down_payment: entry.down_payment,
+      start_date: entry.start_date,
+    });
+    setShowModal(true);
+  };
+
+  const handleDeleteMortgage = async (entryId: string) => {
+    if (window.confirm("Are you sure you want to delete this mortgage?")) {
       try {
         await realEstateApi.deleteFinancing(portfolioId, entryId);
         fetchData();
       } catch (err) {
-        console.error("Failed to delete financing entry", err);
+        console.error("Failed to delete mortgage", err);
+      }
+    }
+  };
+
+  const handleDeleteInstallment = async (entryId: string) => {
+    if (window.confirm("Are you sure you want to delete this installment entry?")) {
+      try {
+        await realEstateApi.deleteInstallment(portfolioId, entryId);
+        fetchData();
+      } catch (err) {
+        console.error("Failed to delete installment entry", err);
       }
     }
   };
@@ -183,16 +284,25 @@ const FinancingModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = (
   };
 
   // Pagination logic
-  const paginatedEntries = entries.slice((entriesPage - 1) * itemsPerPage, entriesPage * itemsPerPage);
-  const totalEntriesPages = Math.ceil(entries.length / itemsPerPage);
+  const paginatedMortgages = mortgages.slice((mortgagePage - 1) * itemsPerPage, mortgagePage * itemsPerPage);
+  const totalMortgagePages = Math.ceil(mortgages.length / itemsPerPage);
 
-  const paginatedAmort = amortizationSchedule.slice((amortPage - 1) * itemsPerPage, amortPage * itemsPerPage);
-  const totalAmortPages = Math.ceil(amortizationSchedule.length / itemsPerPage);
+  const paginatedInstallments = installments.slice((installmentPage - 1) * itemsPerPage, installmentPage * itemsPerPage);
+  const totalInstallmentPages = Math.ceil(installments.length / itemsPerPage);
 
-  // Filter properties that don't have financing yet and are not ALL_CASH
-  const availableProperties = properties.filter(p => 
-    p.financing_type !== "ALL_CASH" && 
-    (!entries.some(e => e.entry.property === p.id) || (editingEntry && editingEntry.property === p.id))
+  const paginatedSchedule = scheduleData.slice((schedulePage - 1) * itemsPerPage, schedulePage * itemsPerPage);
+  const totalSchedulePages = Math.ceil(scheduleData.length / itemsPerPage);
+
+  // Available properties for Mortgages
+  const availableMortgageProps = properties.filter(p => 
+    p.financing_type === "MORTGAGED" && 
+    (!mortgages.some(m => m.entry.property === p.id) || (editingEntry && editingEntry.property === p.id))
+  );
+
+  // Available properties for Installments
+  const availableInstallmentProps = properties.filter(p => 
+    p.financing_type === "PRIMARY_INSTALLMENTS" && 
+    (!installments.some(i => i.entry.property === p.id) || (editingEntry && editingEntry.property === p.id))
   );
 
   return (
@@ -211,6 +321,20 @@ const FinancingModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = (
           transition: background 0.2s;
         }
         .section-header:hover { background: #f1f5f9; }
+        .toggle-btn {
+          background: #e2e8f0;
+          border: none;
+          padding: 0.25rem 0.75rem;
+          border-radius: 4px;
+          font-size: 0.75rem;
+          font-weight: 600;
+          color: #475569;
+          cursor: pointer;
+        }
+        .toggle-btn.active {
+          background: #2563eb;
+          color: white;
+        }
         .section-content {
           overflow: hidden;
           transition: max-height 0.5s ease-out, opacity 0.3s ease-in;
@@ -263,38 +387,39 @@ const FinancingModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = (
           cursor: pointer;
         }
         .btn-pagination:disabled { opacity: 0.5; cursor: not-allowed; }
-        .ltv-warning { color: #ef4444; font-weight: 700; }
-        .amortization-controls {
+        .controls-row {
           display: flex;
-          gap: 1rem;
+          justify-content: space-between;
           align-items: center;
           margin-bottom: 1rem;
+          gap: 1rem;
         }
-        .select-input {
-          padding: 0.5rem;
-          border: 1px solid #cbd5e1;
-          border-radius: 4px;
-          background: white;
+        .mode-toggles {
+          display: flex;
+          gap: 0.5rem;
+          background: #f1f5f9;
+          padding: 0.25rem;
+          border-radius: 6px;
         }
       `}</style>
 
-      {/* Section 1: Financing Entries */}
+      {/* Mortgages Section */}
       <div className="section">
-        <div className="section-header" onClick={() => setShowEntriesTable(!showEntriesTable)}>
+        <div className="section-header" onClick={() => setShowMortgages(!showMortgages)}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ transform: showEntriesTable ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▶</span>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1e293b', margin: 0 }}>Financing Entries</h2>
+            <span style={{ transform: showMortgages ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▶</span>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1e293b', margin: 0 }}>Mortgage Financing</h2>
           </div>
           {canEdit && (
-            <button className="btn btn-primary" onClick={(e) => { e.stopPropagation(); handleAddEntry(); }}>
-              + Add Entry
+            <button className="btn btn-primary" onClick={(e) => { e.stopPropagation(); handleAddMortgage(); }}>
+              + Add Mortgage
             </button>
           )}
         </div>
         
-        <div className={`section-content ${showEntriesTable ? '' : 'collapsed'}`}>
+        <div className={`section-content ${showMortgages ? '' : 'collapsed'}`}>
           {loading ? (
-            <div style={{ textAlign: 'center', padding: '2rem' }}>Loading entries...</div>
+            <div style={{ textAlign: 'center', padding: '2rem' }}>Loading mortgages...</div>
           ) : (
             <div className="table-wrapper">
               <table className="data-table">
@@ -304,38 +429,30 @@ const FinancingModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = (
                     <th>Loan Amount</th>
                     <th>LTV</th>
                     <th>Base Rate</th>
-                    <th>Effective Rate</th>
                     <th>Tenor (yrs)</th>
-                    <th>Pmts/Year</th>
                     <th>Periodic Pmt</th>
                     <th>Annual Debt Service</th>
-                    <th>Total Interest</th>
                     {canEdit && <th>Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedEntries.map(({ entry, metrics }) => (
+                  {paginatedMortgages.map(({ entry, metrics }) => (
                     <tr key={entry.id}>
                       <td style={{ fontWeight: 600 }}>{entry.property_name}</td>
                       <td>{formatCurrency(entry.loan_amount)}</td>
-                      <td className={metrics.ltv > 100 ? "ltv-warning" : ""}>
-                        {formatPercent(metrics.ltv)}
-                      </td>
+                      <td className={metrics.ltv > 100 ? "text-red-600 font-bold" : ""}>{formatPercent(metrics.ltv)}</td>
                       <td>{formatPercent(entry.base_interest_rate)}</td>
-                      <td>{formatPercent(metrics.effective_rate)}</td>
                       <td>{entry.tenor}</td>
-                      <td>{entry.payments_per_year}</td>
                       <td>{formatCurrency(metrics.periodic_payment)}</td>
                       <td>{formatCurrency(metrics.annual_debt_service)}</td>
-                      <td>{formatCurrency(metrics.total_interest)}</td>
                       {canEdit && (
                         <td>
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <button className="btn btn-secondary btn-sm" onClick={() => handleEdit(entry)}>Edit</button>
+                            <button className="btn btn-secondary btn-sm" onClick={() => handleEditMortgage(entry)}>Edit</button>
                             <button 
                               className="btn-sm" 
                               style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', cursor: 'pointer', borderRadius: '4px' }}
-                              onClick={() => handleDelete(entry.id)}
+                              onClick={() => handleDeleteMortgage(entry.id)}
                             >
                               Delete
                             </button>
@@ -344,16 +461,16 @@ const FinancingModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = (
                       )}
                     </tr>
                   ))}
-                  {entries.length === 0 && (
-                    <tr><td colSpan={canEdit ? 11 : 10} style={{ textAlign: 'center', padding: '2rem' }}>No financing entries found.</td></tr>
+                  {mortgages.length === 0 && (
+                    <tr><td colSpan={8} style={{ textAlign: 'center', padding: '2rem' }}>No mortgages found.</td></tr>
                   )}
                 </tbody>
               </table>
-              {totalEntriesPages > 1 && (
+              {totalMortgagePages > 1 && (
                 <div className="pagination">
-                  <button className="btn-pagination" disabled={entriesPage === 1} onClick={() => setEntriesPage(entriesPage - 1)}>Prev</button>
-                  <span>Page {entriesPage} of {totalEntriesPages}</span>
-                  <button className="btn-pagination" disabled={entriesPage === totalEntriesPages} onClick={() => setEntriesPage(entriesPage + 1)}>Next</button>
+                  <button className="btn-pagination" disabled={mortgagePage === 1} onClick={() => setMortgagePage(mortgagePage - 1)}>Prev</button>
+                  <span>Page {mortgagePage} of {totalMortgagePages}</span>
+                  <button className="btn-pagination" disabled={mortgagePage === totalMortgagePages} onClick={() => setMortgagePage(mortgagePage + 1)}>Next</button>
                 </div>
               )}
             </div>
@@ -361,17 +478,101 @@ const FinancingModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = (
         </div>
       </div>
 
-      {/* Section 2: Amortization Schedule */}
-      <div className="section" style={{ marginTop: '1rem' }}>
-        <div className="section-header" onClick={() => setShowAmortization(!showAmortization)}>
+      {/* Installments Section */}
+      <div className="section" style={{ marginTop: '1.5rem' }}>
+        <div className="section-header" onClick={() => setShowInstallments(!showInstallments)}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ transform: showAmortization ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▶</span>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1e293b', margin: 0 }}>Amortization Schedule</h2>
+            <span style={{ transform: showInstallments ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▶</span>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1e293b', margin: 0 }}>Primary Sales Installments</h2>
+          </div>
+          {canEdit && (
+            <button className="btn btn-primary" onClick={(e) => { e.stopPropagation(); handleAddInstallment(); }}>
+              + Add Installment Plan
+            </button>
+          )}
+        </div>
+        
+        <div className={`section-content ${showInstallments ? '' : 'collapsed'}`}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '2rem' }}>Loading installments...</div>
+          ) : (
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Property Name</th>
+                    <th>Purchase Price</th>
+                    <th>Down Payment</th>
+                    <th>Balance</th>
+                    <th>Tenor (yrs)</th>
+                    <th>Annual Pmt</th>
+                    {canEdit && <th>Actions</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedInstallments.map(({ entry, metrics }) => (
+                    <tr key={entry.id}>
+                      <td style={{ fontWeight: 600 }}>{entry.property_name}</td>
+                      <td>{formatCurrency(entry.purchase_price)}</td>
+                      <td>{formatCurrency(entry.down_payment)}</td>
+                      <td>{formatCurrency(metrics.balance)}</td>
+                      <td>{entry.tenor}</td>
+                      <td>{formatCurrency(metrics.annual_payment)}</td>
+                      {canEdit && (
+                        <td>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button className="btn btn-secondary btn-sm" onClick={() => handleEditInstallment(entry)}>Edit</button>
+                            <button 
+                              className="btn-sm" 
+                              style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', cursor: 'pointer', borderRadius: '4px' }}
+                              onClick={() => handleDeleteInstallment(entry.id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                  {installments.length === 0 && (
+                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: '2rem' }}>No installment plans found.</td></tr>
+                  )}
+                </tbody>
+              </table>
+              {totalInstallmentPages > 1 && (
+                <div className="pagination">
+                  <button className="btn-pagination" disabled={installmentPage === 1} onClick={() => setInstallmentPage(installmentPage - 1)}>Prev</button>
+                  <span>Page {installmentPage} of {totalInstallmentPages}</span>
+                  <button className="btn-pagination" disabled={installmentPage === totalInstallmentPages} onClick={() => setInstallmentPage(installmentPage + 1)}>Next</button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Schedule Section */}
+      <div className="section" style={{ marginTop: '1.5rem' }}>
+        <div className="section-header">
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1e293b', margin: 0 }}>Payment Schedule</h2>
+          <div className="mode-toggles">
+            <button 
+              className={`toggle-btn ${scheduleMode === "MORTGAGE" ? "active" : ""}`}
+              onClick={() => { setScheduleMode("MORTGAGE"); setSelectedEntryId("total"); }}
+            >
+              Mortgages
+            </button>
+            <button 
+              className={`toggle-btn ${scheduleMode === "INSTALLMENT" ? "active" : ""}`}
+              onClick={() => { setScheduleMode("INSTALLMENT"); setSelectedEntryId("total"); }}
+            >
+              Installments
+            </button>
           </div>
         </div>
 
-        <div className={`section-content ${showAmortization ? '' : 'collapsed'}`}>
-          <div className="amortization-controls">
+        <div className="controls-row">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <label style={{ fontWeight: 500 }}>Select Property:</label>
             <select 
               className="select-input" 
@@ -379,95 +580,131 @@ const FinancingModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = (
               onChange={(e) => setSelectedEntryId(e.target.value)}
             >
               <option value="total">Portfolio Total</option>
-              {entries.map(({ entry }) => (
-                <option key={entry.id} value={entry.id}>{entry.property_name}</option>
-              ))}
+              {scheduleMode === "MORTGAGE" ? (
+                mortgages.map(({ entry }) => (
+                  <option key={entry.id} value={entry.id}>{entry.property_name}</option>
+                ))
+              ) : (
+                installments.map(({ entry }) => (
+                  <option key={entry.id} value={entry.id}>{entry.property_name}</option>
+                ))
+              )}
             </select>
           </div>
-
-          {amortLoading ? (
-            <div style={{ textAlign: 'center', padding: '2rem' }}>Loading schedule...</div>
-          ) : (
-            <div className="table-wrapper">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    {selectedEntryId === "total" ? <th>Month</th> : <th>Period</th>}
-                    {selectedEntryId !== "total" && <th>Beginning Balance</th>}
-                    <th>Periodic Payment</th>
-                    <th>Principal</th>
-                    <th>Interest</th>
-                    {selectedEntryId !== "total" && <th>Ending Balance</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedAmort.map((row, idx) => (
-                    <tr key={idx}>
-                      <td>{selectedEntryId === "total" ? row.date : row.period}</td>
-                      {selectedEntryId !== "total" && <td>{formatCurrency(row.beginning_balance || 0)}</td>}
-                      <td>{formatCurrency(row.periodic_payment)}</td>
-                      <td>{formatCurrency(row.principal_payment)}</td>
-                      <td>{formatCurrency(row.interest_payment)}</td>
-                      {selectedEntryId !== "total" && <td>{formatCurrency(row.ending_balance || 0)}</td>}
-                    </tr>
-                  ))}
-                  {amortizationSchedule.length === 0 && (
-                    <tr><td colSpan={selectedEntryId === "total" ? 4 : 6} style={{ textAlign: 'center', padding: '2rem' }}>No schedule data available.</td></tr>
-                  )}
-                </tbody>
-              </table>
-              {totalAmortPages > 1 && (
-                <div className="pagination">
-                  <button className="btn-pagination" disabled={amortPage === 1} onClick={() => setAmortPage(amortPage - 1)}>Prev</button>
-                  <span>Page {amortPage} of {totalAmortPages}</span>
-                  <button className="btn-pagination" disabled={amortPage === totalAmortPages} onClick={() => setAmortPage(amortPage + 1)}>Next</button>
-                </div>
-              )}
-            </div>
-          )}
         </div>
+
+        {scheduleLoading ? (
+          <div style={{ textAlign: 'center', padding: '2rem' }}>Loading schedule...</div>
+        ) : (
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  {selectedEntryId === "total" ? <th>Month</th> : <th>Period</th>}
+                  {scheduleMode === "MORTGAGE" && selectedEntryId !== "total" && <th>Beginning Balance</th>}
+                  <th>{scheduleMode === "MORTGAGE" ? "Periodic Payment" : "Installment Pmt"}</th>
+                  {scheduleMode === "MORTGAGE" && <th>Principal</th>}
+                  {scheduleMode === "MORTGAGE" && <th>Interest</th>}
+                  {scheduleMode === "MORTGAGE" && selectedEntryId !== "total" && <th>Ending Balance</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedSchedule.map((row, idx) => (
+                  <tr key={idx}>
+                    <td>{selectedEntryId === "total" ? row.date : row.period}</td>
+                    {scheduleMode === "MORTGAGE" && selectedEntryId !== "total" && <td>{formatCurrency(row.beginning_balance || 0)}</td>}
+                    <td>{formatCurrency(scheduleMode === "MORTGAGE" ? row.periodic_payment || 0 : row.payment || 0)}</td>
+                    {scheduleMode === "MORTGAGE" && <td>{formatCurrency(row.principal_payment || 0)}</td>}
+                    {scheduleMode === "MORTGAGE" && <td>{formatCurrency(row.interest_payment || 0)}</td>}
+                    {scheduleMode === "MORTGAGE" && selectedEntryId !== "total" && <td>{formatCurrency(row.ending_balance || 0)}</td>}
+                  </tr>
+                ))}
+                {scheduleData.length === 0 && (
+                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: '2rem' }}>No schedule data available.</td></tr>
+                )}
+              </tbody>
+            </table>
+            {totalSchedulePages > 1 && (
+              <div className="pagination">
+                <button className="btn-pagination" disabled={schedulePage === 1} onClick={() => setSchedulePage(schedulePage - 1)}>Prev</button>
+                <span>Page {schedulePage} of {totalSchedulePages}</span>
+                <button className="btn-pagination" disabled={schedulePage === totalSchedulePages} onClick={() => setSchedulePage(schedulePage + 1)}>Next</button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Modal for Add/Edit */}
       {showModal && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: '500px' }}>
-            <h2>{editingEntry ? "Edit Financing Entry" : "Create New Financing Entry"}</h2>
+            <h2>{editingEntry ? "Edit" : "Create New"} {modalType === "MORTGAGE" ? "Mortgage" : "Installment Plan"}</h2>
             <form onSubmit={handleSubmit}>
               <div className="form-group">
                 <label>Property</label>
                 <select name="property" value={formData.property} onChange={handleInputChange} required disabled={!!editingEntry}>
                   <option value="">Select a property</option>
-                  {availableProperties.map(p => (
+                  {(modalType === "MORTGAGE" ? availableMortgageProps : availableInstallmentProps).map(p => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
               </div>
-              <div className="form-group">
-                <label>Loan Amount ($)</label>
-                <input type="number" name="loan_amount" value={formData.loan_amount} onChange={handleInputChange} required />
-              </div>
-              <div className="form-group">
-                <label>Base Interest Rate (%)</label>
-                <input type="number" step="0.01" name="base_interest_rate" value={formData.base_interest_rate} onChange={handleInputChange} required />
-              </div>
-              <div className="form-group">
-                <label>Tenor (Years)</label>
-                <input type="number" name="tenor" value={formData.tenor} onChange={handleInputChange} required />
-              </div>
-              <div className="form-group">
-                <label>Payments per Year</label>
-                <select name="payments_per_year" value={formData.payments_per_year} onChange={handleInputChange}>
-                  <option value="1">Annual (1)</option>
-                  <option value="2">Semi-Annual (2)</option>
-                  <option value="4">Quarterly (4)</option>
-                  <option value="12">Monthly (12)</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Loan Start Date</label>
-                <input type="date" name="loan_start_date" value={formData.loan_start_date} onChange={handleInputChange} required />
-              </div>
+
+              {modalType === "MORTGAGE" ? (
+                <>
+                  <div className="form-group">
+                    <label>Loan Amount ($)</label>
+                    <input type="number" name="loan_amount" value={formData.loan_amount} onChange={handleInputChange} required />
+                  </div>
+                  <div className="form-group">
+                    <label>Base Interest Rate (%)</label>
+                    <input type="number" step="0.01" name="base_interest_rate" value={formData.base_interest_rate} onChange={handleInputChange} required />
+                  </div>
+                  <div className="form-group">
+                    <label>Tenor (Years)</label>
+                    <input type="number" name="tenor" value={formData.tenor} onChange={handleInputChange} required />
+                  </div>
+                  <div className="form-group">
+                    <label>Payments per Year</label>
+                    <select name="payments_per_year" value={formData.payments_per_year} onChange={handleInputChange}>
+                      <option value="1">Annual (1)</option>
+                      <option value="2">Semi-Annual (2)</option>
+                      <option value="4">Quarterly (4)</option>
+                      <option value="12">Monthly (12)</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Loan Start Date</label>
+                    <input type="date" name="loan_start_date" value={formData.loan_start_date} onChange={handleInputChange} required />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="form-group">
+                    <label>Down Payment ($)</label>
+                    <input type="number" name="down_payment" value={formData.down_payment} onChange={handleInputChange} required />
+                  </div>
+                  <div className="form-group">
+                    <label>Tenor (Years)</label>
+                    <input type="number" name="tenor" value={formData.tenor} onChange={handleInputChange} required />
+                  </div>
+                  <div className="form-group">
+                    <label>Payments per Year</label>
+                    <select name="payments_per_year" value={formData.payments_per_year} onChange={handleInputChange}>
+                      <option value="1">Annual (1)</option>
+                      <option value="2">Semi-Annual (2)</option>
+                      <option value="4">Quarterly (4)</option>
+                      <option value="12">Monthly (12)</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Start Date</label>
+                    <input type="date" name="start_date" value={formData.start_date} onChange={handleInputChange} required />
+                  </div>
+                </>
+              )}
+
               <div className="modal-actions" style={{ marginTop: '1.5rem' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary">{editingEntry ? "Update" : "Create"}</button>

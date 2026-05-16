@@ -25,4 +25,5 @@ urlpatterns = [
     path('api/users/', include('users.urls')),
     path('api/funds/', include('funds.urls')),
     path('api/real-estate/', include('real_estate.urls')),
+    path('api/real_estate/', include('real_estate.urls')), # Fallback for underscore
     ]

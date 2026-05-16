@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
+from django.shortcuts import get_object_or_404
 
 from .serializers import (
     RealEstatePortfolioSerializer, 
@@ -12,6 +13,8 @@ from .serializers import (
     PropertyWithMetricsSerializer,
     FinancingEntrySerializer,
     FinancingEntryWithMetricsSerializer,
+    InstallmentEntrySerializer,
+    InstallmentEntryWithMetricsSerializer,
     OffPlanDetailsSerializer,
     OffPlanMilestoneSerializer,
     PropertySaleSerializer,
@@ -19,10 +22,19 @@ from .serializers import (
     RealEstateInvestorActionSerializer,
     RealEstateInvestorStatsSerializer
 )
-from ..models import FinancingEntry, Property, OffPlanMilestone, PropertySale, RealEstateInvestorAction, RealEstatePossibleCapitalSource
+from ..models import (
+    FinancingEntry, 
+    Property, 
+    OffPlanMilestone, 
+    PropertySale, 
+    RealEstateInvestorAction, 
+    RealEstatePossibleCapitalSource,
+    InstallmentEntry
+)
 from ..selectors.portfolio_selectors import PortfolioSelectors
 from ..selectors.property_selectors import PropertySelector
 from ..selectors.financing_selectors import FinancingSelectors
+from ..selectors.installment_selectors import InstallmentSelectors
 from ..selectors.off_plan_selectors import OffPlanSelectors
 from ..selectors.property_sale_selectors import PropertySaleSelector
 from ..selectors.cash_flow_selectors import CashFlowSelectors
@@ -32,6 +44,7 @@ from ..services.portfolio_service import PortfolioService
 
 from ..services.property_service import PropertyService
 from ..services.financing_service import FinancingService
+from ..services.installment_service import InstallmentService
 from ..services.off_plan_service import OffPlanService
 from ..services.property_sale_service import PropertySaleService
 from ..services.investor_service import RealEstateInvestorService
@@ -147,9 +160,13 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("You do not have permission to view this portfolio's financing model.")
 
         if request.method == 'GET':
-            entries_with_metrics = FinancingSelectors.get_financing_entries_for_portfolio(portfolio)
-            serializer = FinancingEntryWithMetricsSerializer(entries_with_metrics, many=True)
-            return Response(serializer.data)
+            mortgages = FinancingSelectors.get_financing_entries_for_portfolio(portfolio)
+            installments = InstallmentSelectors.get_installment_entries_for_portfolio(portfolio)
+            
+            return Response({
+                "mortgages": FinancingEntryWithMetricsSerializer(mortgages, many=True).data,
+                "installments": InstallmentEntryWithMetricsSerializer(installments, many=True).data
+            })
         
         elif request.method == 'POST':
             if not PermissionService.can_edit_re_portfolio(request.user, portfolio):
@@ -189,6 +206,45 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
             FinancingService.delete_financing_entry(entry=entry)
             return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @action(detail=True, methods=['post'], url_path='installments')
+    def installments(self, request, pk=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_edit_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("Access denied.")
+
+        try:
+            property_id = request.data.get('property')
+            property_obj = portfolio.properties.get(id=property_id)
+        except:
+            return Response({"error": "Property not found in this portfolio."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            entry = InstallmentService.create_installment_entry(property_obj=property_obj, data=request.data)
+            serializer = InstallmentEntrySerializer(entry)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['put', 'patch', 'delete'], url_path='installments/(?P<installment_id>[0-9a-f-]+)')
+    def manage_installment(self, request, pk=None, installment_id=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_edit_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("Access denied.")
+
+        try:
+            entry = InstallmentEntry.objects.get(id=installment_id, property__portfolio=portfolio)
+        except InstallmentEntry.DoesNotExist:
+            return Response({"error": "Installment entry not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.method in ['PUT', 'PATCH']:
+            updated_entry = InstallmentService.update_installment_entry(entry=entry, data=request.data)
+            serializer = InstallmentEntrySerializer(updated_entry)
+            return Response(serializer.data)
+            
+        elif request.method == 'DELETE':
+            InstallmentService.delete_installment_entry(entry=entry)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
     @action(detail=True, methods=['get'], url_path='financing/amortization-total')
     def portfolio_amortization(self, request, pk=None):
         portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
@@ -212,6 +268,29 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
             return Response({"error": "Financing entry not found"}, status=status.HTTP_404_NOT_FOUND)
 
         schedule = FinancingSelectors.get_amortization_schedule(entry)
+        return Response(schedule)
+
+    @action(detail=True, methods=['get'], url_path='installments-schedule-total')
+    def portfolio_installments_schedule(self, request, pk=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_view_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("Access denied.")
+
+        schedule = InstallmentSelectors.get_portfolio_total_installments(portfolio)
+        return Response(schedule)
+
+    @action(detail=True, methods=['get'], url_path='installments/(?P<installment_id>[^/.]+)/schedule')
+    def installment_schedule(self, request, pk=None, installment_id=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_view_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("Access denied.")
+
+        try:
+            entry = InstallmentEntry.objects.get(id=installment_id, property__portfolio=portfolio)
+        except InstallmentEntry.DoesNotExist:
+            return Response({"error": "Installment entry not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        schedule = InstallmentSelectors.get_installment_schedule(entry)
         return Response(schedule)
 
     @action(detail=True, methods=['get', 'post'], url_path='off-plan')
@@ -238,7 +317,7 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
         serializer = OffPlanDetailsSerializer(details)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['get'], url_path='off-plan/(?P<property_id>[0-9a-f-]+)/schedule')
+    @action(detail=True, methods=['get', 'post'], url_path='off-plan/(?P<property_id>[0-9a-f-]+)/schedule')
     def off_plan_schedule(self, request, pk=None, property_id=None):
         portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
         if not PermissionService.can_view_re_portfolio(request.user, portfolio):
@@ -249,23 +328,37 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
         except Property.DoesNotExist:
             return Response({"error": "Off-plan property not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        data = OffPlanSelectors.get_payment_schedule(property_obj)
-        return Response(data)
+        if request.method == 'GET':
+            data = OffPlanSelectors.get_payment_schedule(property_obj)
+            return Response(data)
+        
+        elif request.method == 'POST':
+            if not PermissionService.can_edit_re_portfolio(request.user, portfolio):
+                raise PermissionDenied("You do not have permission to add milestones.")
+            
+            milestone = OffPlanService.create_milestone(property_obj, request.data)
+            serializer = OffPlanMilestoneSerializer(milestone)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    @action(detail=True, methods=['patch'], url_path='off-plan/milestones/(?P<milestone_id>[0-9a-f-]+)')
-    def update_milestone(self, request, pk=None, milestone_id=None):
+    @action(detail=True, methods=['patch', 'delete'], url_path='off-plan/milestones/(?P<milestone_id>[0-9a-f-]+)')
+    def manage_milestone(self, request, pk=None, milestone_id=None):
         portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
         if not PermissionService.can_edit_re_portfolio(request.user, portfolio):
-            raise PermissionDenied("You do not have permission to edit milestones.")
+            raise PermissionDenied("You do not have permission to manage milestones.")
 
         try:
             milestone = OffPlanMilestone.objects.get(id=milestone_id, property__portfolio=portfolio)
         except OffPlanMilestone.DoesNotExist:
             return Response({"error": "Milestone not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        updated_milestone = OffPlanService.update_milestone(milestone_id, request.data)
-        serializer = OffPlanMilestoneSerializer(updated_milestone)
-        return Response(serializer.data)
+        if request.method == 'PATCH':
+            updated_milestone = OffPlanService.update_milestone(milestone_id, request.data)
+            serializer = OffPlanMilestoneSerializer(updated_milestone)
+            return Response(serializer.data)
+            
+        elif request.method == 'DELETE':
+            OffPlanService.delete_milestone(milestone_id)
+            return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['get'], url_path='cash-flow')
     def cash_flow(self, request, pk=None):
