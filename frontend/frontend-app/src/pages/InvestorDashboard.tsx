@@ -90,7 +90,8 @@ const InvestorDashboard: React.FC = () => {
           {activeTab === "overview" && data && (
             <InvestorOverviewTab 
               metrics={data.metrics} 
-              lineGraphData={data.line_graph} 
+              lineGraphData={data.line_graph_data || []} 
+              yieldHistory={data.yield_history || []}
             />
           )}
 

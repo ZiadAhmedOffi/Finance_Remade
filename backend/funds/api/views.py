@@ -216,7 +216,8 @@ class InvestorDashboardView(APIView):
             "metrics": data["metrics"],
             "portfolio": data["portfolio_table"],
             "pie_chart": data["pie_chart_data"],
-            "line_graph": data["line_graph_data"]
+            "line_graph_data": data["line_graph_data"],
+            "yield_history": data["yield_history"]
         })
 
 import json
@@ -1041,14 +1042,74 @@ class InvestorLogView(APIView):
             
         stage_list = [{"name": name, "value": val} for name, val in stage_data.items()]
 
+        # 4. Cash Reserves & NAV
+        nav_metrics = fund_selectors.get_fund_nav_metrics(fund)
+
         return Response({
             "investors": investors_list,
             "graph_data": graph_data,
             "actions": InvestorActionSerializer(investor_actions, many=True).data,
             "possible_capital_sources": PossibleCapitalSourceSerializer(possible_sources, many=True).data,
             "total_units": total_fund_units,
-            "stage_data": stage_list
+            "stage_data": stage_list,
+            "nav_metrics": nav_metrics
         })
+
+
+class DistributionListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, fund_id):
+        fund = get_object_or_404(Fund, id=fund_id)
+        if not (PermissionService.is_super_admin(request.user) or PermissionService.is_sc_member(request.user, fund)):
+             return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+        distributions = fund.distributions.all()
+        serializer = DistributionSerializer(distributions, many=True)
+        return Response(serializer.data)
+
+    def post(self, request, fund_id):
+        fund = get_object_or_404(Fund, id=fund_id)
+        if not (PermissionService.is_super_admin(request.user) or PermissionService.is_sc_member(request.user, fund)):
+             return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = DistributionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        from funds.services.distribution_service import DistributionService
+        distribution = DistributionService.create_distribution(
+            actor=request.user,
+            fund=fund,
+            data=serializer.validated_data
+        )
+        return Response(DistributionSerializer(distribution).data, status=status.HTTP_201_CREATED)
+
+class DistributionDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, distribution_id):
+        distribution = get_object_or_404(Distribution, id=distribution_id)
+        if not (PermissionService.is_super_admin(request.user) or PermissionService.is_sc_member(request.user, distribution.fund)):
+             return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = DistributionSerializer(distribution, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        
+        from funds.services.distribution_service import DistributionService
+        updated_distribution = DistributionService.update_distribution(
+            actor=request.user,
+            distribution=distribution,
+            data=serializer.validated_data
+        )
+        return Response(DistributionSerializer(updated_distribution).data)
+
+    def delete(self, request, distribution_id):
+        distribution = get_object_or_404(Distribution, id=distribution_id)
+        if not (PermissionService.is_super_admin(request.user) or PermissionService.is_sc_member(request.user, distribution.fund)):
+             return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        from funds.services.distribution_service import DistributionService
+        DistributionService.delete_distribution(actor=request.user, distribution=distribution)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 class ReportListView(APIView):
     """

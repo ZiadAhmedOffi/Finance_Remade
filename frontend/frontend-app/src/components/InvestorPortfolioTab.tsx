@@ -6,6 +6,7 @@ interface PortfolioItem {
   ownership_pct: number;
   current_value: number;
   net_deployed: number;
+  yield_pct: number;
   type?: "FUND" | "REAL_ESTATE";
 }
 
@@ -25,6 +26,8 @@ const InvestorPortfolioTab: React.FC<InvestorPortfolioTabProps> = ({ portfolio, 
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
 
+  const formatPercent = (val: number) => val.toFixed(2) + "%";
+
   return (
     <div className="investor-portfolio">
       <section className="content-card">
@@ -38,6 +41,7 @@ const InvestorPortfolioTab: React.FC<InvestorPortfolioTabProps> = ({ portfolio, 
                 <th>Ownership (%)</th>
                 <th>Net Deployed Capital</th>
                 <th>Current Value</th>
+                <th>Est. Annual Yield</th>
               </tr>
             </thead>
             <tbody>
@@ -59,11 +63,12 @@ const InvestorPortfolioTab: React.FC<InvestorPortfolioTabProps> = ({ portfolio, 
                   <td>{item.ownership_pct.toFixed(4)}%</td>
                   <td>{formatCurrency(item.net_deployed)}</td>
                   <td className="font-bold">{formatCurrency(item.current_value)}</td>
+                  <td className="text-green font-bold">{formatPercent(item.yield_pct)}</td>
                 </tr>
               ))}
               {portfolio.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="empty-msg">No investments found.</td>
+                  <td colSpan={6} className="empty-msg">No investments found.</td>
                 </tr>
               )}
             </tbody>

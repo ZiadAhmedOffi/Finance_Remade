@@ -118,6 +118,9 @@ class FundLog(models.Model):
         ("INVESTOR_ACTION_CREATED", "Investor Action Created"),
         ("INVESTOR_ACTION_UPDATED", "Investor Action Updated"),
         ("INVESTOR_ACTION_DELETED", "Investor Action Deleted"),
+        ("DISTRIBUTION_CREATED", "Distribution Created"),
+        ("DISTRIBUTION_UPDATED", "Distribution Updated"),
+        ("DISTRIBUTION_DELETED", "Distribution Deleted"),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -559,6 +562,39 @@ class CurrentInvestorStats(models.Model):
                 relation.units = float(relation.units) - float(action.units)
 
         relation.save()
+
+class Distribution(models.Model):
+    """
+    Represents a cash inflow to the fund from an exit or dividend.
+    Used for calculating Cash Reserves and Yield.
+    """
+    TYPE_CHOICES = [
+        ("EXIT_PROCEED", "Exit Proceed"),
+        ("DIVIDEND", "Dividend / Yield"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    fund = models.ForeignKey(Fund, on_delete=models.CASCADE, related_name="distributions")
+    deal = models.ForeignKey(
+        CurrentDeal, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name="distributions"
+    )
+    
+    amount = models.DecimalField(max_digits=30, decimal_places=2)
+    date = models.DateField()
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES, default="EXIT_PROCEED")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-date"]
+
+    def __str__(self):
+        return f"{self.type} - {self.amount} ({self.fund.name})"
 
 class Report(models.Model):
     """

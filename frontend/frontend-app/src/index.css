@@ -26,6 +26,7 @@
 .vibrant-card.blue { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
 .vibrant-card.green { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
 .vibrant-card.emerald { background: linear-gradient(135deg, #059669 0%, #047857 100%); }
+.vibrant-card.indigo { background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); }
 
 .vibrant-card label {
   font-size: 0.875rem;
@@ -132,6 +133,22 @@
 .text-red { color: #ef4444; }
 .text-muted { color: #94a3b8; }
 .font-mono { font-family: ui-monospace, monospace; }
+
+.yield-analytics-section {
+  background: white;
+  padding: 3rem;
+  border-radius: 1.5rem;
+  border: 2px solid #e0e7ff;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.05);
+}
+
+.yield-analytics-section h2 {
+  color: #312e81;
+  letter-spacing: -0.02em;
+}
+
+.text-indigo-600 { color: #4f46e5; }
+.bg-indigo-50 { background-color: #eef2ff; }
 
 /* Smooth Section Toggling Animations */
 @keyframes fadeIn {

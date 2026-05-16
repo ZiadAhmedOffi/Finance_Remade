@@ -1,6 +1,6 @@
 import math
 from rest_framework import serializers
-from funds.models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, RiskAssessment, PossibleCapitalSource, InvestorAction, InvestorRequest
+from funds.models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, RiskAssessment, PossibleCapitalSource, InvestorAction, InvestorRequest, Distribution
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -86,6 +86,24 @@ class InvestmentRoundSerializer(serializers.ModelSerializer):
             "amount_invested",
             "associated_deal",
             "new_ownership_percentage",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "fund", "created_at", "updated_at"]
+
+class DistributionSerializer(serializers.ModelSerializer):
+    company_name = serializers.CharField(source="deal.company_name", read_only=True, allow_null=True)
+    
+    class Meta:
+        model = Distribution
+        fields = [
+            "id",
+            "fund",
+            "deal",
+            "company_name",
+            "amount",
+            "date",
+            "type",
             "created_at",
             "updated_at",
         ]

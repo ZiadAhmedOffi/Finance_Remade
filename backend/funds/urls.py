@@ -27,7 +27,9 @@ from funds.api.views import (
     ExcelTemplateView,
     ExcelIngestView,
     InvestorRequestListView,
-    InvestorHoldingsView
+    InvestorHoldingsView,
+    DistributionListView,
+    DistributionDetailView
 )
 
 urlpatterns = [
@@ -46,6 +48,9 @@ urlpatterns = [
     path("<uuid:fund_id>/current-deals/<uuid:deal_id>/", CurrentDealDetailView.as_view(), name="current-deal-detail"),
     path("<uuid:fund_id>/risk-assessments/", RiskAssessmentListView.as_view(), name="risk-assessment-list"),
     path("<uuid:fund_id>/investor-log/", InvestorLogView.as_view(), name="fund-investor-log"),
+    
+    path("<uuid:fund_id>/distributions/", DistributionListView.as_view(), name="distribution-list"),
+    path("distributions/<uuid:distribution_id>/", DistributionDetailView.as_view(), name="distribution-detail"),
 
     path("<uuid:fund_id>/investment-rounds/", InvestmentRoundListView.as_view(), name="fund-investment-rounds"),
     path("<uuid:fund_id>/investment-rounds/<uuid:round_id>/", InvestmentRoundDetailView.as_view(), name="fund-investment-round-detail"),

@@ -1,9 +1,11 @@
-from funds.models import Fund, FundLog, ModelInput
+from funds.models import Fund, FundLog, ModelInput, InvestorAction, CurrentDeal, Distribution
 from users.services.permission_service import PermissionService
 from funds.utils import calculators
 from funds.selectors import deal_selectors
-from datetime import datetime
+from datetime import datetime, date
 from django.db.models import Sum
+from decimal import Decimal
+from django.utils import timezone
 
 def get_all_funds():
     return Fund.objects.all().order_by("-created_at")
@@ -34,6 +36,46 @@ def get_fund_model_input(fund):
         return ModelInput.objects.get(fund=fund)
     except ModelInput.DoesNotExist:
         return None
+
+def get_fund_nav_metrics(fund, reference_date=None):
+    """
+    Calculates NAV and Cash Reserves for a fund.
+    NAV = Value of Held Assets + Cash Reserves
+    Cash Reserves = Total Primary Injections - Total Cash Invested in Deals + Total Distribution Proceeds
+    """
+    if reference_date is None:
+        reference_date = timezone.now().date()
+    
+    ref_year = reference_date.year
+
+    # 1. Total Value of Held Assets (Current Deals)
+    current_portfolio_value = get_total_fund_portfolio(fund, ref_year)
+
+    # 2. Total Primary Injections (Investor Inflows)
+    investments_qs = InvestorAction.objects.filter(fund=fund, type="PRIMARY_INVESTMENT")
+    total_injections = investments_qs.filter(year__lte=ref_year).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+
+    # 3. Total Cash Invested in Deals (Outflows)
+    total_deal_outflow = CurrentDeal.objects.filter(fund=fund, entry_year__lte=ref_year).aggregate(total=Sum('amount_invested'))['total'] or Decimal('0.00')
+    
+    # 4. Total Distribution Proceeds (Inflows)
+    total_distributions = Distribution.objects.filter(fund=fund, date__lte=reference_date).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+
+    # 5. Cash Reserves
+    cash_reserves = Decimal(str(total_injections)) - Decimal(str(total_deal_outflow)) + Decimal(str(total_distributions))
+    
+    # 6. NAV
+    nav = Decimal(str(current_portfolio_value)) + cash_reserves
+
+    return {
+        "current_portfolio_value": float(current_portfolio_value),
+        "total_injections": float(total_injections),
+        "total_distributions": float(total_distributions),
+        "cash_reserves": float(cash_reserves),
+        "nav": float(nav),
+        "total_units": float(fund.total_units),
+        "price_per_unit": float(nav / fund.total_units) if fund.total_units > 0 else 1.0,
+    }
 
 def get_total_fund_portfolio(fund, year):
     """

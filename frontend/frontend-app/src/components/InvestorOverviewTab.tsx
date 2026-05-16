@@ -1,6 +1,6 @@
 import React from "react";
 import { 
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine 
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine, LineChart, Line, Legend
 } from "recharts";
 
 interface LineGraphData {
@@ -10,6 +10,12 @@ interface LineGraphData {
   yoy_gain: number | null;
 }
 
+interface YieldHistoryEntry {
+  year: number;
+  total: number;
+  [key: string]: number;
+}
+
 interface InvestorOverviewTabProps {
   metrics: {
     total_capital_deployed: number;
@@ -17,11 +23,13 @@ interface InvestorOverviewTabProps {
     unrealized_gains: number;
     realized_multiple: number;
     unrealized_multiple: number;
+    total_yield: number;
   };
   lineGraphData: LineGraphData[];
+  yieldHistory: YieldHistoryEntry[];
 }
 
-const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, lineGraphData }) => {
+const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, lineGraphData, yieldHistory }) => {
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
 
@@ -29,6 +37,7 @@ const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, line
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact' }).format(val);
 
   const formatMultiple = (val: number) => val.toFixed(2) + "x";
+  const formatPercent = (val: number) => val.toFixed(2) + "%";
   
   const renderYoY = (val: number | null) => {
     if (val === null) return <span className="text-muted">N/A</span>;
@@ -41,6 +50,13 @@ const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, line
   };
 
   const currentYear = new Date().getFullYear();
+
+  // Get unique asset names from yield history for chart keys
+  const assetNames = Array.from(new Set(
+    yieldHistory.flatMap(entry => Object.keys(entry).filter(key => key !== 'year' && key !== 'total'))
+  ));
+
+  const COLORS = ["#6366f1", "#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#ec4899"];
 
   return (
     <div className="investor-overview">
@@ -71,6 +87,15 @@ const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, line
             <div className="footer">Current Market Appreciation</div>
           </div>
           <div className="card-icon">💎</div>
+        </div>
+
+        <div className="vibrant-card indigo" style={{ transform: 'scale(1.05)', boxShadow: '0 20px 25px -5px rgba(79, 70, 229, 0.4)' }}>
+          <div className="card-content">
+            <label>Portfolio Yield</label>
+            <div className="value">{formatPercent(metrics.total_yield)}</div>
+            <div className="footer">Annualized Return Capacity</div>
+          </div>
+          <div className="card-icon">💵</div>
         </div>
       </div>
 
@@ -154,10 +179,114 @@ const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, line
         </div>
       </div>
 
+      {/* Yield Analytics Section - High Visibility */}
+      <div className="yield-analytics-section space-y-8 mt-12 mb-12">
+        <div className="section-header text-center">
+          <div className="inline-block bg-indigo-50 text-indigo-600 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest mb-4">
+            Cash Income Tracking
+          </div>
+          <h2 className="text-3xl font-extrabold text-gray-900">Yearly Dividend & Yield Analysis</h2>
+          <p className="text-gray-500 max-w-2xl mx-auto mt-2 text-lg">
+            A comprehensive breakdown of the liquid returns distributed from your funds and real estate portfolios.
+          </p>
+        </div>
+
+        {yieldHistory.length > 0 ? (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
+            {/* Yield Table */}
+            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+              <div className="px-6 py-5 bg-gray-50/50 border-b border-gray-100 flex justify-between items-center">
+                <h3 className="font-bold text-gray-800 m-0">Annual Yield Breakdown</h3>
+                <span className="text-xs text-gray-400 font-medium">Figures in USD</span>
+              </div>
+              <div className="table-responsive !border-0">
+                <table className="data-table modern-investor-table">
+                  <thead>
+                    <tr>
+                      <th className="!bg-transparent">Year</th>
+                      {assetNames.map(name => <th key={name} className="!bg-transparent">{name}</th>)}
+                      <th className="!bg-transparent text-indigo-600 font-bold">Total Yield</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {yieldHistory.map((row) => (
+                      <tr key={row.year} className={row.year === currentYear ? "bg-indigo-50/30" : ""}>
+                        <td className="font-bold">
+                          {row.year}
+                          {row.year === currentYear && <span className="ml-2 text-[10px] text-indigo-500 font-black">NOW</span>}
+                        </td>
+                        {assetNames.map(name => (
+                          <td key={name} className="font-mono text-gray-600">
+                            {row[name] > 0 ? formatCurrency(row[name]) : <span className="text-gray-300">—</span>}
+                          </td>
+                        ))}
+                        <td className="font-bold font-mono text-indigo-600 bg-indigo-50/20">
+                          {formatCurrency(row.total)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Yield Line Graph */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+              <div className="mb-6">
+                <h3 className="font-bold text-gray-800 m-0">Yield Growth Trajectory</h3>
+                <p className="text-xs text-gray-400 mt-1">Comparison of asset distributions vs. portfolio total</p>
+              </div>
+              <div style={{ width: '100%', height: 380 }}>
+                <ResponsiveContainer>
+                  <LineChart data={yieldHistory} margin={{ top: 20, right: 30, left: 10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="year" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
+                    <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} tickFormatter={formatCurrencyShort} />
+                    <Tooltip 
+                      formatter={(val: any) => formatCurrency(Number(val || 0))}
+                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', padding: '12px' }}
+                    />
+                    <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
+                    {assetNames.map((name, index) => (
+                      <Line 
+                        key={name} 
+                        type="monotone" 
+                        dataKey={name} 
+                        stroke={COLORS[index % COLORS.length]} 
+                        strokeWidth={2} 
+                        dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} 
+                        activeDot={{ r: 6 }}
+                      />
+                    ))}
+                    <Line 
+                      type="monotone" 
+                      dataKey="total" 
+                      name="Portfolio Total" 
+                      stroke="#4f46e5" 
+                      strokeWidth={4} 
+                      dot={{ r: 6, fill: '#4f46e5' }} 
+                      strokeDasharray="5 5"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 text-center py-20">
+            <div className="text-6xl mb-6">🏦</div>
+            <h3 className="text-gray-900 font-black text-2xl mb-2">No Yield Performance History</h3>
+            <p className="text-gray-500 max-w-lg mx-auto text-lg">
+              Distributions from your Equity Funds and Real Estate Portfolios (Positive Cash Flows) will be automatically tracked and displayed here.
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* Historical Breakdown Table */}
-      <div className="content-card modern-table-card">
+      <div className="content-card modern-table-card mt-12">
         <div className="card-header">
-          <h3>Annual Performance Breakdown</h3>
+          <h3>Annual Portfolio Performance</h3>
         </div>
         <div className="table-responsive">
           <table className="data-table modern-investor-table">

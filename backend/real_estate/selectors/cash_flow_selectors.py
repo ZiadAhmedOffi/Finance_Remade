@@ -1,7 +1,7 @@
 from decimal import Decimal
 from datetime import date
 from collections import defaultdict
-from ..models import RealEstatePortfolio, Property, OffPlanMilestone
+from ..models import RealEstatePortfolio, Property, OffPlanMilestone, FinancingEntry
 from .financing_selectors import FinancingSelectors
 from ..constants import SCENARIO_ADJUSTMENTS
 from ..calculation import PropertyDataCalc
@@ -32,6 +32,8 @@ class CashFlowSelectors:
         
         property_cash_flows = {}
         portfolio_totals = defaultdict(Decimal)
+        portfolio_noi = defaultdict(Decimal)
+        portfolio_sales_proceeds = defaultdict(Decimal)
         
         active_scenario = assumptions.active_scenario
         adjustments = SCENARIO_ADJUSTMENTS.get(active_scenario, {})
@@ -59,6 +61,7 @@ class CashFlowSelectors:
             
             # Off-plan specifics
             is_off_plan_initial = prop.status == "OFF_PLAN"
+            is_mortgaged = prop.financing_type == "MORTGAGED"
             completion_year = None
             sale_at_completion = False
             if hasattr(prop, 'off_plan_details'):
@@ -170,8 +173,11 @@ class CashFlowSelectors:
                         current_market_value = PropertyDataCalc.market_value(prop.purchase_price, app_rate, t)
                         
                         # Purchase Price & Pro-rating for non-off-plan purchase year
-                        if year == purchase_year and not is_off_plan_initial:
+                        if year == purchase_year and not is_off_plan_initial and not is_mortgaged:
                             cf -= prop.purchase_price
+                            months_owned = 12 - prop.purchase_date.month + 1
+                        elif year == purchase_year and is_mortgaged:
+                            cf -= prop.purchase_price - FinancingEntry.objects.get(property=prop).loan_amount
                             months_owned = 12 - prop.purchase_date.month + 1
                         else:
                             months_owned = 12
@@ -200,6 +206,8 @@ class CashFlowSelectors:
                 # Aggregation
                 if cf is not None:
                     portfolio_totals[year] += cf
+                    portfolio_noi[year] += noi
+                    portfolio_sales_proceeds[year] += net_sale_inflow
                 
                 if year in requested_years:
                     prop_data["annual_cf"][year] = cf.quantize(Decimal('0.01')) if cf is not None else None
@@ -233,5 +241,7 @@ class CashFlowSelectors:
             "years": requested_years,
             "properties": property_cash_flows,
             "portfolio_totals": {y: portfolio_totals[y].quantize(Decimal('0.01')) for y in requested_years},
+            "portfolio_noi": {y: portfolio_noi[y].quantize(Decimal('0.01')) for y in requested_years},
+            "portfolio_sales_proceeds": {y: portfolio_sales_proceeds[y].quantize(Decimal('0.01')) for y in requested_years},
             "cumulative_cf": {y: cumulative_by_year[y] for y in requested_years}
         }

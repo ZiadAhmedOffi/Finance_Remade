@@ -19,6 +19,18 @@ class PortfolioSelectors:
         return RealEstatePortfolio.objects.select_related('assumptions', 'created_by').get(id=portfolio_id)
 
     @staticmethod
+    def get_total_units_at_year(portfolio, year):
+        """
+        Calculates total units at the end of a given year for a RE portfolio.
+        """
+        from ..models import RealEstateInvestorAction
+        return float(RealEstateInvestorAction.objects.filter(
+            portfolio=portfolio, 
+            type="PRIMARY_INVESTMENT",
+            year__lte=year
+        ).aggregate(total_units=Sum('units'))['total_units'] or 0.0)
+
+    @staticmethod
     def get_portfolio_nav_metrics(portfolio, reference_date=None):
         """
         Calculates NAV and Cash Reserves for a portfolio.

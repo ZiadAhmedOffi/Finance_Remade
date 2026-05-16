@@ -56,6 +56,15 @@ interface InvestorLogData {
   possible_capital_sources: PossibleCapitalSource[];
   total_units: number;
   stage_data: { name: string; value: number }[];
+  nav_metrics: {
+    current_portfolio_value: number;
+    total_injections: number;
+    total_distributions: number;
+    cash_reserves: number;
+    nav: number;
+    total_units: number;
+    price_per_unit: number;
+  };
 }
 
 interface InvestorLogTabProps {
@@ -95,15 +104,11 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId, canEdit }) => {
     investor_sold_to: "",
   });
 
-
-
   const [sourceFormData, setSourceFormData] = useState({
     name: "",
     amount: "",
     year: new Date().getFullYear(),
   });
-
-
 
   const fetchInvestorLog = async () => {
     try {
@@ -140,7 +145,6 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId, canEdit }) => {
       investor_selling: action.investor_selling || "",
       investor_sold_to: action.investor_sold_to || "",
     });
-
 
     setShowModal(true);
   };
@@ -194,7 +198,6 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId, canEdit }) => {
         investor_sold_to: "",
       });
 
-
     } catch (err: any) {
       alert(err.response?.data?.error || `Failed to ${editingActionId ? 'update' : 'create'} investor action.`);
     }
@@ -207,7 +210,6 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId, canEdit }) => {
       year: source.year,
       amount: source.amount.toString(),
     });
-
 
     setShowSourceModal(true);
   };
@@ -246,7 +248,6 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId, canEdit }) => {
         amount: "",
         year: new Date().getFullYear(),
       });
-
 
     } catch (err: any) {
       const errorData = err.response?.data;
@@ -323,8 +324,6 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId, canEdit }) => {
       }
       return nextState;
     });
-
-
   };
 
   // Update discount when price sold at changes for SECONDARY_EXIT
@@ -349,8 +348,6 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId, canEdit }) => {
       }
       return nextState;
     });
-
-
   };
 
   // Fetch fund portfolio value for calculations when year changes or on load
@@ -431,7 +428,6 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId, canEdit }) => {
 
   const paginateSources = (pageNumber: number) => setCurrentSourcePage(pageNumber);
 
-
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       
@@ -453,6 +449,15 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId, canEdit }) => {
                                 data.graph_data[0];
               return formatCurrencyWithDecimals(latestData?.price_per_unit || 0);
             })()}
+          </span>
+        </div>
+        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-xl flex flex-col items-center justify-center">
+          <span className="text-gray-500 text-sm uppercase tracking-wider mb-2 font-medium">Cash Reserves</span>
+          <span className="text-3xl font-bold text-blue-600 font-mono">
+            {formatCurrency(data.nav_metrics?.cash_reserves || 0)}
+          </span>
+          <span className="text-[10px] text-gray-400 mt-2 text-center uppercase tracking-tighter">
+            (Injections - Outflows + Exits)
           </span>
         </div>
       </div>
@@ -662,7 +667,6 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId, canEdit }) => {
                   investor_sold_to: "",
                 });
 
-
                 setShowModal(true);
               }}
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"
@@ -765,7 +769,6 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId, canEdit }) => {
                   amount: "",
                   year: new Date().getFullYear(),
                 });
-
 
                 setShowSourceModal(true);
               }}
