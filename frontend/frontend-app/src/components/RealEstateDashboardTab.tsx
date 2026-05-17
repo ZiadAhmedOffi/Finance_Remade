@@ -420,11 +420,9 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
                   <td>{row.current_market_value !== null ? formatCurrency(row.current_market_value) : "-"}</td>
                   <td>{row.unrealized_gain !== null ? formatCurrency(row.unrealized_gain) : "-"}</td>
                   <td>
-                    {row.status === "SOLD" ? (
-                      <span style={{ color: row.realized_gain >= 0 ? '#059669' : '#ef4444', fontWeight: 600 }}>
-                        {formatCurrency(row.realized_gain)}
-                      </span>
-                    ) : "-"}
+                    <span style={{ color: row.realized_gain >= 0 ? '#059669' : '#ef4444', fontWeight: 600 }}>
+                      {formatCurrency(row.realized_gain)}
+                    </span>
                   </td>
                 </tr>
               ))}

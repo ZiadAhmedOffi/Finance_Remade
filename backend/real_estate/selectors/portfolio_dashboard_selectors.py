@@ -60,7 +60,7 @@ class PortfolioDashboardSelector:
                     metrics['metrics']['realized_gain'] = realized_gain
                     metrics['metrics']['selling_price'] = sale.selling_price
                 else:
-                    # Fallback if no sale record but status is SOLD
+                    # Fallback if no record but status is SOLD
                     metrics['metrics']['realized_gain'] = metrics['metrics']['unrealized_gain']
                 
                 # Sold properties have NO unrealized gain and NO current market value
@@ -71,7 +71,7 @@ class PortfolioDashboardSelector:
                 sold_properties_metrics.append(metrics)
             else:
                 # Active properties (Held, Off-Plan, or Sold in the future)
-                # Ensure realized_gain is 0 for active assets
+                # Ensure realized_gain is 0 for active assets initially
                 metrics['metrics']['realized_gain'] = Decimal('0.00')
                 
                 # Debt Service for Yield Analysis
@@ -91,18 +91,43 @@ class PortfolioDashboardSelector:
                 active_properties_metrics.append(metrics)
 
         # 2. Aggregated Metrics (Section 1)
+        # Cash Flow for Y1 Net Cash Flow and Realized Gains from operations
+        cf_data = CashFlowSelectors.get_portfolio_cash_flow(portfolio)
+        y1_net_cf = cf_data['portfolio_totals'].get(reference_date.year, Decimal('0.00'))
+
+        # Calculate total realized gains from sales alone first
+        total_sales_gain = sum(m['metrics'].get('realized_gain', Decimal('0.00')) for m in sold_properties_metrics)
+
+        # Add operational realized gains to each property (NOI - Debt Service)
+        for m in active_properties_metrics + sold_properties_metrics:
+            prop_id = m['id']
+            prop_cf = cf_data['properties'].get(prop_id)
+            if prop_cf:
+                extra_realized_gain = Decimal('0.00')
+                for year, cf in prop_cf['annual_cf'].items():
+                    # Only count years up to reference_date where annual_cf was positive
+                    if year <= reference_date.year and cf is not None and cf > 0:
+                        metadata = prop_cf['metadata'].get(year, {})
+                        noi = metadata.get('noi', Decimal('0.00'))
+                        debt_service = metadata.get('debt_service', Decimal('0.00'))
+                        extra_realized_gain += (noi - debt_service)
+                
+                m['metrics']['realized_gain'] = m['metrics'].get('realized_gain', Decimal('0.00')) + extra_realized_gain
+
         total_market_value = sum(m['metrics']['current_market_value'] for m in active_properties_metrics)
         total_invested_capital = sum(m['metrics']['total_cost_basis'] for m in active_properties_metrics) + \
                                 sum(m['metrics']['total_cost_basis'] for m in sold_properties_metrics)
-        total_unrealized_gains = sum(m['metrics']['unrealized_gain'] for m in active_properties_metrics)
-        total_realized_gains = sum(m['metrics'].get('realized_gain', Decimal('0.00')) for m in sold_properties_metrics)
+        total_unrealized_gains = sum(m['metrics']['unrealized_gain'] for m in active_properties_metrics if m['metrics']['unrealized_gain'] is not None)
         total_annual_rent = sum(m['metrics']['annual_rent'] for m in active_properties_metrics)
         total_noi = sum(m['metrics']['noi'] for m in active_properties_metrics)
         total_debt_service = sum(m['metrics']['annual_debt_service'] for m in active_properties_metrics)
         
-        # Cash Flow for Y1 Net Cash Flow
-        cf_data = CashFlowSelectors.get_portfolio_cash_flow(portfolio)
-        y1_net_cf = cf_data['portfolio_totals'].get(reference_date.year, Decimal('0.00'))
+        # Portfolio realized gains = Gains from sales + Positive annual portfolio cash flows
+        portfolio_operational_gain = sum(
+            cf for year, cf in cf_data['portfolio_totals'].items()
+            if year <= reference_date.year and cf > 0
+        )
+        total_realized_gains = total_sales_gain + portfolio_operational_gain
         
         # Yields
         portfolio_gross_yield = PropertyDataCalc.gross_yield(total_annual_rent, total_invested_capital)
@@ -155,7 +180,7 @@ class PortfolioDashboardSelector:
                 "cost_basis": m['metrics']['total_cost_basis'],
                 "current_market_value": m['metrics']['current_market_value'] if m['status'] != "SOLD" else None,
                 "unrealized_gain": m['metrics']['unrealized_gain'] if m['status'] != "SOLD" else None,
-                "realized_gain": m['metrics'].get('realized_gain', Decimal('0.00')) if m['status'] == "SOLD" else Decimal('0.00'),
+                "realized_gain": m['metrics'].get('realized_gain', Decimal('0.00')),
                 "status": m['status']
             })
 
