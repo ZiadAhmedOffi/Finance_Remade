@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { 
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine, LineChart, Line, Legend
 } from "recharts";
@@ -7,6 +7,7 @@ interface LineGraphData {
   year: number;
   value: number;
   injection: number;
+  injection_breakdown?: { name: string; amount: number }[];
   yoy_gain: number | null;
 }
 
@@ -30,6 +31,8 @@ interface InvestorOverviewTabProps {
 }
 
 const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, lineGraphData, yieldHistory }) => {
+  const [selectedBreakdown, setSelectedBreakdown] = useState<{ year: number; items: { name: string; amount: number }[] } | null>(null);
+
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
 
@@ -305,7 +308,15 @@ const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, line
                     <span className="year-text">{row.year}</span>
                     {row.year === currentYear && <span className="current-indicator">Current</span>}
                   </td>
-                  <td className={`font-mono ${row.injection >= 0 ? "text-green" : "text-red"}`}>
+                  <td 
+                    className={`font-mono cursor-pointer hover:bg-gray-100 transition-colors ${row.injection >= 0 ? "text-green" : "text-red"}`}
+                    onClick={() => {
+                      if (row.injection_breakdown && row.injection_breakdown.length > 0) {
+                        setSelectedBreakdown({ year: row.year, items: row.injection_breakdown });
+                      }
+                    }}
+                    title="Click to see breakdown"
+                  >
                     {row.injection !== 0 ? formatCurrency(row.injection) : "—"}
                   </td>
                   <td className="font-bold font-mono text-dark">
@@ -325,6 +336,36 @@ const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, line
           </table>
         </div>
       </div>
+
+      {/* Cash Flow Breakdown Modal */}
+      {selectedBreakdown && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-gray-200 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in duration-200">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-gray-900">Cash Flow Breakdown - {selectedBreakdown.year}</h3>
+              <button onClick={() => setSelectedBreakdown(null)} className="text-gray-500 hover:text-gray-900 text-2xl font-bold">✕</button>
+            </div>
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              <div className="space-y-4">
+                {selectedBreakdown.items.map((item, idx) => (
+                  <div key={idx} className="flex justify-between items-center p-3 rounded-xl bg-gray-50 border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all">
+                    <span className="font-semibold text-gray-700">{item.name}</span>
+                    <span className={`font-bold font-mono ${item.amount >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                      {item.amount >= 0 ? "+" : ""}{formatCurrency(item.amount)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
+              <span className="text-sm font-bold text-gray-500 uppercase">Total Net Cash Flow</span>
+              <span className={`text-xl font-black font-mono ${selectedBreakdown.items.reduce((acc, i) => acc + i.amount, 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                {formatCurrency(selectedBreakdown.items.reduce((acc, i) => acc + i.amount, 0))}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

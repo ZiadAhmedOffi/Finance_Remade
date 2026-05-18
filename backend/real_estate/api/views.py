@@ -532,19 +532,12 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
         prev_year = datetime.now().year - 1
         ref_date_prev = datetime(prev_year, 12, 31).date()
         
-        # 1. Get expansion ladder data to find Total Portfolio Value for prev_year
-        dashboard_data = PortfolioDashboardSelector.get_dashboard_data(portfolio, reference_date=ref_date_prev)
-        ladder = dashboard_data.get('value_expansion_ladder', [])
-        # Find the row for prev_year
-        prev_year_row = next((row for row in ladder if row['year'] == prev_year), None)
-        total_portfolio_value = Decimal(str(prev_year_row['total_portfolio_value'])) if prev_year_row else Decimal('0.00')
-        
-        # 2. Get Cash Reserves for prev_year
+        # Consistent NAV calculation for previous year
         prev_nav_metrics = PortfolioSelectors.get_portfolio_nav_metrics(portfolio, reference_date=ref_date_prev)
-        cash_reserves = max(Decimal('0.00'), prev_nav_metrics['cash_reserves'])
-        
-        # 3. New NAV = Total Portfolio Value + Cash Reserves
-        nav_prev = total_portfolio_value + cash_reserves
+        nav_prev = prev_nav_metrics['nav']
+        price_per_unit_prev = prev_nav_metrics['price_per_unit']
+        market_value_prev = prev_nav_metrics['total_market_value_held']
+        invested_capital_prev = prev_nav_metrics['total_investments']
 
         return Response({
             "investors": investors_list,
@@ -561,7 +554,9 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
                 "total_units": float(final_nav_metrics["total_units"]),
                 "price_per_unit": float(final_nav_metrics["price_per_unit"]),
                 "prev_year_nav": float(nav_prev),
-                "prev_year_price_per_unit": float(nav_prev / Decimal(str(total_units))) if total_units > 0 else 0.0,
+                "prev_year_price_per_unit": float(price_per_unit_prev),
+                "prev_year_market_value": float(market_value_prev),
+                "prev_year_invested_capital": float(invested_capital_prev),
                 "prev_year": prev_year
             }
         })

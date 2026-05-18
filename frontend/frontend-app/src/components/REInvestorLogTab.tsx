@@ -71,6 +71,8 @@ interface REInvestorLogData {
     price_per_unit: number;
     prev_year_nav: number;
     prev_year_price_per_unit: number;
+    prev_year_market_value: number;
+    prev_year_invested_capital: number;
     prev_year: number;
   };
 }
@@ -363,23 +365,35 @@ const REInvestorLogTab: React.FC<REInvestorLogTabProps> = ({ portfolioId, canEdi
     <div className="space-y-8 animate-in fade-in duration-500">
       
       {/* Metrics Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-6">
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-xl flex flex-col items-center justify-center">
-          <span className="text-gray-500 text-sm uppercase tracking-wider mb-2 font-medium">Total Portfolio Units</span>
-          <span className="text-3xl font-bold text-emerald-600 font-mono">
-            {formatNumber(data.total_units || 0)}
-          </span>
-        </div>
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-xl flex flex-col items-center justify-center">
-          <span className="text-gray-500 text-sm uppercase tracking-wider mb-2 font-medium">Price per Unit (End of {data.nav_metrics?.prev_year})</span>
-          <span className="text-3xl font-bold text-emerald-600 font-mono">
+          <span className="text-gray-500 text-[10px] uppercase tracking-wider mb-2 font-medium">Price per Unit (End of {data.nav_metrics?.prev_year})</span>
+          <span className="text-xl font-bold text-emerald-600 font-mono">
             {formatCurrencyWithDecimals(data.nav_metrics?.prev_year_price_per_unit || 0)}
           </span>
         </div>
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-xl flex flex-col items-center justify-center">
-          <span className="text-gray-500 text-sm uppercase tracking-wider mb-2 font-medium">Total NAV (End of {data.nav_metrics?.prev_year})</span>
-          <span className="text-3xl font-bold text-blue-600 font-mono">
+          <span className="text-gray-500 text-[10px] uppercase tracking-wider mb-2 font-medium">Total NAV (End of {data.nav_metrics?.prev_year})</span>
+          <span className="text-xl font-bold text-blue-600 font-mono">
             {formatCurrency(data.nav_metrics?.prev_year_nav || 0)}
+          </span>
+        </div>
+        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-xl flex flex-col items-center justify-center">
+          <span className="text-gray-500 text-[10px] uppercase tracking-wider mb-2 font-medium">Invested Capital (End of {data.nav_metrics?.prev_year})</span>
+          <span className="text-xl font-bold text-gray-900 font-mono">
+            {formatCurrency(data.nav_metrics?.prev_year_invested_capital || 0)}
+          </span>
+        </div>
+        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-xl flex flex-col items-center justify-center">
+          <span className="text-gray-500 text-[10px] uppercase tracking-wider mb-2 font-medium">Market Value (End of {data.nav_metrics?.prev_year})</span>
+          <span className="text-xl font-bold text-gray-900 font-mono">
+            {formatCurrency(data.nav_metrics?.prev_year_market_value || 0)}
+          </span>
+        </div>
+        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-xl flex flex-col items-center justify-center">
+          <span className="text-gray-500 text-[10px] uppercase tracking-wider mb-2 font-medium">Current Total Units</span>
+          <span className="text-xl font-bold text-emerald-600 font-mono">
+            {formatNumber(data.total_units || 0)}
           </span>
         </div>
       </div>

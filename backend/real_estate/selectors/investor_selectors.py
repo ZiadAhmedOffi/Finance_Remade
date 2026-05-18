@@ -51,10 +51,11 @@ class RealEstateInvestorSelector:
         """
         from .off_plan_selectors import OffPlanSelectors
         from .financing_selectors import FinancingSelectors
+        from .installment_selectors import InstallmentSelectors
         from decimal import Decimal
 
         yearly_data = {}
-        properties = portfolio.properties.all().select_related('financing', 'off_plan_details')
+        properties = portfolio.properties.all().select_related('financing', 'off_plan_details', 'installment')
 
         def add_to_year(yr, amount, name, payment_type):
             if yr not in yearly_data:
@@ -90,7 +91,7 @@ class RealEstateInvestorSelector:
                     months_per_period = 12 // financing.payments_per_year
                     start_date = financing.loan_start_date
                     
-                    # Aggregate by year to keep breakdown clean
+                    # Aggregate by year
                     annual_payments = {}
                     for item in schedule:
                         period = item['period']
@@ -105,6 +106,34 @@ class RealEstateInvestorSelector:
                         add_to_year(yr, amount, prop.name, "Mortgage Debt Service")
                 except:
                     # Fallback to ALL_CASH if no financing entry found
+                    yr = prop.purchase_date.year
+                    add_to_year(yr, float(prop.purchase_price), prop.name, "Purchase (Cash Fallback)")
+
+            elif prop.financing_type == "PRIMARY_INSTALLMENTS":
+                # Primary Sales with Installments
+                try:
+                    installment = prop.installment
+                    # Down Payment in purchase year
+                    dp = float(installment.down_payment)
+                    yr_start = prop.purchase_date.year
+                    add_to_year(yr_start, dp, prop.name, "Installment Down Payment")
+
+                    # Annual Installments
+                    schedule = InstallmentSelectors.get_installment_schedule(installment)
+                    months_per_period = 12 // installment.payments_per_year
+                    start_date = installment.start_date
+
+                    annual_payments = {}
+                    for item in schedule:
+                        # item['date'] is "YYYY-MM"
+                        yr = int(item['date'].split('-')[0])
+                        amount = float(item["payment"])
+                        annual_payments[yr] = annual_payments.get(yr, 0.0) + amount
+                    
+                    for yr, amount in annual_payments.items():
+                        add_to_year(yr, amount, prop.name, "Installment Payment")
+                except:
+                    # Fallback to ALL_CASH if no installment entry found
                     yr = prop.purchase_date.year
                     add_to_year(yr, float(prop.purchase_price), prop.name, "Purchase (Cash Fallback)")
             

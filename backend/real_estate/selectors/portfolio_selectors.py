@@ -34,22 +34,23 @@ class PortfolioSelectors:
     def get_portfolio_nav_metrics(portfolio, reference_date=None):
         """
         Calculates NAV and Cash Reserves for a portfolio.
-        NAV = Market Value of Held Properties + Cash Reserves
+        NAV = Market Value of Held Assets + Cash Reserves
         Cash Reserves = Total Primary Investments - Sum(All Property Purchase Prices) + Sum(All Property Sale Net Proceeds)
         """
         from .property_selectors import PropertySelector
         from .property_sale_selectors import PropertySaleSelector
         from ..models import RealEstateInvestorAction
         from datetime import date
-        
+
         if reference_date is None:
             reference_date = timezone.now().date()
-        
+
         ref_year = reference_date.year
 
-        # 1. Total Property Market Value (Held)
-        properties_metrics = PropertySelector.get_properties_for_portfolio(portfolio, reference_date)
+        # 1. Total Property Market Value (Held) - Use historical calculation if reference_date provided
+        properties_metrics = PropertySelector.get_properties_for_portfolio(portfolio, reference_date=reference_date)
         total_market_value_held = sum(Decimal(str(m["metrics"]["current_market_value"])) for m in properties_metrics)
+
         
         assets_breakdown = [
             {
@@ -96,7 +97,11 @@ class PortfolioSelectors:
             assets_change_breakdown.append({"name": f"Removed Asset: {sale_obj.property.name}", "amount": float(sale_obj.selling_price), "type": "REMOVAL"})
 
         # 6. NAV
-        nav = total_market_value_held + cash_reserves
+        nav = 0.0
+        if cash_reserves > 0:
+            nav = total_market_value_held + cash_reserves
+        else:
+            nav = total_market_value_held
 
         # Total Units at reference date
         total_units_at_ref = PortfolioSelectors.get_total_units_at_year(portfolio, ref_year)

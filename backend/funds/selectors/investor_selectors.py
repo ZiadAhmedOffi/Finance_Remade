@@ -249,9 +249,6 @@ def calculate_dashboard_metrics(investor):
     total_capital_deployed = sum(float(s.amount_invested or 0) for s in stats) + sum(float(s.amount_invested or 0) for s in re_stats)
     total_capital_injected = sum(float(s.capital_deployed or 0) for s in stats) + sum(float(s.capital_deployed or 0) for s in re_stats)
 
-    unrealized_gains = total_current_portfolio_value - total_capital_deployed
-    unrealized_multiple = (total_current_portfolio_value / total_capital_deployed) if total_capital_deployed > 0 else 0.0
-
     # Weighted Aggregate Yield
     total_yield_pct = (total_annual_yield_amount / total_current_portfolio_value * 100.0) if total_current_portfolio_value > 0 else 0.0
     
@@ -283,6 +280,7 @@ def calculate_dashboard_metrics(investor):
         for yr in range(start_year, end_year + 1):
             yr_total_value = 0.0
             yr_total_injection = 0.0
+            yr_breakdown = []
             
             # Funds
             for fid, f_data in fund_data.items():
@@ -299,10 +297,13 @@ def calculate_dashboard_metrics(investor):
                 
                 actions_this_yr = InvestorAction.objects.filter(investor=investor, fund=fund, year=yr)
                 for a in actions_this_yr:
+                    amount = float(a.amount or 0)
                     if a.type in ["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT"]:
-                        yr_total_injection += float(a.amount or 0)
+                        yr_total_injection += amount
+                        yr_breakdown.append({"name": f"{fund.name} ({a.get_type_display()})", "amount": amount})
                     elif a.type == "SECONDARY_EXIT":
-                        yr_total_injection -= float(a.amount or 0)
+                        yr_total_injection -= amount
+                        yr_breakdown.append({"name": f"{fund.name} ({a.get_type_display()})", "amount": -amount})
             
             # Real Estate
             for rid, r_data in re_data.items():
@@ -318,10 +319,13 @@ def calculate_dashboard_metrics(investor):
                 
                 re_actions_this_yr = RealEstateInvestorAction.objects.filter(investor=investor, portfolio=portfolio, year=yr)
                 for a in re_actions_this_yr:
+                    amount = float(a.amount or 0)
                     if a.type in ["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT"]:
-                        yr_total_injection += float(a.amount or 0)
+                        yr_total_injection += amount
+                        yr_breakdown.append({"name": f"{portfolio.name} ({a.get_type_display()})", "amount": amount})
                     elif a.type == "SECONDARY_EXIT":
-                        yr_total_injection -= float(a.amount or 0)
+                        yr_total_injection -= amount
+                        yr_breakdown.append({"name": f"{portfolio.name} ({a.get_type_display()})", "amount": -amount})
             
             prev_val = line_graph_data[-1]["value"] if line_graph_data else 0
             yoy_gain = ((yr_total_value / prev_val) - 1) * 100 if prev_val > 0 else 0.0
@@ -329,11 +333,12 @@ def calculate_dashboard_metrics(investor):
                 "year": yr,
                 "value": yr_total_value,
                 "injection": yr_total_injection,
+                "injection_breakdown": yr_breakdown,
                 "yoy_gain": yoy_gain if line_graph_data else None
             })
 
-    print(total_current_portfolio_value)
-    print(total_capital_injected)
+    unrealized_gains = line_graph_data[-1]["value"] - total_capital_injected
+    unrealized_multiple = (total_current_portfolio_value / total_capital_injected) if total_capital_deployed > 0 else 0.0
 
     return {
         "metrics": {
