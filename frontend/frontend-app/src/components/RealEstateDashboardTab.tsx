@@ -4,7 +4,7 @@ import { formatCurrency, formatPercent } from "../utils/formatters";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
-  LineChart, Line, ComposedChart, ReferenceLine,
+  Line, ComposedChart,
   Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis
 } from 'recharts';
 import LiquidityGauge from "./LiquidityGauge";
@@ -538,7 +538,7 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
                 <Radar name="Entry Valuation (%)" dataKey="entry" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.4} />
                 <Radar name="Current Valuation (%)" dataKey="current" stroke="#10b981" fill="#10b981" fillOpacity={0.5} />
                 <Radar name="Target Valuation (%)" dataKey="expected" stroke="#64748b" fill="transparent" strokeDasharray="5 5" />
-                <Tooltip formatter={(value: any, name: string) => [value + '%', name]} />
+                <Tooltip formatter={(value: any, name: any) => [value + '%', name]} />
                 <Legend />
               </RadarChart>
             </ResponsiveContainer>
