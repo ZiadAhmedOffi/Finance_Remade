@@ -22,10 +22,13 @@ class InvestorService:
             if is_first:
                 units = amount
             else:
-                prev_year_portfolio = fund_selectors.get_total_fund_portfolio(fund, year - 1)
-                prev_year_units = fund_selectors.get_total_units_at_year(fund, year - 1)
-                if prev_year_units > 0 and prev_year_portfolio > 0:
-                    units = amount / (prev_year_portfolio / prev_year_units)
+                # Use NAV from the end of the previous year for pricing
+                ref_date = date(year - 1, 12, 31)
+                nav_metrics = fund_selectors.get_fund_nav_metrics(fund, reference_date=ref_date)
+                price_per_unit = float(nav_metrics["price_per_unit"])
+                
+                if price_per_unit > 0:
+                    units = amount / price_per_unit
                 else:
                     units = amount
             

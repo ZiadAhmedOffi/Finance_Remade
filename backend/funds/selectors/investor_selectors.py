@@ -182,8 +182,11 @@ def calculate_dashboard_metrics(investor):
         fund = data["fund"]
         total_fund_units = float(fund.total_units)
         ownership_pct = (data["units"] / total_fund_units * 100.0) if total_fund_units > 0 else 0.0
-        current_fund_val = fund_selectors.get_total_fund_portfolio(fund, current_year)
-        current_val_in_fund = (ownership_pct / 100.0) * current_fund_val
+        
+        # FIX: Use NAV instead of only portfolio value (to include cash reserves)
+        nav_metrics = fund_selectors.get_fund_nav_metrics(fund)
+        current_fund_nav = float(nav_metrics["nav"])
+        current_val_in_fund = (ownership_pct / 100.0) * current_fund_nav
         total_current_portfolio_value += current_val_in_fund
 
         # Calculate Yield for Fund
@@ -287,8 +290,12 @@ def calculate_dashboard_metrics(investor):
                 f_units_at_yr = calculate_investor_units(investor, fund, yr)
                 total_fund_units_at_yr = fund_selectors.get_total_units_at_year(fund, yr)
                 f_ownership_pct_at_yr = (f_units_at_yr / total_fund_units_at_yr * 100.0) if total_fund_units_at_yr > 0 else 0.0
-                fund_val_at_yr = fund_selectors.get_total_fund_portfolio(fund, yr)
-                yr_total_value += (f_ownership_pct_at_yr / 100.0) * fund_val_at_yr
+                
+                # FIX: Use NAV at the end of the year instead of only portfolio value
+                ref_date = date(yr, 12, 31)
+                nav_metrics_at_yr = fund_selectors.get_fund_nav_metrics(fund, reference_date=ref_date)
+                fund_nav_at_yr = float(nav_metrics_at_yr["nav"])
+                yr_total_value += (f_ownership_pct_at_yr / 100.0) * fund_nav_at_yr
                 
                 actions_this_yr = InvestorAction.objects.filter(investor=investor, fund=fund, year=yr)
                 for a in actions_this_yr:
@@ -324,6 +331,9 @@ def calculate_dashboard_metrics(investor):
                 "injection": yr_total_injection,
                 "yoy_gain": yoy_gain if line_graph_data else None
             })
+
+    print(total_current_portfolio_value)
+    print(total_capital_injected)
 
     return {
         "metrics": {

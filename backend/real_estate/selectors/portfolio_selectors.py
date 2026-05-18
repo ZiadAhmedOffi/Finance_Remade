@@ -98,14 +98,19 @@ class PortfolioSelectors:
         # 6. NAV
         nav = total_market_value_held + cash_reserves
 
+        # Total Units at reference date
+        total_units_at_ref = PortfolioSelectors.get_total_units_at_year(portfolio, ref_year)
+        if total_units_at_ref == 0:
+            total_units_at_ref = float(portfolio.total_units)
+
         return {
             "total_market_value_held": total_market_value_held,
             "total_investments": total_investments,
             "total_net_proceeds": total_net_proceeds,
             "cash_reserves": cash_reserves,
             "nav": nav,
-            "total_units": portfolio.total_units,
-            "price_per_unit": (nav / portfolio.total_units) if portfolio.total_units > 0 else Decimal('1.00'),
+            "total_units": total_units_at_ref,
+            "price_per_unit": (nav / Decimal(str(total_units_at_ref))) if total_units_at_ref > 0 else Decimal('1.00'),
             "assets_breakdown": assets_breakdown,
             "cash_change_breakdown": cash_change_breakdown,
             "assets_change_breakdown": assets_change_breakdown

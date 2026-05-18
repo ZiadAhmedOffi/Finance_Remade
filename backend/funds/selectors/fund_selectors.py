@@ -67,14 +67,19 @@ def get_fund_nav_metrics(fund, reference_date=None):
     # 6. NAV
     nav = Decimal(str(current_portfolio_value)) + cash_reserves
 
+    # Total Units at reference date
+    total_units_at_ref = get_total_units_at_year(fund, ref_year)
+    if total_units_at_ref == 0:
+        total_units_at_ref = float(fund.total_units)
+
     return {
         "current_portfolio_value": float(current_portfolio_value),
         "total_injections": float(total_injections),
         "total_distributions": float(total_distributions),
         "cash_reserves": float(cash_reserves),
         "nav": float(nav),
-        "total_units": float(fund.total_units),
-        "price_per_unit": float(nav / fund.total_units) if fund.total_units > 0 else 1.0,
+        "total_units": total_units_at_ref,
+        "price_per_unit": float(nav / Decimal(str(total_units_at_ref))) if total_units_at_ref > 0 else 1.0,
     }
 
 def get_total_fund_portfolio(fund, year):

@@ -1,6 +1,7 @@
 import uuid
 from django.db import models
 from django.conf import settings
+from decimal import Decimal
 
 class RealEstatePortfolio(models.Model):
     """
@@ -421,3 +422,47 @@ class RealEstateInvestorStats(models.Model):
 
     def __str__(self):
         return f"{self.investor.email} - {self.portfolio.name} - ({self.amount_invested})"
+
+    @staticmethod
+    def recalculate_investor_stats(investor, portfolio):
+        """
+        Recalculates stats from scratch based on all actions for this investor in this portfolio.
+        This is more robust than incremental updates.
+        """
+        from .models import RealEstateInvestorAction
+        actions = RealEstateInvestorAction.objects.filter(investor=investor, portfolio=portfolio).order_by('year', 'created_at')
+        
+        total_amount_invested = Decimal('0.00')
+        total_capital_deployed = Decimal('0.00')
+        total_realized_gain = Decimal('0.00')
+        total_units = Decimal('0.0000')
+
+        for action in actions:
+            amount = Decimal(str(action.amount or 0))
+            units = Decimal(str(action.units or 0))
+
+            if action.type in ["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT"]:
+                total_amount_invested += amount
+                total_units += units
+                if action.type == "PRIMARY_INVESTMENT":
+                    total_capital_deployed += amount
+            
+            elif action.type == "SECONDARY_EXIT":
+                if total_units > 0:
+                    # Weighted Average Cost Basis
+                    cost_basis_per_unit = total_amount_invested / total_units
+                    cost_basis_of_sale = cost_basis_per_unit * units
+                    
+                    total_realized_gain += (amount - cost_basis_of_sale)
+                    total_amount_invested -= cost_basis_of_sale
+                    total_units -= units
+                else:
+                    # Fallback for data inconsistency
+                    total_units -= units
+
+        stats, _ = RealEstateInvestorStats.objects.get_or_create(investor=investor, portfolio=portfolio)
+        stats.amount_invested = total_amount_invested
+        stats.capital_deployed = total_capital_deployed
+        stats.realized_gain = total_realized_gain
+        stats.units = total_units
+        stats.save()

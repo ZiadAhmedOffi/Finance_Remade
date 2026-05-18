@@ -2,6 +2,7 @@ import uuid
 from django.db import models
 from django.conf import settings
 from .utils.db import locked_get_or_create
+from decimal import Decimal
 
 class Fund(models.Model):
     """
