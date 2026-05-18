@@ -280,7 +280,7 @@ const OffPlanModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                     <th>Property Name</th>
                     <th>Total Purchase Price</th>
                     <th>Construction Start</th>
-                    <th>Expected Completion</th>
+                    <th>Expected Delivery Date</th>
                     <th>Appreciation Rate</th>
                     <th>Sale at Completion</th>
                     <th>Value at Completion</th>

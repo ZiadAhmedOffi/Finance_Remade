@@ -69,6 +69,9 @@ interface REInvestorLogData {
     nav: number;
     total_units: number;
     price_per_unit: number;
+    prev_year_nav: number;
+    prev_year_price_per_unit: number;
+    prev_year: number;
   };
 }
 
@@ -368,15 +371,15 @@ const REInvestorLogTab: React.FC<REInvestorLogTabProps> = ({ portfolioId, canEdi
           </span>
         </div>
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-xl flex flex-col items-center justify-center">
-          <span className="text-gray-500 text-sm uppercase tracking-wider mb-2 font-medium">Price per Unit (Current)</span>
+          <span className="text-gray-500 text-sm uppercase tracking-wider mb-2 font-medium">Price per Unit (End of {data.nav_metrics?.prev_year})</span>
           <span className="text-3xl font-bold text-emerald-600 font-mono">
-            {formatCurrencyWithDecimals(data.nav_metrics?.price_per_unit || 0)}
+            {formatCurrencyWithDecimals(data.nav_metrics?.prev_year_price_per_unit || 0)}
           </span>
         </div>
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-xl flex flex-col items-center justify-center">
-          <span className="text-gray-500 text-sm uppercase tracking-wider mb-2 font-medium">Total NAV</span>
+          <span className="text-gray-500 text-sm uppercase tracking-wider mb-2 font-medium">Total NAV (End of {data.nav_metrics?.prev_year})</span>
           <span className="text-3xl font-bold text-blue-600 font-mono">
-            {formatCurrency(data.nav_metrics?.nav || 0)}
+            {formatCurrency(data.nav_metrics?.prev_year_nav || 0)}
           </span>
         </div>
       </div>
@@ -641,12 +644,6 @@ const REInvestorLogTab: React.FC<REInvestorLogTabProps> = ({ portfolioId, canEdi
                   shadowColor: 'rgba(0,0,0,0.1)',
                   textStyle: { color: '#1f2937' }
                 },
-                legend: { 
-                    bottom: '0%', 
-                    left: 'center', 
-                    icon: 'circle',
-                    itemStyle: { borderWidth: 0 }
-                },
                 series: [
                   {
                     name: 'Category',
@@ -723,32 +720,90 @@ const REInvestorLogTab: React.FC<REInvestorLogTabProps> = ({ portfolioId, canEdi
         </div>
       </div>
 
-      {/* Investors Table */}
+      {/* Portfolio Ownership & Investor List */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-xl">
         <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-          <h3 className="text-lg font-semibold text-gray-900">Investor List</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Portfolio Ownership & Investor List</h3>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50 text-gray-600 text-xs uppercase tracking-wider">
-                <th className="px-6 py-4 font-semibold">Name</th>
-                <th className="px-6 py-4 font-semibold">Email</th>
-                <th className="px-6 py-4 font-semibold text-right">Units Owned</th>
-                <th className="px-6 py-4 font-semibold text-right">Ownership %</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {data.investors.map((investor, idx) => (
-                <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 text-gray-900 text-sm">{investor.first_name} {investor.last_name}</td>
-                  <td className="px-6 py-4 text-gray-600 text-sm">{investor.email}</td>
-                  <td className="px-6 py-4 text-gray-900 text-sm text-right font-mono">{formatNumber(investor.units)}</td>
-                  <td className="px-6 py-4 text-sm text-right font-mono text-emerald-600 font-semibold">{investor.ownership_percentage.toFixed(2)}%</td>
+        <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
+          {/* Ownership Pie Chart */}
+          <div className="h-[300px]">
+            <ReactECharts 
+              option={{
+                tooltip: { 
+                  trigger: 'item', 
+                  formatter: (params: any) => {
+                    return `<b>${params.name}</b><br/>Ownership: ${params.value.toFixed(2)}%`;
+                  }
+                },
+                series: [
+                  {
+                    name: 'Ownership',
+                    type: 'pie',
+                    radius: ['50%', '80%'],
+                    avoidLabelOverlap: false,
+                    itemStyle: {
+                      borderRadius: 10,
+                      borderColor: '#fff',
+                      borderWidth: 2
+                    },
+                    label: {
+                      show: false,
+                      position: 'center'
+                    },
+                    emphasis: {
+                      label: {
+                        show: true,
+                        fontSize: '18',
+                        fontWeight: 'bold',
+                        formatter: '{d}%'
+                      }
+                    },
+                    labelLine: {
+                      show: false
+                    },
+                    data: data.investors.map(inv => ({
+                      name: `${inv.first_name} ${inv.last_name}`,
+                      value: inv.ownership_percentage
+                    }))
+                  }
+                ]
+              }}
+              style={{ height: '100%', width: '100%' }}
+            />
+          </div>
+          
+          {/* Investor List Table */}
+          <div className="lg:col-span-2 overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50 text-gray-600 text-xs uppercase tracking-wider">
+                  <th className="px-4 py-3 font-semibold">Name</th>
+                  <th className="px-4 py-3 font-semibold">Email</th>
+                  <th className="px-4 py-3 font-semibold text-right">Units</th>
+                  <th className="px-4 py-3 font-semibold text-right">Share %</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {data.investors.map((investor, idx) => (
+                  <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 text-gray-900 text-sm font-medium">
+                      {investor.first_name} {investor.last_name}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 text-sm">
+                      {investor.email}
+                    </td>
+                    <td className="px-4 py-3 text-gray-900 text-sm text-right font-mono">
+                      {formatNumber(investor.units)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-right font-mono text-emerald-600 font-bold">
+                      {investor.ownership_percentage.toFixed(2)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 

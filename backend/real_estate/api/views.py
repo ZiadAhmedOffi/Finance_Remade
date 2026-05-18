@@ -1,3 +1,4 @@
+from decimal import Decimal
 from datetime import datetime
 from rest_framework import viewsets, status
 from rest_framework.response import Response
@@ -18,6 +19,7 @@ from .serializers import (
     OffPlanDetailsSerializer,
     OffPlanMilestoneSerializer,
     PropertySaleSerializer,
+    PropertySaleWithMetricsSerializer,
     RealEstatePossibleCapitalSourceSerializer,
     RealEstateInvestorActionSerializer,
     RealEstateInvestorStatsSerializer
@@ -515,7 +517,7 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
                 "portfolio_value": float(nav_metrics["nav"]),
                 "units_at_year": float(cumulative_units),
                 "price_per_unit": float(nav_metrics["price_per_unit"]),
-                "cash_reserves": float(nav_metrics["cash_reserves"]),
+                "cash_reserves": max(0.0, float(nav_metrics["cash_reserves"])),
                 "assets_value": float(nav_metrics["total_market_value_held"]),
                 "capital_breakdown": yr_data["breakdown"],
                 "yearly_required": float(yr_data["total"]),
@@ -525,6 +527,25 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
             })
 
         final_nav_metrics = PortfolioSelectors.get_portfolio_nav_metrics(portfolio)
+        
+        # Calculate NAV for the end of the previous year (Current Year - 1)
+        prev_year = datetime.now().year - 1
+        ref_date_prev = datetime(prev_year, 12, 31).date()
+        
+        # 1. Get expansion ladder data to find Total Portfolio Value for prev_year
+        dashboard_data = PortfolioDashboardSelector.get_dashboard_data(portfolio, reference_date=ref_date_prev)
+        ladder = dashboard_data.get('value_expansion_ladder', [])
+        # Find the row for prev_year
+        prev_year_row = next((row for row in ladder if row['year'] == prev_year), None)
+        total_portfolio_value = Decimal(str(prev_year_row['total_portfolio_value'])) if prev_year_row else Decimal('0.00')
+        
+        # 2. Get Cash Reserves for prev_year
+        prev_nav_metrics = PortfolioSelectors.get_portfolio_nav_metrics(portfolio, reference_date=ref_date_prev)
+        cash_reserves = max(Decimal('0.00'), prev_nav_metrics['cash_reserves'])
+        
+        # 3. New NAV = Total Portfolio Value + Cash Reserves
+        nav_prev = total_portfolio_value + cash_reserves
+
         return Response({
             "investors": investors_list,
             "graph_data": graph_data,
@@ -539,6 +560,9 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
                 "nav": float(final_nav_metrics["nav"]),
                 "total_units": float(final_nav_metrics["total_units"]),
                 "price_per_unit": float(final_nav_metrics["price_per_unit"]),
+                "prev_year_nav": float(nav_prev),
+                "prev_year_price_per_unit": float(nav_prev / Decimal(str(total_units))) if total_units > 0 else 0.0,
+                "prev_year": prev_year
             }
         })
 

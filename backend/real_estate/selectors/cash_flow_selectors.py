@@ -159,11 +159,11 @@ class CashFlowSelectors:
                             # Pro-rate based on completion date
                             months_owned = 12 - prop.off_plan_details.expected_completion_date.month + 1
                             t = Decimal(str(year - purchase_year))
-                            completion_jump = prop.off_plan_details.appreciation_rate_at_completion / Decimal('100')
+                            completion_jump_rate = prop.off_plan_details.appreciation_rate_at_completion / Decimal('100')
                             
                             # Appreciate rent and value
                             current_monthly_rent = (prop.monthly_rent * Decimal(str(float(Decimal('1') + (rent_growth_rate / Decimal('100'))) ** float(t)))).quantize(Decimal('0.01'))
-                            current_monthly_rent *= (Decimal('1') + completion_jump)
+                            current_monthly_rent *= (Decimal('1') + completion_jump_rate)
                             
                             effective_rent = PropertyDataCalc.effective_rent(
                                 prop.monthly_rent,
@@ -172,10 +172,10 @@ class CashFlowSelectors:
                                 rent_growth_rate,
                                 months_in_period=months_owned
                             )
-                            effective_rent = (effective_rent * (Decimal('1') + completion_jump)).quantize(Decimal('0.01'))
+                            effective_rent = (effective_rent * (Decimal('1') + completion_jump_rate)).quantize(Decimal('0.01'))
                             
                             current_market_value = PropertyDataCalc.market_value(prop.purchase_price, app_rate, t)
-                            current_market_value = (current_market_value * (Decimal('1') + completion_jump)).quantize(Decimal('0.01'))
+                            current_market_value = (current_market_value * (Decimal('1') + completion_jump_rate)).quantize(Decimal('0.01'))
                             
                             maint_fee = PropertyDataCalc.maintenance_fees(current_market_value, maint_fee_pct)
                             mgmt_fee = PropertyDataCalc.management_fees(effective_rent, mgmt_fee_pct)
@@ -219,9 +219,10 @@ class CashFlowSelectors:
                         )
                         
                         if is_off_plan_initial and completion_year and year >= completion_year:
-                            completion_jump = prop.off_plan_details.appreciation_rate_at_completion / Decimal('100')
-                            current_market_value = (current_market_value * (Decimal('1') + completion_jump)).quantize(Decimal('0.01'))
-                            effective_rent = (effective_rent * (Decimal('1') + completion_jump)).quantize(Decimal('0.01'))
+                            completion_jump_rate = prop.off_plan_details.appreciation_rate_at_completion / Decimal('100')
+                            # Completion jump is a one-time step up in value
+                            current_market_value = (current_market_value * (Decimal('1') + completion_jump_rate)).quantize(Decimal('0.01'))
+                            effective_rent = (effective_rent * (Decimal('1') + completion_jump_rate)).quantize(Decimal('0.01'))
 
                         maint_fee = PropertyDataCalc.maintenance_fees(current_market_value, maint_fee_pct)
                         mgmt_fee = PropertyDataCalc.management_fees(effective_rent, mgmt_fee_pct)

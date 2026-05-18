@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { realEstateApi } from "../api/api";
 import { formatCurrency, formatPercent } from "../utils/formatters";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
-  LineChart, Line
+  LineChart, Line, ComposedChart, ReferenceLine,
+  Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis
 } from 'recharts';
 import LiquidityGauge from "./LiquidityGauge";
 
@@ -36,10 +37,30 @@ interface DashboardData {
     realized_gain: number;
     status: string;
   }[];
-  appreciation_projection: {
-    years: number[];
-    properties: { [key: string]: { name: string; values: number[] } };
-    portfolio_total: number[];
+  value_expansion_ladder: {
+    year: number;
+    injection: number;
+    appreciation: number;
+    total_portfolio_value: number;
+    is_future: boolean;
+  }[];
+  intrinsic_value: {
+    data: {
+      subject: string;
+      entry: number;
+      current: number;
+      expected: number;
+      raw_entry: number;
+      raw_current: number;
+      raw_expected: number;
+    }[];
+    table: {
+      name: string;
+      entry_valuation: number;
+      current_valuation: number;
+      exit_valuation: number;
+      growth_multiple: number;
+    }[];
   };
   liquidation_index: {
     table: {
@@ -81,7 +102,7 @@ const DashboardSection: React.FC<{
   children: React.ReactNode;
   defaultOpen?: boolean;
 }> = ({ title, id, children, defaultOpen = true }) => {
-  const storageKey = `re_dashboard_section_${id}`;
+  const storageKey = 're_dashboard_section_' + id;
   const [isOpen, setIsOpen] = useState(() => {
     const saved = localStorage.getItem(storageKey);
     return saved !== null ? JSON.parse(saved) : defaultOpen;
@@ -114,7 +135,7 @@ const DashboardSection: React.FC<{
           fontSize: '1.2rem',
           color: '#64748b'
         }}>
-          ▼
+          {'\u25BC'}
         </span>
       </div>
       <div style={{ 
@@ -150,27 +171,43 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
     }
   };
 
+  const waterfallData = useMemo(() => {
+    if (!data) return [];
+    return data.value_expansion_ladder.map((entry, index) => {
+      const prevEntry = index > 0 ? data.value_expansion_ladder[index - 1] : null;
+      const startValue = prevEntry ? prevEntry.total_portfolio_value : 0;
+      return {
+        ...entry,
+        startValue: startValue
+      };
+    });
+  }, [data?.value_expansion_ladder]);
+
   if (loading) return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading Dashboard...</div>;
   if (!data) return <div style={{ padding: '2rem', textAlign: 'center' }}>Failed to load dashboard data.</div>;
 
-  const { metrics, distribution, value_gain_table, appreciation_projection, liquidation_index, off_plan_stages, yield_analysis } = data;
+  const { metrics, distribution, value_gain_table, value_expansion_ladder, intrinsic_value, liquidation_index, off_plan_stages, yield_analysis } = data;
 
   // Prepare data for distribution charts
   const typeChartData = distribution.by_type.map(item => ({ name: item.type, value: parseFloat(item.value.toString()) }));
   const countryChartData = distribution.by_country.map(item => ({ name: item.country, value: parseFloat(item.value.toString()) }));
 
-  // Prepare data for Projection Chart
-  const projectionChartData = appreciation_projection.years.map((year, index) => {
-    const entry: any = { year: year.toString() };
-    Object.keys(appreciation_projection.properties).forEach(id => {
-      entry[appreciation_projection.properties[id].name] = appreciation_projection.properties[id].values[index];
-    });
-    entry["Portfolio Total"] = appreciation_projection.portfolio_total[index];
-    return entry;
-  });
+  const currentYear = value_expansion_ladder.find(e => !e.is_future)?.year || new Date().getFullYear();
 
   return (
     <div className="re-dashboard-container" style={{ padding: '1rem' }}>
+      <svg width="0" height="0" style={{ position: 'absolute' }}>
+        <defs>
+          <pattern id="hash-injection" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="10" height="10" fill="#3498db" />
+            <line x1="0" y1="0" x2="0" y2="10" stroke="white" strokeWidth="4" />
+          </pattern>
+          <pattern id="hash-appreciation" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="10" height="10" fill="#10b981" />
+            <line x1="0" y1="0" x2="0" y2="10" stroke="white" strokeWidth="4" />
+          </pattern>
+        </defs>
+      </svg>
       <style>{`
         .metrics-grid {
           display: grid;
@@ -338,7 +375,7 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
                     cx="50%" 
                     cy="50%" 
                     outerRadius={120} 
-                    label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                    label={({ name, percent }) => name + ' ' + ((percent ?? 0) * 100).toFixed(0) + '%'}
                     labelLine={true}
                     paddingAngle={2}
                   >
@@ -382,7 +419,7 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
                     cx="50%" 
                     cy="50%" 
                     outerRadius={120} 
-                    label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                    label={({ name, percent }) => name + ' ' + ((percent ?? 0) * 100).toFixed(0) + '%'}
                     labelLine={true}
                     paddingAngle={2}
                   >
@@ -415,7 +452,7 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
               {value_gain_table.map(row => (
                 <tr key={row.id}>
                   <td className="sticky-col" style={{ fontWeight: 600 }}>{row.name}</td>
-                  <td><span className={`status-badge status-${row.status}`}>{row.status}</span></td>
+                  <td><span className={'status-badge status-' + row.status}>{row.status}</span></td>
                   <td>{formatCurrency(row.cost_basis)}</td>
                   <td>{row.current_market_value !== null ? formatCurrency(row.current_market_value) : "-"}</td>
                   <td>{row.unrealized_gain !== null ? formatCurrency(row.unrealized_gain) : "-"}</td>
@@ -445,56 +482,91 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
         </div>
       </DashboardSection>
 
-      {/* Section 3: 10-Year Value Appreciation Projection */}
-      <DashboardSection title="10-Year Value Appreciation Projection" id="appreciation">
+      {/* Section 3: Annual Portfolio Value Expansion (Ladder) */}
+      <DashboardSection title="Annual Portfolio Value Expansion" id="expansion">
         <div className="dashboard-table-container">
           <table className="dashboard-table">
             <thead>
               <tr>
-                <th className="sticky-col">Property / Year</th>
-                {appreciation_projection.years.map(y => <th key={y}>{y}</th>)}
+                <th>Year</th>
+                <th>Asset Injection</th>
+                <th>Asset Appreciation</th>
+                <th>Total Portfolio Value</th>
               </tr>
             </thead>
             <tbody>
-              {Object.keys(appreciation_projection.properties).map(id => (
-                <tr key={id}>
-                  <td className="sticky-col" style={{ fontWeight: 600 }}>{appreciation_projection.properties[id].name}</td>
-                  {appreciation_projection.properties[id].values.map((v, i) => (
-                    <td key={i}>{v !== null ? formatCurrency(v) : "-"}</td>
-                  ))}
+              {value_expansion_ladder.map((row) => (
+                <tr key={row.year} style={row.year === currentYear ? {backgroundColor: '#f1f5f9', fontWeight: 'bold'} : {}}>
+                  <td>{row.year} {row.year === currentYear && "(Current)"}</td>
+                  <td>{formatCurrency(row.injection)}</td>
+                  <td>{formatCurrency(row.appreciation)}</td>
+                  <td>{formatCurrency(row.total_portfolio_value)}</td>
                 </tr>
               ))}
-              <tr style={{ fontWeight: 700, background: '#f8fafc' }}>
-                <td className="sticky-col">Portfolio Total</td>
-                {appreciation_projection.portfolio_total.map((v, i) => (
-                  <td key={i}>{formatCurrency(v)}</td>
-                ))}
-              </tr>
             </tbody>
           </table>
         </div>
-        <div className="chart-container" style={{ height: '500px' }}>
-          <ResponsiveContainer>
-            <LineChart data={projectionChartData} margin={{ top: 20, right: 60, left: 40, bottom: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="year" padding={{ left: 30, right: 30 }} />
-              <YAxis tickFormatter={(v) => formatCurrency(v)} width={100} />
-              <Tooltip formatter={(value: any) => value !== null ? formatCurrency(value) : "-"} />
-              <Legend verticalAlign="bottom" height={40} />
-              {Object.keys(appreciation_projection.properties).map((id, index) => (
-                <Line 
-                  key={id} 
-                  type="monotone" 
-                  dataKey={appreciation_projection.properties[id].name} 
-                  stroke={COLORS[index % COLORS.length]} 
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  connectNulls={false}
-                />
-              ))}
-              <Line type="monotone" dataKey="Portfolio Total" stroke="#1e293b" strokeWidth={4} dot={{ r: 5 }} />
-            </LineChart>
+        <div className="chart-container wide" style={{ marginTop: '2rem', height: '500px' }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={waterfallData} margin={{ top: 20, right: 30, left: 80, bottom: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="year" />
+              <YAxis tickFormatter={(v) => formatCurrency(v)} />
+              <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+              <Legend />
+              
+              <Bar dataKey="startValue" stackId="a" fill="transparent" legendType="none" />
+              
+              <Bar dataKey="injection" stackId="a" fill="#3b82f6" name="Asset Injection" />
+              <Bar dataKey="appreciation" stackId="a" fill="#10b981" name="Asset Appreciation" />
+              
+              <Line type="stepAfter" dataKey="total_portfolio_value" stroke="#64748b" strokeWidth={2} dot={false} name="Value Step" legendType="none" />
+            </ComposedChart>
           </ResponsiveContainer>
+        </div>
+      </DashboardSection>
+
+      {/* Section 3.5: Intrinsic Value Analysis */}
+      <DashboardSection title="Intrinsic Value Analysis" id="intrinsic">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '2rem' }}>
+          <div className="chart-container" style={{ height: '500px' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart cx="50%" cy="50%" outerRadius="80%" data={intrinsic_value.data}>
+                <PolarGrid />
+                <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: '0.8rem' }} />
+                <PolarRadiusAxis angle={30} domain={[0, 150]} tick={{ fontSize: '0.7rem' }} />
+                <Radar name="Entry Valuation (%)" dataKey="entry" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.4} />
+                <Radar name="Current Valuation (%)" dataKey="current" stroke="#10b981" fill="#10b981" fillOpacity={0.5} />
+                <Radar name="Target Valuation (%)" dataKey="expected" stroke="#64748b" fill="transparent" strokeDasharray="5 5" />
+                <Tooltip formatter={(value: any, name: string) => [value + '%', name]} />
+                <Legend />
+              </RadarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="dashboard-table-container">
+            <table className="dashboard-table">
+              <thead>
+                <tr>
+                  <th>Property Name</th>
+                  <th>Entry Valuation</th>
+                  <th>Current Value</th>
+                  <th>Exit Valuation</th>
+                  <th>Multiple</th>
+                </tr>
+              </thead>
+              <tbody>
+                {intrinsic_value.table.map((row, i) => (
+                  <tr key={i}>
+                    <td style={{ fontWeight: 600 }}>{row.name}</td>
+                    <td>{formatCurrency(row.entry_valuation)}</td>
+                    <td>{formatCurrency(row.current_valuation)}</td>
+                    <td>{formatCurrency(row.exit_valuation)}</td>
+                    <td style={{ fontWeight: 700, color: '#3b82f6' }}>{row.growth_multiple}{'x'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </DashboardSection>
 
@@ -517,7 +589,7 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
                 {liquidation_index.table.map(row => (
                   <tr key={row.id}>
                     <td className="sticky-col" style={{ fontWeight: 600 }}>{row.name}</td>
-                    <td><span className={`status-badge status-${row.status}`}>{row.status}</span></td>
+                    <td><span className={'status-badge status-' + row.status}>{row.status}</span></td>
                     <td>{row.years_held.toFixed(2)}</td>
                     <td>{formatPercent(row.net_yield)}</td>
                     <td>{formatPercent(row.gain_percentage)}</td>
@@ -548,7 +620,7 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
               <tr>
                 <th className="sticky-col">Property Name</th>
                 <th>Start Date</th>
-                <th>Completion Date</th>
+                <th>Delivery Date</th>
                 <th>Time Elapsed %</th>
                 <th>Capital Deployed %</th>
                 <th>Stage</th>
@@ -563,7 +635,7 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <div style={{ flex: 1, height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden', minWidth: '60px' }}>
-                        <div style={{ width: `${row.time_elapsed_percentage}%`, height: '100%', background: '#3b82f6' }} />
+                        <div style={{ width: row.time_elapsed_percentage + '%', height: '100%', background: '#3b82f6' }} />
                       </div>
                       <span>{formatPercent(row.time_elapsed_percentage)}</span>
                     </div>
@@ -571,7 +643,7 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <div style={{ flex: 1, height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden', minWidth: '60px' }}>
-                        <div style={{ width: `${row.capital_deployed_percentage}%`, height: '100%', background: '#10b981' }} />
+                        <div style={{ width: row.capital_deployed_percentage + '%', height: '100%', background: '#10b981' }} />
                       </div>
                       <span>{formatPercent(row.capital_deployed_percentage)}</span>
                     </div>

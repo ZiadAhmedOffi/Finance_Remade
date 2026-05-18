@@ -122,10 +122,10 @@ class PortfolioDashboardSelector:
         total_noi = sum(m['metrics']['noi'] for m in active_properties_metrics)
         total_debt_service = sum(m['metrics']['annual_debt_service'] for m in active_properties_metrics)
         
-        # Portfolio realized gains = Gains from sales + Positive annual portfolio cash flows
+        # Portfolio realized gains = Gains from sales + Positive annual portfolio cash flows (excluding sale proceeds)
         portfolio_operational_gain = sum(
-            cf for year, cf in cf_data['portfolio_totals'].items()
-            if year <= reference_date.year and cf > 0
+            (cf - cf_data['portfolio_sales_proceeds'][year]) for year, cf in cf_data['portfolio_totals'].items()
+            if year <= reference_date.year and (cf - cf_data['portfolio_sales_proceeds'][year]) > 0
         )
         total_realized_gains = total_sales_gain + portfolio_operational_gain
         
@@ -184,34 +184,116 @@ class PortfolioDashboardSelector:
                 "status": m['status']
             })
 
-        # 5. 10-Year Value Appreciation Projection (Section 3)
-        # We'll use a simplified version of CF logic but focused on Value
-        projection_years = cf_data['years']
-        appreciation_projection = {
-            "years": projection_years,
-            "properties": {},
-            "portfolio_total": defaultdict(Decimal)
-        }
+        # 5. Annual Portfolio Value Expansion (Section 3) - New Method
+        projection_years = sorted(cf_data['years'])
+        current_year = reference_date.year
+        value_expansion_ladder = []
         
+        # Temporary storage for annual aggregation (historical and future)
+        annual_metrics = {y: {
+            "injection": Decimal('0.00'),
+            "total_value": Decimal('0.00')
+        } for y in projection_years}
+
         for prop_id, prop_cf in cf_data['properties'].items():
-            values = []
-            for year in projection_years:
-                # Check if property is owned in this year by looking at annual_cf in cf_data
-                cf_value = prop_cf['annual_cf'].get(year)
-                
-                if cf_value is None:
-                    values.append(None)
+            # Find the actual property object for accurate purchase data
+            prop_obj = next((p for p in properties if str(p.id) == prop_id), None)
+            if not prop_obj: continue
+            
+            p_year = prop_obj.purchase_date.year
+            p_price = prop_obj.purchase_price
+
+            for i, year in enumerate(projection_years):
+                # Use reference_date market value for current year to be consistent with top metrics
+                if year == current_year:
+                    # Find metrics for this property to get current_market_value as of reference_date
+                    m = next((item for item in active_properties_metrics if item['id'] == prop_id), None)
+                    if m:
+                        market_value = m['metrics']['current_market_value']
+                    else:
+                        # Fallback to cash flow metadata if not found in active metrics (e.g. if sold later in current year)
+                        metadata = prop_cf['metadata'].get(year, {})
+                        market_value = metadata.get('market_value', Decimal('0.00'))
                 else:
-                    val = prop_cf['metadata'].get(year, {}).get('market_value', Decimal('0.00'))
-                    values.append(val)
-                    appreciation_projection['portfolio_total'][year] += val
-                    
-            appreciation_projection['properties'][prop_id] = {
-                "name": prop_cf['name'],
-                "values": values
-            }
-        
-        appreciation_projection['portfolio_total'] = [appreciation_projection['portfolio_total'][y] for y in projection_years]
+                    metadata = prop_cf['metadata'].get(year, {})
+                    market_value = metadata.get('market_value', Decimal('0.00'))
+                
+                # Check if property was sold in or before this year
+                is_sold = hasattr(prop_obj, 'sale') and prop_obj.sale.sale_date.year <= year
+                if is_sold:
+                    # If sold, it no longer contributes to portfolio value in this or subsequent years
+                    market_value = Decimal('0.00')
+                elif year >= p_year:
+                    # Floor market value at purchase_price if it's within lifecycle and not yet sold.
+                    # This ensures off-plan properties during construction show up at cost basis.
+                    # Also handles cases where market_value might be reported as less than cost basis.
+                    market_value = max(market_value, p_price)
+                
+                if year == p_year:
+                    # Asset Injection happens in the purchase year
+                    annual_metrics[year]["injection"] += p_price
+                
+                annual_metrics[year]["total_value"] += market_value
+
+        # Finalize value_expansion_ladder (historical and future)
+        prev_total_value = Decimal('0.00')
+        for year in projection_years:
+            injection = annual_metrics[year]["injection"]
+            total_value = annual_metrics[year]["total_value"]
+            
+            # Appreciation is the residual that bridges the gap between years
+            # This ensures Closing Value (N) = Opening Value (N-1) + Injection (N) + Appreciation (N)
+            appreciation = total_value - prev_total_value - injection
+            
+            value_expansion_ladder.append({
+                "year": year,
+                "injection": injection,
+                "appreciation": appreciation,
+                "total_portfolio_value": total_value,
+                "is_future": year > current_year
+            })
+            prev_total_value = total_value
+
+        # 5.5 Intrinsic Value Spider Graph
+        intrinsic_value_data = []
+        intrinsic_value_table = []
+        # We still use the full projection for exit valuation
+        final_year = projection_years[-1]
+
+        for prop_id, prop_cf in cf_data['properties'].items():
+            # Entry Val = Purchase Price + Acq Fees
+            # Find the actual property object for accurate entry data
+            prop_obj = next((p for p in properties if str(p.id) == prop_id), None)
+            if not prop_obj: continue
+
+            entry_val = PropertyDataCalc.total_cost_basis(prop_obj.purchase_price, Decimal(str(assumptions.acquisition_fee_percentage)))
+            current_val = prop_cf['metadata'].get(current_year, {}).get('market_value', Decimal('0.00'))
+            
+            # Floor current_val at purchase_price if not sold and current_val is 0
+            is_sold_now = hasattr(prop_obj, 'sale') and prop_obj.sale.sale_date.year <= current_year
+            if current_val == 0 and not is_sold_now:
+                current_val = prop_obj.purchase_price
+                
+            exit_val = prop_cf['metadata'].get(final_year, {}).get('market_value', Decimal('0.00'))
+
+            if exit_val > 0:
+                intrinsic_value_data.append({
+                    "subject": prop_obj.name,
+                    "entry": (entry_val / exit_val * Decimal('100')).quantize(Decimal('0.1')),
+                    "current": (current_val / exit_val * Decimal('100')).quantize(Decimal('0.1')),
+                    "expected": Decimal('100.0'),
+                    "raw_entry": entry_val,
+                    "raw_current": current_val,
+                    "raw_expected": exit_val
+                })
+                
+                intrinsic_value_table.append({
+                    "name": prop_obj.name,
+                    "entry_valuation": entry_val,
+                    "current_valuation": current_val,
+                    "exit_valuation": exit_val,
+                    "growth_multiple": (exit_val / entry_val).quantize(Decimal('0.01')) if entry_val > 0 else Decimal('0.00')
+                })
 
         # 6. Liquidation Readiness Index (Section 4)
         liquidation_table = []
@@ -314,7 +396,11 @@ class PortfolioDashboardSelector:
                 "by_country": country_dist_list
             },
             "value_gain_table": property_value_gain_table,
-            "appreciation_projection": appreciation_projection,
+            "value_expansion_ladder": value_expansion_ladder,
+            "intrinsic_value": {
+                "data": intrinsic_value_data,
+                "table": intrinsic_value_table
+            },
             "liquidation_index": {
                 "table": liquidation_table,
                 "portfolio_average": avg_liquidation_index
