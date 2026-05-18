@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { realEstateApi } from "../api/api";
-import { formatCurrency, formatPercent } from "../utils/formatters";
+import { formatCurrency, formatPercent, formatPropertyType } from "../utils/formatters";
 
 interface Property {
   id: string;
@@ -316,7 +316,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                   <td>{property.city}</td>
                   <td>{property.country}</td>
                   <td>{property.submarket}</td>
-                  <td>{property.property_type}</td>
+                  <td>{formatPropertyType(property.property_type)}</td>
                   <td>{parseFloat(property.size).toFixed(2)}</td>
                   <td>
                     {property.financing_type === "PRIMARY_INSTALLMENTS" ? "Installments" : 
@@ -412,7 +412,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                     <option value="COMMERCIAL">Commercial</option>
                     <option value="INDUSTRIAL">Industrial</option>
                     <option value="RETAIL">Retail</option>
-                    <option value="MIXED_USE">Mixed-Use</option>
+                    <option value="MIXED_USE">Admin</option>
                   </select>
                 </div>
                 <div className="form-group">

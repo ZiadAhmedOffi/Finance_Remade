@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { realEstateApi } from "../api/api";
-import { formatCurrency, formatPercent } from "../utils/formatters";
+import { formatCurrency, formatPercent, formatPropertyType } from "../utils/formatters";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
@@ -189,10 +189,10 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
   const { metrics, distribution, value_gain_table, value_expansion_ladder, intrinsic_value, liquidation_index, off_plan_stages, yield_analysis } = data;
 
   // Prepare data for distribution charts
-  const typeChartData = distribution.by_type.map(item => ({ name: item.type, value: parseFloat(item.value.toString()) }));
+  const typeChartData = distribution.by_type.map(item => ({ name: formatPropertyType(item.type), value: parseFloat(item.value.toString()) }));
   const countryChartData = distribution.by_country.map(item => ({ name: item.country, value: parseFloat(item.value.toString()) }));
 
-  const currentYear = value_expansion_ladder.find(e => !e.is_future)?.year || new Date().getFullYear();
+  const currentYear = new Date().getFullYear();
 
   return (
     <div className="re-dashboard-container" style={{ padding: '1rem' }}>
@@ -319,7 +319,7 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
             <div className="metric-value">{formatCurrency(metrics.total_noi)}</div>
           </div>
           <div className="metric-card">
-            <div className="metric-label">Debt Service</div>
+            <div className="metric-label">Installments</div>
             <div className="metric-value">{formatCurrency(metrics.total_annual_debt_service)}</div>
           </div>
           <div className="metric-card">
@@ -357,8 +357,7 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
                 <tbody>
                   {distribution.by_type.map(item => (
                     <tr key={item.type}>
-                      <td>{item.type}</td>
-                      <td>{formatCurrency(item.value)}</td>
+                      <td>{formatPropertyType(item.type)}</td>                      <td>{formatCurrency(item.value)}</td>
                       <td>{formatPercent(item.percentage)}</td>
                     </tr>
                   ))}
@@ -535,10 +534,16 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
                 <PolarGrid />
                 <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: '0.8rem' }} />
                 <PolarRadiusAxis angle={30} domain={[0, 150]} tick={{ fontSize: '0.7rem' }} />
-                <Radar name="Entry Valuation (%)" dataKey="entry" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.4} />
-                <Radar name="Current Valuation (%)" dataKey="current" stroke="#10b981" fill="#10b981" fillOpacity={0.5} />
-                <Radar name="Target Valuation (%)" dataKey="expected" stroke="#64748b" fill="transparent" strokeDasharray="5 5" />
-                <Tooltip formatter={(value: any, name: any) => [value + '%', name]} />
+                <Radar name="Entry Valuation" dataKey="entry" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.4} />
+                <Radar name="Current Valuation" dataKey="current" stroke="#10b981" fill="#10b981" fillOpacity={0.5} />
+                <Radar name="Target Valuation" dataKey="expected" stroke="#64748b" fill="transparent" strokeDasharray="5 5" />
+                <Tooltip formatter={(value: any, name: any, entry: any) => {
+                  const { payload } = entry;
+                  if (name === "Entry Valuation") return [formatCurrency(payload.raw_entry), name];
+                  if (name === "Current Valuation") return [formatCurrency(payload.raw_current), name];
+                  if (name === "Target Valuation") return [formatCurrency(payload.raw_expected), name];
+                  return [value, name];
+                }} />
                 <Legend />
               </RadarChart>
             </ResponsiveContainer>
@@ -670,7 +675,7 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
                 <th className="sticky-col">Property Name</th>
                 <th>Annual Rent</th>
                 <th>NOI</th>
-                <th>Debt Service</th>
+                <th>Installments</th>
                 <th>Gross Yield</th>
                 <th>Net Yield</th>
               </tr>

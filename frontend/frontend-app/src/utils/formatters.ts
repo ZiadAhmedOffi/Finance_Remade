@@ -44,3 +44,9 @@ export const formatNumber = (val: number | string | null | undefined, options: I
   
   return isNegative ? `(${formatted})` : formatted;
 };
+
+export const formatPropertyType = (type: string | null | undefined) => {
+  if (!type) return "-";
+  if (type === "MIXED_USE") return "Admin";
+  return type.charAt(0) + type.slice(1).toLowerCase().replace('_', ' ');
+};
