@@ -37,7 +37,7 @@ class InvestorService:
 
             stats, _ = CurrentInvestorStats.objects.get_or_create(investor=investor, fund=fund)
             stats.amount_invested = float(stats.amount_invested) + amount
-            stats.total_units = float(stats.total_units) + units
+            stats.units = float(stats.units) + units
             stats.save()
 
         elif action_type == "SECONDARY_EXIT":
@@ -63,7 +63,7 @@ class InvestorService:
             
             # Update seller stats
             seller_stats, _ = CurrentInvestorStats.objects.get_or_create(investor=seller, fund=fund)
-            seller_stats.total_units = float(seller_stats.total_units) - units_transferred
+            seller_stats.units = float(seller_stats.units) - units_transferred
             # amount_invested reduction logic might depend on cost basis, but current views don't seem to reduce it here.
             # However, realized_gain should probably be updated.
             seller_stats.save()
@@ -84,7 +84,7 @@ class InvestorService:
                 # Update buyer stats
                 buyer_stats, _ = CurrentInvestorStats.objects.get_or_create(investor=buyer, fund=fund)
                 buyer_stats.amount_invested = float(buyer_stats.amount_invested) + price
-                buyer_stats.total_units = float(buyer_stats.total_units) + units_transferred
+                buyer_stats.units = float(buyer_stats.units) + units_transferred
                 buyer_stats.save()
         
         else:
@@ -155,7 +155,7 @@ class InvestorService:
             stats = CurrentInvestorStats.objects.filter(investor=target_user, fund=fund).first()
             if stats:
                 stats.amount_invested = float(stats.amount_invested) - float(action.amount or 0)
-                stats.total_units = float(stats.total_units) - units
+                stats.units = float(stats.units) - units
                 stats.save()
 
         action.delete()
