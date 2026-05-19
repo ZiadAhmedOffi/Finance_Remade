@@ -704,7 +704,7 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
               <Legend verticalAlign="top" height={36} />
               <Bar dataKey="annual_rent" name="Annual Rent" fill="#3b82f6" />
               <Bar dataKey="noi" name="NOI" fill="#10b981" />
-              <Bar dataKey="annual_debt_service" name="Debt Service" fill="#f43f5e" />
+              <Bar dataKey="annual_debt_service" name="Installments" fill="#f43f5e" />
             </BarChart>
           </ResponsiveContainer>
         </div>
