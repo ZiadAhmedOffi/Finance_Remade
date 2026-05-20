@@ -34,9 +34,14 @@ class PropertyService:
         else:
             vacancy = Decimal(str(vacancy))
 
-        purchase_price = Decimal(str(data['purchase_price']))
-        monthly_rent = Decimal(str(data['monthly_rent']))
+        purchase_price_val = data.get('purchase_price')
+        purchase_price = Decimal(str(purchase_price_val)) if purchase_price_val not in [None, ""] else None
         
+        monthly_rent_val = data.get('monthly_rent')
+        monthly_rent = Decimal(str(monthly_rent_val)) if monthly_rent_val not in [None, ""] else None
+        
+        status_val = data.get('status', 'HELD')
+
         property_obj = Property.objects.create(
             portfolio=portfolio,
             name=data['name'],
@@ -45,7 +50,7 @@ class PropertyService:
             submarket=data.get('submarket', ''),
             property_type=data['property_type'],
             financing_type=data['financing_type'],
-            status=data.get('status', 'HELD'),
+            status=status_val,
             purchase_date=data['purchase_date'],
             purchase_price=purchase_price,
             size=Decimal(str(data.get('size', 0.00))),
@@ -56,29 +61,18 @@ class PropertyService:
             vacancy_rate_percentage=vacancy
         )
 
-        # Automatic Entry Creation based on Financing Type
-        if property_obj.financing_type == "PRIMARY_INSTALLMENTS":
-            from .installment_service import InstallmentService
-            InstallmentService.create_installment_entry(
-                property_obj=property_obj,
-                data={
-                    "down_payment": purchase_price * Decimal('0.20'),
-                    "tenor": 5,
-                    "payments_per_year": 1,
-                    "start_date": property_obj.purchase_date
-                }
-            )
-        elif property_obj.financing_type == "MORTGAGED":
-            from .financing_service import FinancingService
-            FinancingService.create_financing_entry(
-                property_obj=property_obj,
-                data={
-                    "loan_amount": purchase_price * Decimal('0.70'), # 70% LTV default
-                    "base_interest_rate": Decimal('5.00'),
-                    "tenor": 20,
-                    "payments_per_year": 12,
-                    "loan_start_date": property_obj.purchase_date
-                }
+        # Handle Usufruct Details
+        if status_val == "USUFRUCT":
+            from ..models import UsufructDetails
+            UsufructDetails.objects.create(
+                property=property_obj,
+                insurance_cost=Decimal(str(data.get('insurance_cost', 0.00))),
+                prep_cost=Decimal(str(data.get('prep_cost', 0.00))),
+                outflow_monthly_rent=Decimal(str(data.get('outflow_monthly_rent', 0.00))),
+                annual_ops_cost=Decimal(str(data.get('annual_ops_cost', 0.00))),
+                inflow_monthly_rent=Decimal(str(data.get('inflow_monthly_rent', 0.00))),
+                outflow_rent_appreciation_percentage=Decimal(str(data.get('outflow_rent_appreciation_percentage', 0.00))),
+                inflow_rent_appreciation_percentage=Decimal(str(data.get('inflow_rent_appreciation_percentage', 0.00))),
             )
         
         return property_obj
@@ -99,7 +93,27 @@ class PropertyService:
         
         for field in fields:
             if field in data:
-                setattr(property_obj, field, data[field])
+                val = data[field]
+                if field in ['purchase_price', 'monthly_rent'] and val in [None, ""]:
+                    val = None
+                setattr(property_obj, field, val)
         
         property_obj.save()
+
+        # Handle Usufruct Details
+        if property_obj.status == "USUFRUCT":
+            from ..models import UsufructDetails
+            u_details, created = UsufructDetails.objects.get_or_create(property=property_obj)
+            
+            u_fields = [
+                'insurance_cost', 'prep_cost', 'outflow_monthly_rent', 
+                'annual_ops_cost', 'inflow_monthly_rent',
+                'outflow_rent_appreciation_percentage',
+                'inflow_rent_appreciation_percentage'
+            ]
+            for f in u_fields:
+                if f in data:
+                    setattr(u_details, f, Decimal(str(data[f])))
+            u_details.save()
+        
         return property_obj

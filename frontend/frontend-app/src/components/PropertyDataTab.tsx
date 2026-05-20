@@ -10,15 +10,24 @@ interface Property {
   submarket: string;
   property_type: string;
   financing_type: string;
-  status: "HELD" | "OFF_PLAN";
+  status: "HELD" | "OFF_PLAN" | "USUFRUCT";
   purchase_date: string;
-  purchase_price: string;
+  purchase_price: string | null;
   size: string;
-  monthly_rent: string;
+  monthly_rent: string | null;
   other_operational_expenses: string;
   acq_fee_percentage: string;
   appreciation_rate_percentage: string;
   vacancy_rate_percentage: string;
+  usufruct_details?: {
+    insurance_cost: string;
+    prep_cost: string;
+    outflow_monthly_rent: string;
+    annual_ops_cost: string;
+    inflow_monthly_rent: string;
+    outflow_rent_appreciation_percentage: string;
+    inflow_rent_appreciation_percentage: string;
+  };
 }
 
 interface Metrics {
@@ -36,6 +45,14 @@ interface Metrics {
   gross_yield: number;
   net_yield: number;
   cost_per_sqm: number;
+  is_usufruct: boolean;
+  insurance_cost?: number;
+  prep_cost?: number;
+  outflow_monthly_rent?: number;
+  annual_ops_cost?: number;
+  inflow_monthly_rent?: number;
+  outflow_rent_appreciation_percentage?: number;
+  inflow_rent_appreciation_percentage?: number;
 }
 
 interface PropertyWithMetrics {
@@ -49,6 +66,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
   const [showModal, setShowModal] = useState(false);
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
   const [assumptions, setAssumptions] = useState<any>(null);
+  const [showUsufructTable, setShowUsufructTable] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -58,7 +76,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
     submarket: "",
     property_type: "RESIDENTIAL",
     financing_type: "ALL_CASH",
-    status: "HELD",
+    status: "HELD" as "HELD" | "OFF_PLAN" | "USUFRUCT",
     purchase_date: "",
     purchase_price: "",
     size: "0",
@@ -67,6 +85,14 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
     acq_fee_percentage: "",
     appreciation_rate_percentage: "",
     vacancy_rate_percentage: "",
+    // Usufruct specific fields
+    insurance_cost: "0",
+    prep_cost: "0",
+    outflow_monthly_rent: "0",
+    annual_ops_cost: "0",
+    inflow_monthly_rent: "0",
+    outflow_rent_appreciation_percentage: "0",
+    inflow_rent_appreciation_percentage: "0",
   });
 
   useEffect(() => {
@@ -138,6 +164,13 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
       acq_fee_percentage: assumptions?.acquisition_fee_percentage?.toString() || "",
       appreciation_rate_percentage: assumptions?.default_appreciation_rate?.toString() || "",
       vacancy_rate_percentage: assumptions?.default_vacancy_rate?.toString() || "",
+      insurance_cost: "0",
+      prep_cost: "0",
+      outflow_monthly_rent: "0",
+      annual_ops_cost: "0",
+      inflow_monthly_rent: "0",
+      outflow_rent_appreciation_percentage: "0",
+      inflow_rent_appreciation_percentage: "0",
     });
     setEditingProperty(null);
   };
@@ -158,13 +191,20 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
       financing_type: prop.financing_type,
       status: prop.status,
       purchase_date: prop.purchase_date,
-      purchase_price: prop.purchase_price,
+      purchase_price: prop.purchase_price || "",
       size: prop.size,
-      monthly_rent: prop.monthly_rent,
+      monthly_rent: prop.monthly_rent || "",
       other_operational_expenses: prop.other_operational_expenses,
       acq_fee_percentage: prop.acq_fee_percentage,
       appreciation_rate_percentage: prop.appreciation_rate_percentage,
       vacancy_rate_percentage: prop.vacancy_rate_percentage,
+      insurance_cost: prop.usufruct_details?.insurance_cost || "0",
+      prep_cost: prop.usufruct_details?.prep_cost || "0",
+      outflow_monthly_rent: prop.usufruct_details?.outflow_monthly_rent || "0",
+      annual_ops_cost: prop.usufruct_details?.annual_ops_cost || "0",
+      inflow_monthly_rent: prop.usufruct_details?.inflow_monthly_rent || "0",
+      outflow_rent_appreciation_percentage: prop.usufruct_details?.outflow_rent_appreciation_percentage || "0",
+      inflow_rent_appreciation_percentage: prop.usufruct_details?.inflow_rent_appreciation_percentage || "0",
     });
     setShowModal(true);
   };
@@ -264,6 +304,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '3rem' }}>Loading property data...</div>
       ) : (
+        <>
         <div className="table-wrapper">
           <table className="property-table">
             <thead>
@@ -310,7 +351,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
               </tr>
             </thead>
             <tbody>
-              {data.map(({ property, metrics }) => (
+              {data.filter(d => d.property.status !== "USUFRUCT").map(({ property, metrics }) => (
                 <tr key={property.id}>
                   <td className="sticky-left" style={{ fontWeight: 600 }}>{property.name}</td>
                   <td>{property.city}</td>
@@ -330,8 +371,8 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                   </td>
                   <td>{property.purchase_date}</td>
                   
-                  <td>{formatCurrency(parseFloat(property.purchase_price))}</td>
-                  <td>{formatCurrency(parseFloat(property.monthly_rent))}</td>
+                  <td>{property.purchase_price ? formatCurrency(parseFloat(property.purchase_price)) : "-"}</td>
+                  <td>{property.monthly_rent ? formatCurrency(parseFloat(property.monthly_rent)) : "-"}</td>
                   <td>{formatCurrency(parseFloat(property.other_operational_expenses))}</td>
                   
                   <td>{formatPercent(parseFloat(property.acq_fee_percentage))}</td>
@@ -381,11 +422,139 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
             </tbody>
           </table>
         </div>
+
+        {/* Usufruct Table Toggle */}
+        <div style={{ marginTop: '2rem' }}>
+          <button 
+            className="btn btn-secondary" 
+            onClick={() => setShowUsufructTable(!showUsufructTable)}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+          >
+            {showUsufructTable ? "Hide" : "Show"} Usufruct Property Table {showUsufructTable ? "▲" : "▼"}
+          </button>
+        </div>
+
+        {showUsufructTable && (
+          <div className="table-wrapper" style={{ marginTop: '1rem' }}>
+            <table className="property-table">
+              <thead>
+                <tr>
+                  <th colSpan={9} className="group-header">Basic Information</th>
+                  <th colSpan={3} className="group-header">Investment Inputs</th>
+                  <th colSpan={7} className="group-header">Usufruct Specific Inputs</th>
+                  <th colSpan={3} className="group-header">Rates & Assumptions</th>
+                  <th colSpan={6} className="group-header">Derived Metrics (Current Year)</th>
+                  {canEdit && <th rowSpan={2} className="group-header">Actions</th>}
+                </tr>
+                <tr>
+                  <th className="sticky-left">Property Name</th>
+                  <th>City</th>
+                  <th>Country</th>
+                  <th>Submarket</th>
+                  <th>Type</th>
+                  <th>Size (Sqm)</th>
+                  <th>Financing</th>
+                  <th>Status</th>
+                  <th>Acquisition Date</th>
+
+                  <th>Purchase Price</th>
+                  <th>Monthly Rent</th>
+                  <th>Annual Ops Exp</th>
+
+                  <th>Insurance Cost</th>
+                  <th>Prep Cost</th>
+                  <th>Outflow Monthly Rent</th>
+                  <th>Annual Ops Cost</th>
+                  <th>Inflow Monthly Rent</th>
+                  <th>Outflow Rent App%</th>
+                  <th>Inflow Rent App%</th>
+
+                  <th>Acq Fee%</th>
+                  <th>App Rate%</th>
+                  <th>Vacancy Rate</th>
+
+                  <th>Annual Rent</th>
+                  <th>Effective Rent</th>
+                  <th>NOI</th>
+                  <th>Gross Yield %</th>
+                  <th>Net Yield %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.filter(d => d.property.status === "USUFRUCT").map(({ property, metrics }) => (
+                  <tr key={property.id}>
+                    <td className="sticky-left" style={{ fontWeight: 600 }}>{property.name}</td>
+                    <td>{property.city}</td>
+                    <td>{property.country}</td>
+                    <td>{property.submarket}</td>
+                    <td>{formatPropertyType(property.property_type)}</td>
+                    <td>{parseFloat(property.size).toFixed(2)}</td>
+                    <td>-</td>
+                    <td><span style={{ color: '#8b5cf6', fontWeight: 600 }}>Usufruct</span></td>
+                    <td>{property.purchase_date}</td>
+
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+
+                    <td>{formatCurrency(metrics.insurance_cost || 0)}</td>
+                    <td>{formatCurrency(metrics.prep_cost || 0)}</td>
+                    <td>{formatCurrency(metrics.outflow_monthly_rent || 0)}</td>
+                    <td>{formatCurrency(metrics.annual_ops_cost || 0)}</td>
+                    <td>{formatCurrency(metrics.inflow_monthly_rent || 0)}</td>
+                    <td>{formatPercent(metrics.outflow_rent_appreciation_percentage || 0)}</td>
+                    <td>{formatPercent(metrics.inflow_rent_appreciation_percentage || 0)}</td>
+
+                    <td>-</td>
+                    <td>-</td>
+                    <td>{formatPercent(parseFloat(property.vacancy_rate_percentage))}</td>
+
+                    <td className="metric-cell">{formatCurrency(metrics.annual_rent)}</td>
+                    <td className="metric-cell">{formatCurrency(metrics.effective_rent)}</td>
+                    <td className="metric-cell" style={{ fontWeight: 700 }}>{formatCurrency(metrics.noi)}</td>
+                    <td className="metric-cell">{formatPercent(metrics.gross_yield)}</td>
+                    <td className="metric-cell">{formatPercent(metrics.net_yield)}</td>
+
+                    {canEdit && (
+                      <td className="actions-cell">
+                        <div className="action-btns" style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button className="btn btn-secondary btn-sm" onClick={() => handleEdit(property)}>Edit</button>
+                          <button 
+                            className="btn btn-logout btn-sm" 
+                            style={{
+                              background: '#fee2e2', 
+                              color: '#991b1b', 
+                              border: '1px solid #fecaca',
+                              padding: '0.25rem 0.5rem',
+                              fontSize: '0.75rem',
+                              cursor: 'pointer'
+                            }} 
+                            onClick={() => handleDelete(property.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+                {data.filter(d => d.property.status === "USUFRUCT").length === 0 && (
+                  <tr>
+                    <td colSpan={22} style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
+                      No Usufruct properties found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+        </>
       )}
 
       {showModal && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '800px' }}>
+          <div className="modal-content" style={{ maxWidth: '900px' }}>
             <h2>{editingProperty ? "Edit Property" : "Add New Property"}</h2>
             <form onSubmit={handleSubmit}>
               <div className="input-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
@@ -413,15 +582,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                     <option value="INDUSTRIAL">Industrial</option>
                     <option value="RETAIL">Retail</option>
                     <option value="MIXED_USE">Admin</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Financing</label>
-                  <select name="financing_type" value={formData.financing_type} onChange={handleInputChange}>
-                    <option value="ALL_CASH">All Cash</option>
-                    <option value="MORTGAGED">Mortgaged</option>
-                    <option value="MEZZANINE">Mezzanine</option>
-                    <option value="PRIMARY_INSTALLMENTS">Primary Sales with Installments</option>
+                    <option value="WAREHOUSE">Warehouses</option>
                   </select>
                 </div>
                 <div className="form-group">
@@ -429,36 +590,88 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                   <select name="status" value={formData.status} onChange={handleInputChange}>
                     <option value="HELD">Held</option>
                     <option value="OFF_PLAN">Off-Plan</option>
+                    <option value="USUFRUCT">Usufruct</option>
                   </select>
                 </div>
+
+                {formData.status !== "USUFRUCT" && (
+                  <div className="form-group">
+                    <label>Financing</label>
+                    <select name="financing_type" value={formData.financing_type} onChange={handleInputChange}>
+                      <option value="ALL_CASH">All Cash</option>
+                      <option value="MORTGAGED">Mortgaged</option>
+                      <option value="MEZZANINE">Mezzanine</option>
+                      <option value="PRIMARY_INSTALLMENTS">Primary Sales with Installments</option>
+                    </select>
+                  </div>
+                )}
+
                 <div className="form-group">
-                  <label>Purchase Date</label>
+                  <label>{formData.status === "USUFRUCT" ? "Acquisition Date" : "Purchase Date"}</label>
                   <input type="date" name="purchase_date" value={formData.purchase_date} onChange={handleInputChange} required />
                 </div>
-                <div className="form-group">
-                  <label>Purchase Price ($)</label>
-                  <input type="number" name="purchase_price" value={formData.purchase_price} onChange={handleInputChange} required />
-                </div>
+
                 <div className="form-group">
                   <label>Size (Sqm)</label>
                   <input type="number" step="0.01" name="size" value={formData.size} onChange={handleInputChange} required />
                 </div>
-                <div className="form-group">
-                  <label>Monthly Rent ($)</label>
-                  <input type="number" name="monthly_rent" value={formData.monthly_rent} onChange={handleInputChange} required />
-                </div>
-                <div className="form-group">
-                  <label>Annual Ops Exp ($)</label>
-                  <input type="number" name="other_operational_expenses" value={formData.other_operational_expenses} onChange={handleInputChange} required />
-                </div>
-                <div className="form-group">
-                  <label>Acq Fee % (Optional)</label>
-                  <input type="number" step="0.01" name="acq_fee_percentage" value={formData.acq_fee_percentage} onChange={handleInputChange} placeholder="Default from assumptions" />
-                </div>
-                <div className="form-group">
-                  <label>App Rate % (Optional)</label>
-                  <input type="number" step="0.01" name="appreciation_rate_percentage" value={formData.appreciation_rate_percentage} onChange={handleInputChange} placeholder="Default from assumptions" />
-                </div>
+
+                {formData.status !== "USUFRUCT" ? (
+                  <>
+                    <div className="form-group">
+                      <label>Purchase Price ($)</label>
+                      <input type="number" name="purchase_price" value={formData.purchase_price} onChange={handleInputChange} required />
+                    </div>
+                    <div className="form-group">
+                      <label>Monthly Rent ($)</label>
+                      <input type="number" name="monthly_rent" value={formData.monthly_rent} onChange={handleInputChange} required />
+                    </div>
+                    <div className="form-group">
+                      <label>Annual Ops Exp ($)</label>
+                      <input type="number" name="other_operational_expenses" value={formData.other_operational_expenses} onChange={handleInputChange} required />
+                    </div>
+                    <div className="form-group">
+                      <label>Acq Fee % (Optional)</label>
+                      <input type="number" step="0.01" name="acq_fee_percentage" value={formData.acq_fee_percentage} onChange={handleInputChange} placeholder="Default from assumptions" />
+                    </div>
+                    <div className="form-group">
+                      <label>App Rate % (Optional)</label>
+                      <input type="number" step="0.01" name="appreciation_rate_percentage" value={formData.appreciation_rate_percentage} onChange={handleInputChange} placeholder="Default from assumptions" />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="form-group">
+                      <label>Insurance Cost ($)</label>
+                      <input type="number" name="insurance_cost" value={formData.insurance_cost} onChange={handleInputChange} required />
+                    </div>
+                    <div className="form-group">
+                      <label>Prep Cost ($)</label>
+                      <input type="number" name="prep_cost" value={formData.prep_cost} onChange={handleInputChange} required />
+                    </div>
+                    <div className="form-group">
+                      <label>Outflow Monthly Rent ($)</label>
+                      <input type="number" name="outflow_monthly_rent" value={formData.outflow_monthly_rent} onChange={handleInputChange} required />
+                    </div>
+                    <div className="form-group">
+                      <label>Annual Ops Cost ($)</label>
+                      <input type="number" name="annual_ops_cost" value={formData.annual_ops_cost} onChange={handleInputChange} required />
+                    </div>
+                    <div className="form-group">
+                      <label>Inflow Monthly Rent ($)</label>
+                      <input type="number" name="inflow_monthly_rent" value={formData.inflow_monthly_rent} onChange={handleInputChange} required />
+                    </div>
+                    <div className="form-group">
+                      <label>Outflow Rent App %</label>
+                      <input type="number" step="0.01" name="outflow_rent_appreciation_percentage" value={formData.outflow_rent_appreciation_percentage} onChange={handleInputChange} required />
+                    </div>
+                    <div className="form-group">
+                      <label>Inflow Rent App %</label>
+                      <input type="number" step="0.01" name="inflow_rent_appreciation_percentage" value={formData.inflow_rent_appreciation_percentage} onChange={handleInputChange} required />
+                    </div>
+                  </>
+                )}
+                
                 <div className="form-group">
                   <label>Vacancy % (Optional)</label>
                   <input type="number" step="0.01" name="vacancy_rate_percentage" value={formData.vacancy_rate_percentage} onChange={handleInputChange} placeholder="Default from assumptions" />

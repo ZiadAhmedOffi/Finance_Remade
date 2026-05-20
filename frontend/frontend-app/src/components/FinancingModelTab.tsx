@@ -116,7 +116,7 @@ const FinancingModelTab: React.FC<{ portfolioId: string; canEdit: boolean }> = (
       ]);
       setMortgages(finResponse.data.mortgages || []);
       setInstallments(finResponse.data.installments || []);
-      setProperties(propResponse.data.map((p: any) => p.property));
+      setProperties(propResponse.data.map((p: any) => p.property).filter((p: any) => p.status !== "USUFRUCT"));
     } catch (err) {
       console.error("Failed to fetch financing data", err);
     } finally {

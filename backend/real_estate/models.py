@@ -99,6 +99,7 @@ class Property(models.Model):
         ("HELD", "Held"),
         ("OFF_PLAN", "Off-Plan"),
         ("SOLD", "Sold"),
+        ("USUFRUCT", "Usufruct"),
     ]
 
     TYPE_CHOICES = [
@@ -107,6 +108,7 @@ class Property(models.Model):
         ("INDUSTRIAL", "Industrial"),
         ("RETAIL", "Retail"),
         ("MIXED_USE", "Mixed-Use"),
+        ("WAREHOUSE", "Warehouses"),
     ]
 
     FINANCING_CHOICES = [
@@ -136,9 +138,9 @@ class Property(models.Model):
 
     # Financial Inputs
     purchase_date = models.DateField()
-    purchase_price = models.DecimalField(max_digits=15, decimal_places=2)
+    purchase_price = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
     size = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Size in square meters")
-    monthly_rent = models.DecimalField(max_digits=15, decimal_places=2)
+    monthly_rent = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
     other_operational_expenses = models.DecimalField(
         max_digits=15, 
         decimal_places=2, 
@@ -161,6 +163,37 @@ class Property(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.city})"
+
+class UsufructDetails(models.Model):
+    """
+    Stores specific details for Usufruct properties.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    property = models.OneToOneField(
+        Property,
+        on_delete=models.CASCADE,
+        related_name="usufruct_details"
+    )
+
+    # Inputs
+    insurance_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
+    prep_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
+    outflow_monthly_rent = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
+    annual_ops_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
+    inflow_monthly_rent = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
+    
+    outflow_rent_appreciation_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
+    inflow_rent_appreciation_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Usufruct Details"
+        verbose_name_plural = "Usufruct Details"
+
+    def __str__(self):
+        return f"Usufruct Details for {self.property.name}"
 
 class FinancingEntry(models.Model):
     """
@@ -416,6 +449,7 @@ class RealEstateInvestorStats(models.Model):
 
     class Meta:
         ordering = ["amount_invested"]
+        unique_together = ["investor", "portfolio"]
         indexes = [
             models.Index(fields=["investor", "portfolio"]),
         ]

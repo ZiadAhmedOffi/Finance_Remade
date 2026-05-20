@@ -47,8 +47,11 @@ class CashFlowSelectors:
             prop_data = {"name": prop.name, "annual_cf": {}, "metadata": {}}
             
             # Common rates
-            app_rate = Decimal(str(prop.appreciation_rate_percentage)) + app_adj
-            rent_growth_rate = Decimal(str(assumptions.default_rental_growth_rate)) + rent_adj
+            is_usufruct = prop.status == "USUFRUCT"
+            u_details = getattr(prop, 'usufruct_details', None) if is_usufruct else None
+            
+            app_rate = (Decimal(str(prop.appreciation_rate_percentage)) + app_adj) if not is_usufruct else Decimal('0.00')
+            rent_growth_rate = (Decimal(str(assumptions.default_rental_growth_rate)) + rent_adj) if not is_usufruct else Decimal('0.00')
             vacancy_rate = Decimal(str(prop.vacancy_rate_percentage)) + vacancy_adj
             mgmt_fee_pct = Decimal(str(assumptions.property_mgmt_fee_percentage))
             maint_fee_pct = Decimal(str(assumptions.maintenance_percentage_of_value))
@@ -75,12 +78,12 @@ class CashFlowSelectors:
             completion_pct = max(Decimal("0.00"), Decimal("100.00") - user_pct_sum)
 
             for m in user_milestones:
-                milestones_by_year[m.date.year] += (prop.purchase_price * (m.percentage_of_price / Decimal('100')))
+                milestones_by_year[m.date.year] += ((prop.purchase_price or Decimal('0')) * (m.percentage_of_price / Decimal('100')))
             
             # Add Completion milestone (at completion_year)
             if hasattr(prop, 'off_plan_details'):
                 comp_yr = prop.off_plan_details.expected_completion_date.year
-                milestones_by_year[comp_yr] += (prop.purchase_price * (completion_pct / Decimal('100')))
+                milestones_by_year[comp_yr] += ((prop.purchase_price or Decimal('0')) * (completion_pct / Decimal('100')))
 
             # Financing & Installments
             debt_service_by_year = defaultdict(Decimal)
@@ -123,8 +126,41 @@ class CashFlowSelectors:
                 else:
                     cf = Decimal('0.00')
                     
+                    if is_usufruct and u_details:
+                        t = Decimal(str(year - purchase_year))
+                        is_first_year = (year == purchase_year)
+                        
+                        # Apply appreciation to rents
+                        inflow_growth = Decimal(str(float(Decimal('1') + (u_details.inflow_rent_appreciation_percentage / Decimal('100'))) ** float(t)))
+                        outflow_growth = Decimal(str(float(Decimal('1') + (u_details.outflow_rent_appreciation_percentage / Decimal('100'))) ** float(t)))
+                        
+                        # Inflows 0 in first year
+                        if is_first_year:
+                            annual_inflow = Decimal('0.00')
+                            months_owned = 12 - prop.purchase_date.month + 1 # Metadata
+                            # Outflow rents "across the year" (12 months)
+                            annual_outflow = u_details.outflow_monthly_rent * 12 * outflow_growth
+                            # total_opex includes insurance only in first year
+                            total_opex = annual_outflow + u_details.annual_ops_cost + u_details.insurance_cost
+                            effective_rent = Decimal('0.00')
+                            noi = -(total_opex)
+                            # Prep cost as investment outflow
+                            cf = noi - u_details.prep_cost
+                        else:
+                            annual_inflow = u_details.inflow_monthly_rent * 12 * inflow_growth
+                            months_owned = 12
+                            # Outflow rents "across the year" (12 months)
+                            annual_outflow = u_details.outflow_monthly_rent * 12 * outflow_growth
+                            # total_opex excludes insurance in following years
+                            total_opex = annual_outflow + u_details.annual_ops_cost
+                            effective_rent = (annual_inflow * (Decimal('1') - (vacancy_rate / Decimal('100')))).quantize(Decimal('0.01'))
+                            noi = (effective_rent - total_opex).quantize(Decimal('0.01'))
+                            cf = noi
+                        
+                        current_market_value = Decimal('0.00')
+                    
                     # 2. Handle Sale Year inflow
-                    if sale_year and year == sale_year:
+                    elif sale_year and year == sale_year:
                         # If explicitly sold in the sales tab
                         from .property_sale_selectors import PropertySaleSelector
                         sale_metrics = PropertySaleSelector.calculate_sale_metrics(prop.sale)
@@ -145,7 +181,7 @@ class CashFlowSelectors:
                         if sale_at_completion:
                             # Sale at completion logic
                             appreciation_rate = prop.off_plan_details.appreciation_rate_at_completion / Decimal("100")
-                            value_at_completion = prop.purchase_price * (Decimal("1") + appreciation_rate)
+                            value_at_completion = (prop.purchase_price or Decimal('0')) * (Decimal("1") + appreciation_rate)
                             net_sale_inflow = value_at_completion * (Decimal("1") - selling_fee_pct)
                             # Subtract construction costs in that year if any
                             construction_cost = milestones_by_year.get(year, Decimal('0.00'))
@@ -162,11 +198,11 @@ class CashFlowSelectors:
                             completion_jump_rate = prop.off_plan_details.appreciation_rate_at_completion / Decimal('100')
                             
                             # Appreciate rent and value
-                            current_monthly_rent = (prop.monthly_rent * Decimal(str(float(Decimal('1') + (rent_growth_rate / Decimal('100'))) ** float(t)))).quantize(Decimal('0.01'))
+                            current_monthly_rent = ((prop.monthly_rent or Decimal('0')) * Decimal(str(float(Decimal('1') + (rent_growth_rate / Decimal('100'))) ** float(t)))).quantize(Decimal('0.01'))
                             current_monthly_rent *= (Decimal('1') + completion_jump_rate)
                             
                             effective_rent = PropertyDataCalc.effective_rent(
-                                prop.monthly_rent,
+                                prop.monthly_rent or Decimal('0'),
                                 vacancy_rate,
                                 t,
                                 rent_growth_rate,
@@ -174,7 +210,7 @@ class CashFlowSelectors:
                             )
                             effective_rent = (effective_rent * (Decimal('1') + completion_jump_rate)).quantize(Decimal('0.01'))
                             
-                            current_market_value = PropertyDataCalc.market_value(prop.purchase_price, app_rate, t)
+                            current_market_value = PropertyDataCalc.market_value(prop.purchase_price or Decimal('0'), app_rate, t)
                             current_market_value = (current_market_value * (Decimal('1') + completion_jump_rate)).quantize(Decimal('0.01'))
                             
                             maint_fee = PropertyDataCalc.maintenance_fees(current_market_value, maint_fee_pct)
@@ -194,24 +230,24 @@ class CashFlowSelectors:
                         t = Decimal(str(year - purchase_year))
                         
                         # Market Value
-                        current_market_value = PropertyDataCalc.market_value(prop.purchase_price, app_rate, t)
+                        current_market_value = PropertyDataCalc.market_value(prop.purchase_price or Decimal('0'), app_rate, t)
                         
                         # Purchase Price & Down Payment
                         if year == purchase_year and not is_off_plan_initial:
                             if prop.financing_type == "PRIMARY_INSTALLMENTS":
                                 cf -= installment_down_payment
                             elif prop.financing_type == "MORTGAGED" and hasattr(prop, 'financing'):
-                                down_payment = prop.purchase_price - prop.financing.loan_amount
+                                down_payment = (prop.purchase_price or Decimal('0')) - prop.financing.loan_amount
                                 cf -= down_payment
                             else:
-                                cf -= prop.purchase_price
+                                cf -= (prop.purchase_price or Decimal('0'))
                             
                             months_owned = 12 - prop.purchase_date.month + 1
                         else:
                             months_owned = 12
                         
                         effective_rent = PropertyDataCalc.effective_rent(
-                            prop.monthly_rent,
+                            prop.monthly_rent or Decimal('0'),
                             vacancy_rate,
                             t,
                             rent_growth_rate,
@@ -253,8 +289,8 @@ class CashFlowSelectors:
                             "noi": noi.quantize(Decimal('0.01')),
                             "debt_service": debt_service.quantize(Decimal('0.01')),
                             "installments": installments.quantize(Decimal('0.01')),
-                            "purchase_price": prop.purchase_price if year == purchase_year and not is_off_plan_initial and prop.financing_type not in ["MORTGAGED", "PRIMARY_INSTALLMENTS"] else Decimal("0.00"),
-                            "down_payment": (installment_down_payment if prop.financing_type == "PRIMARY_INSTALLMENTS" else (prop.purchase_price - prop.financing.loan_amount if prop.financing_type == "MORTGAGED" and hasattr(prop, "financing") else Decimal("0.00"))) if year == purchase_year else Decimal("0.00"),
+                            "purchase_price": (prop.purchase_price or Decimal('0')) if year == purchase_year and not is_off_plan_initial and prop.financing_type not in ["MORTGAGED", "PRIMARY_INSTALLMENTS"] else Decimal("0.00"),
+                            "down_payment": (installment_down_payment if prop.financing_type == "PRIMARY_INSTALLMENTS" else ((prop.purchase_price or Decimal('0')) - prop.financing.loan_amount if prop.financing_type == "MORTGAGED" and hasattr(prop, "financing") else Decimal("0.00"))) if year == purchase_year else Decimal("0.00"),
                             "construction_costs": construction_cost.quantize(Decimal('0.01')),
                             "sale_proceeds": net_sale_inflow.quantize(Decimal('0.01'))
                         }

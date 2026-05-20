@@ -74,6 +74,10 @@ class OffPlanE2ETests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['sale_at_completion'])
 
+        # 4b. Set milestones to 100% to isolate sale proceeds in CF
+        OffPlanMilestone.objects.filter(property_id=property_id, milestone_name="Down Payment").update(percentage_of_price=Decimal("100.00"))
+        OffPlanMilestone.objects.filter(property_id=property_id).exclude(milestone_name="Down Payment").update(percentage_of_price=Decimal("0.00"))
+
         # 5. Verify Cash Flow
         url = f"/api/real-estate/{self.portfolio_id}/cash-flow/"
         response = self.client.get(url)

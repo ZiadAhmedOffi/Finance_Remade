@@ -3,7 +3,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
-from .models import RealEstatePortfolio, RealEstateAssumptions, Property, RealEstateInvestorAction, RealEstateInvestorStats
+from ..models import RealEstatePortfolio, RealEstateAssumptions, Property, RealEstateInvestorAction, RealEstateInvestorStats
 from users.models import Role, UserRoleAssignment
 from decimal import Decimal
 import datetime
@@ -11,6 +11,43 @@ import datetime
 User = get_user_model()
 
 class InvestorLogAPITests(TestCase):
+    def test_investor_log_with_usufruct(self):
+        """Verify that usufruct properties don't crash the investor log due to null purchase_price."""
+        from ..models import UsufructDetails
+        
+        # Add Usufruct property
+        u_prop = Property.objects.create(
+            portfolio=self.portfolio,
+            name="Usufruct Prop",
+            city="Dubai",
+            country="UAE",
+            property_type="RESIDENTIAL",
+            financing_type="ALL_CASH",
+            status="USUFRUCT",
+            purchase_date="2024-01-01",
+            purchase_price=None,
+            monthly_rent=None,
+            acq_fee_percentage=Decimal('0.00'),
+            appreciation_rate_percentage=Decimal('0.00'),
+            vacancy_rate_percentage=Decimal('0.00'),
+        )
+        UsufructDetails.objects.create(
+            property=u_prop,
+            prep_cost=Decimal('50000.00')
+        )
+        
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('real-estate-portfolio-investor-log', kwargs={'pk': self.portfolio.id})
+        
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Verify Usufruct prep cost is in capital required
+        graph_data = response.data.get('graph_data', [])
+        y2024 = next((item for item in graph_data if item['year'] == 2024), None)
+        self.assertIsNotNone(y2024)
+        # Should include the 50k prep cost in total_capital_required
+        self.assertGreaterEqual(y2024['total_capital_required'], 50000.0)
     def setUp(self):
         self.client = APIClient()
         self.admin_user = User.objects.create_user(
@@ -123,13 +160,6 @@ class InvestorLogAPITests(TestCase):
         self.portfolio.total_units = Decimal('100000.00')
         self.portfolio.save()
         
-        RealEstateInvestorStats.objects.create(
-            portfolio=self.portfolio,
-            investor=self.investor_user,
-            amount_invested=Decimal('100000.00'),
-            units=Decimal('100000.00')
-        )
-        
         # 2. Sell 50%
         # Seller: investor_user
         # Buyer: admin_user (why not)
@@ -200,7 +230,7 @@ class InvestorLogAPITests(TestCase):
             appreciation_rate_percentage=Decimal('0.00'),
             vacancy_rate_percentage=Decimal('0.00')
         )
-        from .models import OffPlanDetails, OffPlanMilestone
+        from ..models import OffPlanDetails, OffPlanMilestone
         OffPlanDetails.objects.create(
             property=off_plan,
             construction_start_date="2024-01-01",
@@ -224,7 +254,7 @@ class InvestorLogAPITests(TestCase):
             appreciation_rate_percentage=Decimal('0.00'),
             vacancy_rate_percentage=Decimal('0.00')
         )
-        from .models import FinancingEntry
+        from ..models import FinancingEntry
         FinancingEntry.objects.create(
             property=mortgaged,
             loan_amount=Decimal('200000.00'),

@@ -1,6 +1,6 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
-from .models import Fund, ModelInput, InvestmentDeal, CurrentDeal
+from ..models import Fund, ModelInput, InvestmentDeal, CurrentDeal
 from decimal import Decimal
 from datetime import datetime
 from funds.utils.calculators import solve_implied_return_rate

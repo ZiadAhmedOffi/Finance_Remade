@@ -3,7 +3,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
-from .models import RealEstatePortfolio, RealEstateAssumptions, Property
+from ..models import RealEstatePortfolio, RealEstateAssumptions, Property
 from users.models import Role, UserRoleAssignment
 from decimal import Decimal
 import datetime

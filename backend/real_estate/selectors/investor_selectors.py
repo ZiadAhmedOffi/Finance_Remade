@@ -55,7 +55,7 @@ class RealEstateInvestorSelector:
         from decimal import Decimal
 
         yearly_data = {}
-        properties = portfolio.properties.all().select_related('financing', 'off_plan_details', 'installment')
+        properties = portfolio.properties.all().select_related('financing', 'off_plan_details', 'installment', 'usufruct_details')
 
         def add_to_year(yr, amount, name, payment_type):
             if yr not in yearly_data:
@@ -68,7 +68,14 @@ class RealEstateInvestorSelector:
             })
 
         for prop in properties:
-            if prop.status == "OFF_PLAN":
+            if prop.status == "USUFRUCT":
+                # Usufruct properties use prep_cost as initial capital requirement
+                u_details = getattr(prop, 'usufruct_details', None)
+                if u_details:
+                    yr = prop.purchase_date.year
+                    add_to_year(yr, float(u_details.prep_cost), prop.name, "Usufruct Prep Cost")
+            
+            elif prop.status == "OFF_PLAN":
                 # Off-Plan properties use their milestones
                 schedule_data = OffPlanSelectors.get_payment_schedule(prop)
                 for item in schedule_data["schedule"]:
@@ -82,7 +89,7 @@ class RealEstateInvestorSelector:
                 try:
                     financing = prop.financing
                     # Down Payment in purchase year
-                    dp = float(prop.purchase_price - financing.loan_amount)
+                    dp = float((prop.purchase_price or 0) - financing.loan_amount)
                     yr_start = prop.purchase_date.year
                     add_to_year(yr_start, dp, prop.name, "Mortgage Down Payment")
                     
@@ -107,7 +114,7 @@ class RealEstateInvestorSelector:
                 except:
                     # Fallback to ALL_CASH if no financing entry found
                     yr = prop.purchase_date.year
-                    add_to_year(yr, float(prop.purchase_price), prop.name, "Purchase (Cash Fallback)")
+                    add_to_year(yr, float(prop.purchase_price or 0), prop.name, "Purchase (Cash Fallback)")
 
             elif prop.financing_type == "PRIMARY_INSTALLMENTS":
                 # Primary Sales with Installments
@@ -135,11 +142,11 @@ class RealEstateInvestorSelector:
                 except:
                     # Fallback to ALL_CASH if no installment entry found
                     yr = prop.purchase_date.year
-                    add_to_year(yr, float(prop.purchase_price), prop.name, "Purchase (Cash Fallback)")
+                    add_to_year(yr, float(prop.purchase_price or 0), prop.name, "Purchase (Cash Fallback)")
             
             else:
                 # ALL_CASH HELD/SOLD
                 yr = prop.purchase_date.year
-                add_to_year(yr, float(prop.purchase_price), prop.name, "Full Cash Purchase")
+                add_to_year(yr, float(prop.purchase_price or 0), prop.name, "Full Cash Purchase")
 
         return yearly_data

@@ -45,6 +45,7 @@ class OffPlanService:
             ("Down Payment", start_date, Decimal("20.00")),
             ("Construction at 30%", start_date + timedelta(days=180), Decimal("10.00")),
             ("Handover 50%", start_date + timedelta(days=365), Decimal("20.00")),
+            ("Finishing", start_date + timedelta(days=540), Decimal("10.00")),
         ]
         
         for name, date, pct in milestones:

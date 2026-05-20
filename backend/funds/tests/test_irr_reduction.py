@@ -2,8 +2,8 @@ from django.test import TestCase
 from unittest.mock import patch
 from datetime import datetime
 from decimal import Decimal
-from .models import Fund, ModelInput, CurrentDeal
-from .selectors.fund_selectors import get_total_fund_portfolio
+from ..models import Fund, ModelInput, CurrentDeal
+from ..selectors.fund_selectors import get_total_fund_portfolio
 
 class IRRReductionTest(TestCase):
     def setUp(self):

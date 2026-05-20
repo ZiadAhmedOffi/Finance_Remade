@@ -114,13 +114,16 @@ class PortfolioDashboardSelector:
                 
                 m['metrics']['realized_gain'] = m['metrics'].get('realized_gain', Decimal('0.00')) + extra_realized_gain
 
-        total_market_value = sum(m['metrics']['current_market_value'] for m in active_properties_metrics)
-        total_invested_capital = sum(m['metrics']['total_cost_basis'] for m in active_properties_metrics) + \
-                                sum(m['metrics']['total_cost_basis'] for m in sold_properties_metrics)
-        total_unrealized_gains = sum(m['metrics']['unrealized_gain'] for m in active_properties_metrics if m['metrics']['unrealized_gain'] is not None)
-        total_annual_rent = sum(m['metrics']['annual_rent'] for m in active_properties_metrics)
-        total_noi = sum(m['metrics']['noi'] for m in active_properties_metrics)
-        total_debt_service = sum(m['metrics']['annual_debt_service'] for m in active_properties_metrics)
+        total_market_value = sum(m['metrics']['current_market_value'] for m in active_properties_metrics if m['status'] != "USUFRUCT")
+        total_invested_capital = sum(m['metrics'].get('total_cost_basis', Decimal('0.00')) for m in active_properties_metrics) + \
+                                sum(m['metrics'].get('total_cost_basis', Decimal('0.00')) for m in sold_properties_metrics)
+        
+        # Handle cases where unrealized_gain might be None (Sold properties)
+        total_unrealized_gains = sum(m['metrics'].get('unrealized_gain') or Decimal('0.00') for m in active_properties_metrics)
+        
+        total_annual_rent = sum(m['metrics'].get('annual_rent') or Decimal('0.00') for m in active_properties_metrics)
+        total_noi = sum(m['metrics'].get('noi') or Decimal('0.00') for m in active_properties_metrics)
+        total_debt_service = sum(m['metrics'].get('annual_debt_service') or Decimal('0.00') for m in active_properties_metrics)
         
         # Portfolio realized gains = Gains from sales + Positive annual portfolio cash flows (excluding sale proceeds)
         portfolio_operational_gain = sum(
@@ -202,6 +205,8 @@ class PortfolioDashboardSelector:
             
             p_year = prop_obj.purchase_date.year
             p_price = prop_obj.purchase_price
+            is_usufruct = prop_obj.status == "USUFRUCT"
+            u_details = getattr(prop_obj, 'usufruct_details', None) if is_usufruct else None
 
             for i, year in enumerate(projection_years):
                 # Use reference_date market value for current year to be consistent with top metrics
@@ -227,11 +232,13 @@ class PortfolioDashboardSelector:
                     # Floor market value at purchase_price if it's within lifecycle and not yet sold.
                     # This ensures off-plan properties during construction show up at cost basis.
                     # Also handles cases where market_value might be reported as less than cost basis.
-                    market_value = max(market_value, p_price)
+                    if p_price is not None:
+                        market_value = max(market_value, p_price)
                 
                 if year == p_year:
                     # Asset Injection happens in the purchase year
-                    annual_metrics[year]["injection"] += p_price
+                    injection_val = p_price if p_price is not None else (u_details.prep_cost if u_details else Decimal('0.00'))
+                    annual_metrics[year]["injection"] += injection_val
                 
                 annual_metrics[year]["total_value"] += market_value
 
@@ -266,34 +273,54 @@ class PortfolioDashboardSelector:
             prop_obj = next((p for p in properties if str(p.id) == prop_id), None)
             if not prop_obj: continue
 
-            entry_val = PropertyDataCalc.total_cost_basis(prop_obj.purchase_price, Decimal(str(assumptions.acquisition_fee_percentage)))
+            is_usufruct = prop_obj.status == "USUFRUCT"
+            u_details = getattr(prop_obj, 'usufruct_details', None) if is_usufruct else None
+
+            if is_usufruct and u_details:
+                entry_val = u_details.prep_cost
+            else:
+                entry_val = PropertyDataCalc.total_cost_basis(prop_obj.purchase_price, Decimal(str(assumptions.acquisition_fee_percentage)))
+            
             current_val = prop_cf['metadata'].get(current_year, {}).get('market_value', Decimal('0.00'))
             
             # Floor current_val at purchase_price if not sold and current_val is 0
             is_sold_now = hasattr(prop_obj, 'sale') and prop_obj.sale.sale_date.year <= current_year
             if current_val == 0 and not is_sold_now:
-                current_val = prop_obj.purchase_price
+                if is_usufruct and u_details:
+                    current_val = u_details.prep_cost
+                else:
+                    current_val = prop_obj.purchase_price
                 
             exit_val = prop_cf['metadata'].get(final_year, {}).get('market_value', Decimal('0.00'))
 
-            if exit_val > 0:
-                intrinsic_value_data.append({
-                    "subject": prop_obj.name,
-                    "entry": (entry_val / exit_val * Decimal('100')).quantize(Decimal('0.1')),
-                    "current": (current_val / exit_val * Decimal('100')).quantize(Decimal('0.1')),
-                    "expected": Decimal('100.0'),
-                    "raw_entry": entry_val,
-                    "raw_current": current_val,
-                    "raw_expected": exit_val
-                })
+            if exit_val > 0 or (is_usufruct and entry_val > 0):
+                # For Usufruct, exit_val might be 0 in terms of asset value, 
+                # but maybe we should still show it?
+                # Actually, the spider graph expects exit_val to be the 100% baseline.
+                # If Usufruct has no market value, it might not fit the spider graph well.
+                # But let's at least not crash.
                 
-                intrinsic_value_table.append({
-                    "name": prop_obj.name,
-                    "entry_valuation": entry_val,
-                    "current_valuation": current_val,
-                    "exit_valuation": exit_val,
-                    "growth_multiple": (exit_val / entry_val).quantize(Decimal('0.01')) if entry_val > 0 else Decimal('0.00')
-                })
+                # If exit_val is 0 but it's Usufruct, maybe use entry_val as baseline for current?
+                baseline = exit_val if exit_val > 0 else entry_val
+                
+                if baseline > 0:
+                    intrinsic_value_data.append({
+                        "subject": prop_obj.name,
+                        "entry": (entry_val / baseline * Decimal('100')).quantize(Decimal('0.1')),
+                        "current": (current_val / baseline * Decimal('100')).quantize(Decimal('0.1')),
+                        "expected": (exit_val / baseline * Decimal('100')).quantize(Decimal('0.1')) if baseline > 0 else Decimal('100.0'),
+                        "raw_entry": entry_val,
+                        "raw_current": current_val,
+                        "raw_expected": exit_val
+                    })
+                    
+                    intrinsic_value_table.append({
+                        "name": prop_obj.name,
+                        "entry_valuation": entry_val,
+                        "current_valuation": current_val,
+                        "exit_valuation": exit_val,
+                        "growth_multiple": (exit_val / entry_val).quantize(Decimal('0.01')) if entry_val > 0 else Decimal('0.00')
+                    })
 
         # 6. Liquidation Readiness Index (Section 4)
         liquidation_table = []

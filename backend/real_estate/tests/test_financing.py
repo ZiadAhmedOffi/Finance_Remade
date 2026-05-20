@@ -104,8 +104,8 @@ class FinancingModelTests(APITestCase):
         url = reverse('real-estate-portfolio-financing', kwargs={'pk': self.portfolio.id})
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        metrics = response.data[0]['metrics']
+        self.assertEqual(len(response.data['mortgages']), 1)
+        metrics = response.data['mortgages'][0]['metrics']
         self.assertEqual(metrics['ltv'], 50.00) # 500k / 1M
         self.assertEqual(metrics['effective_rate'], 5.00) # Base 5% + 0% adjustment
 

@@ -66,9 +66,16 @@ class PortfolioSelectors:
         yearly_investments = investments_qs.filter(year=ref_year).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
 
         # 3. Sum of all Property Purchase Prices (to calculate cash spent)
-        all_properties = portfolio.properties.all()
+        all_properties = portfolio.properties.all().select_related('usufruct_details')
         total_purchase_price = all_properties.filter(purchase_date__lte=reference_date).aggregate(total=Sum('purchase_price'))['total'] or Decimal('0.00')
         yearly_purchase_price = all_properties.filter(purchase_date__year=ref_year).aggregate(total=Sum('purchase_price'))['total'] or Decimal('0.00')
+        
+        # Add Usufruct prep costs to cash spent
+        usufruct_props = all_properties.filter(status="USUFRUCT")
+        total_prep_cost = sum(p.usufruct_details.prep_cost for p in usufruct_props if p.purchase_date <= reference_date and hasattr(p, 'usufruct_details'))
+        yearly_prep_cost = sum(p.usufruct_details.prep_cost for p in usufruct_props if p.purchase_date.year == ref_year and hasattr(p, 'usufruct_details'))
+        
+        total_cash_spent = total_purchase_price + total_prep_cost
         yearly_purchased_props = all_properties.filter(purchase_date__year=ref_year)
 
         # 4. Total Net Proceeds from Sales
@@ -78,7 +85,7 @@ class PortfolioSelectors:
         yearly_sales = [s for s in sales_metrics if s["sale"].sale_date.year == ref_year]
 
         # 5. Cash Reserves
-        cash_reserves = Decimal(str(total_investments)) - Decimal(str(total_purchase_price)) + Decimal(str(total_net_proceeds))
+        cash_reserves = Decimal(str(total_investments)) - Decimal(str(total_cash_spent)) + Decimal(str(total_net_proceeds))
         
         # Build yearly change breakdown
         cash_change_breakdown = []
@@ -88,8 +95,14 @@ class PortfolioSelectors:
             cash_change_breakdown.append({"name": f"Investor Injections ({ref_year})", "amount": float(yearly_investments), "type": "INFLOW"})
         
         for p in yearly_purchased_props:
-            cash_change_breakdown.append({"name": f"Purchase Outflow: {p.name}", "amount": float(p.purchase_price), "type": "OUTFLOW"})
-            assets_change_breakdown.append({"name": f"Added Asset: {p.name}", "amount": float(p.purchase_price), "type": "ADDITION"})
+            if p.status == "USUFRUCT":
+                u_details = getattr(p, 'usufruct_details', None)
+                if u_details:
+                    cash_change_breakdown.append({"name": f"Usufruct Prep Outflow: {p.name}", "amount": float(u_details.prep_cost), "type": "OUTFLOW"})
+                    assets_change_breakdown.append({"name": f"Added Usufruct (Cost Basis): {p.name}", "amount": float(u_details.prep_cost), "type": "ADDITION"})
+            else:
+                cash_change_breakdown.append({"name": f"Purchase Outflow: {p.name}", "amount": float(p.purchase_price or 0), "type": "OUTFLOW"})
+                assets_change_breakdown.append({"name": f"Added Asset: {p.name}", "amount": float(p.purchase_price or 0), "type": "ADDITION"})
             
         for s in yearly_sales:
             sale_obj = s["sale"]

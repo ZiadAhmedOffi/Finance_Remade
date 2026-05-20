@@ -70,21 +70,22 @@ class FinancingE2ETests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         entry_id = response.data['id']
 
-        # 4. Verify Metrics and Scenario Adjustment
+        # Verify Metrics and Scenario Adjustment
         # Default scenario is BASE (0% adjustment)
         response = self.client.get(financing_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        metrics = response.data[0]['metrics']
+        metrics = response.data['mortgages'][0]['metrics']
         self.assertEqual(metrics['ltv'], 75.00) # 1.5M / 2M
         self.assertEqual(metrics['effective_rate'], 4.50)
 
         # Change scenario to BEAR (+1.00% interest rate adjustment)
         assumptions_url = f"/api/real-estate/{portfolio_id}/assumptions/"
         self.client.patch(assumptions_url, {"active_scenario": "BEAR"}, format='json')
-        
+
         response = self.client.get(financing_url)
-        metrics = response.data[0]['metrics']
+        metrics = response.data['mortgages'][0]['metrics']
         self.assertEqual(metrics['effective_rate'], 5.50) # 4.5 + 1.0
+
 
         # 5. Check Amortization Schedule
         amort_url = f"/api/real-estate/{portfolio_id}/financing/{entry_id}/amortization/"

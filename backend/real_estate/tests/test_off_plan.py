@@ -93,6 +93,7 @@ class OffPlanModelTests(APITestCase):
         details = OffPlanDetails.objects.get(property=self.property_obj)
         details.expected_completion_date = date(2025, 1, 1)
         details.appreciation_rate_at_completion = Decimal("10.00")
+        details.sale_at_completion = True
         details.save()
         
         url = f"/api/real-estate/{self.portfolio.id}/off-plan/{self.property_obj.id}/schedule/"

@@ -10,7 +10,8 @@ from ..models import (
     RealEstatePossibleCapitalSource,
     RealEstateInvestorAction,
     RealEstateInvestorStats,
-    InstallmentEntry
+    InstallmentEntry,
+    UsufructDetails
 )
 
 class RealEstateAssumptionsSerializer(serializers.ModelSerializer):
@@ -39,7 +40,21 @@ class RealEstatePortfolioSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'created_by_email']
 
+class UsufructDetailsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UsufructDetails
+        fields = [
+            'id', 'property', 'insurance_cost', 'prep_cost',
+            'outflow_monthly_rent', 'annual_ops_cost', 'inflow_monthly_rent',
+            'outflow_rent_appreciation_percentage',
+            'inflow_rent_appreciation_percentage',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
 class PropertySerializer(serializers.ModelSerializer):
+    usufruct_details = UsufructDetailsSerializer(read_only=True, required=False)
+
     class Meta:
         model = Property
         fields = [
@@ -48,7 +63,7 @@ class PropertySerializer(serializers.ModelSerializer):
             'purchase_date', 'purchase_price', 'size', 'monthly_rent',
             'other_operational_expenses', 'acq_fee_percentage',
             'appreciation_rate_percentage', 'vacancy_rate_percentage',
-            'created_at', 'updated_at'
+            'usufruct_details', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
