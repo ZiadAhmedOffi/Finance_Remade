@@ -11,8 +11,29 @@ from ..models import (
     RealEstateInvestorAction,
     RealEstateInvestorStats,
     InstallmentEntry,
-    UsufructDetails
+    UsufructDetails,
+    Jurisdiction,
+    TaxRule
 )
+
+class JurisdictionSerializer(serializers.ModelSerializer):
+    rules_count = serializers.IntegerField(source='rules.count', read_only=True)
+
+    class Meta:
+        model = Jurisdiction
+        fields = ['id', 'name', 'currency', 'rules_count', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+class TaxRuleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TaxRule
+        fields = [
+            'id', 'jurisdiction', 'name', 'event_type', 'trigger', 'tax_base',
+            'rate', 'valuation_ratio', 'revaluation_freq', 
+            'deductibility_cap', 'lcf_limit', 'responsible_party', 
+            'is_active', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
 
 class RealEstateAssumptionsSerializer(serializers.ModelSerializer):
     class Meta:
@@ -20,7 +41,7 @@ class RealEstateAssumptionsSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'portfolio', 'inception_date', 'forecast_horizon',
             'default_appreciation_rate', 'default_rental_growth_rate',
-            'default_vacancy_rate', 'default_discount_rate',
+            'default_vacancy_rate', 'default_discount_rate', 'default_depreciation_rate',
             'acquisition_fee_percentage', 'property_mgmt_fee_percentage',
             'maintenance_percentage_of_value', 'selling_fee_percentage',
             'active_scenario', 'updated_at'
@@ -30,21 +51,22 @@ class RealEstateAssumptionsSerializer(serializers.ModelSerializer):
 class RealEstatePortfolioSerializer(serializers.ModelSerializer):
     assumptions = RealEstateAssumptionsSerializer(read_only=True)
     created_by_email = serializers.EmailField(source='created_by.email', read_only=True)
+    jurisdiction_name = serializers.CharField(source='jurisdiction.name', read_only=True)
 
     class Meta:
         model = RealEstatePortfolio
         fields = [
-            'id', 'name', 'description', 'region', 
+            'id', 'name', 'description', 'region', 'jurisdiction', 'jurisdiction_name',
             'status', 'created_by_email', 'created_at',
             'assumptions'
         ]
-        read_only_fields = ['id', 'created_at', 'created_by_email']
+        read_only_fields = ['id', 'created_at', 'created_by_email', 'jurisdiction_name']
 
 class UsufructDetailsSerializer(serializers.ModelSerializer):
     class Meta:
         model = UsufructDetails
         fields = [
-            'id', 'property', 'insurance_cost', 'prep_cost',
+            'id', 'property', 'investor_role', 'insurance_cost', 'prep_cost',
             'outflow_monthly_rent', 'annual_ops_cost', 'inflow_monthly_rent',
             'outflow_rent_appreciation_percentage',
             'inflow_rent_appreciation_percentage',

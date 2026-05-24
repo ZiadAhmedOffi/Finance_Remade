@@ -18,6 +18,15 @@ class RealEstatePortfolio(models.Model):
     description = models.TextField(blank=True)
     region = models.CharField(max_length=255, blank=True)
     
+    # New: Link to Jurisdiction
+    jurisdiction = models.ForeignKey(
+        'Jurisdiction',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="portfolios"
+    )
+
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -40,6 +49,94 @@ class RealEstatePortfolio(models.Model):
 
     def __str__(self):
         return self.name
+
+class Jurisdiction(models.Model):
+    """
+    Represents a fiscal territory with specific tax rules.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255, unique=True)
+    currency = models.CharField(max_length=10, default="USD")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Jurisdiction"
+        verbose_name_plural = "Jurisdictions"
+
+    def __str__(self):
+        return self.name
+
+class TaxRule(models.Model):
+    """
+    Defines a specific tax logic within a Jurisdiction.
+    """
+    EVENT_TYPE_CHOICES = [
+        ("ACQUISITION", "Acquisition"),
+        ("OWNERSHIP", "Ownership"),
+        ("INCOME", "Income"),
+        ("DISPOSAL", "Disposal"),
+        ("FINANCING", "Financing"),
+    ]
+
+    TRIGGER_CHOICES = [
+        ("CONTRACT_SIGNING", "Contract Signing"),
+        ("ON_PAYMENT", "On Payment"),
+        ("HANDOVER", "Handover"),
+        ("ANNUAL", "Annual"),
+        ("DISPOSAL", "Disposal"),
+    ]
+
+    TAX_BASE_CHOICES = [
+        ("MARKET_VALUE", "Market Value"),
+        ("ASSESSED_VALUE", "Assessed Value"),
+        ("NET_INCOME", "Net Income"),
+        ("LOAN_AMOUNT", "Loan Amount"),
+        ("FIXED", "Fixed Amount"),
+    ]
+
+    RESPONSIBLE_PARTY_CHOICES = [
+        ("BARE_OWNER", "Bare Owner"),
+        ("USUFRUCT_HOLDER", "Usufruct Holder"),
+        ("BOTH", "Both / Not Applicable"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    jurisdiction = models.ForeignKey(
+        Jurisdiction,
+        on_delete=models.CASCADE,
+        related_name="rules"
+    )
+
+    name = models.CharField(max_length=255)
+    event_type = models.CharField(max_length=20, choices=EVENT_TYPE_CHOICES)
+    trigger = models.CharField(max_length=20, choices=TRIGGER_CHOICES)
+    tax_base = models.CharField(max_length=20, choices=TAX_BASE_CHOICES)
+    
+    # Financial Parameters
+    rate = models.DecimalField(max_digits=10, decimal_places=4, help_text="Tax rate as a decimal (e.g. 0.05 for 5%)")
+    valuation_ratio = models.DecimalField(max_digits=5, decimal_places=2, default=1.00, help_text="Ratio of market value for assessed value")
+    revaluation_freq = models.PositiveIntegerField(default=1, help_text="How often the assessment updates in years")
+    deductibility_cap = models.DecimalField(max_digits=5, decimal_places=2, default=1.00, help_text="Cap on interest/expense deductions")
+    lcf_limit = models.PositiveIntegerField(null=True, blank=True, help_text="Loss Carry Forward limit in years")
+    
+    responsible_party = models.CharField(
+        max_length=20, 
+        choices=RESPONSIBLE_PARTY_CHOICES, 
+        default="BOTH"
+    )
+
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Tax Rule"
+        verbose_name_plural = "Tax Rules"
+
+    def __str__(self):
+        return f"{self.jurisdiction.name} - {self.name} ({self.event_type})"
 
 class RealEstateAssumptions(models.Model):
     """
@@ -67,6 +164,7 @@ class RealEstateAssumptions(models.Model):
     default_rental_growth_rate = models.DecimalField(max_digits=5, decimal_places=2, default=2.00)
     default_vacancy_rate = models.DecimalField(max_digits=5, decimal_places=2, default=5.00)
     default_discount_rate = models.DecimalField(max_digits=5, decimal_places=2, default=8.00)
+    default_depreciation_rate = models.DecimalField(max_digits=5, decimal_places=2, default=2.00, help_text="Annual depreciation rate as percentage")
 
     # Fees and Costs
     acquisition_fee_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=1.00)
@@ -173,6 +271,16 @@ class UsufructDetails(models.Model):
         Property,
         on_delete=models.CASCADE,
         related_name="usufruct_details"
+    )
+
+    # New: Role for taxation allocation
+    investor_role = models.CharField(
+        max_length=20, 
+        choices=[
+            ("BARE_OWNER", "Bare Owner"),
+            ("USUFRUCT_HOLDER", "Usufruct Holder"),
+        ],
+        default="USUFRUCT_HOLDER"
     )
 
     # Inputs

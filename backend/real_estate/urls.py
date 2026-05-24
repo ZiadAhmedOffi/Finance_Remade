@@ -1,8 +1,14 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .api.views import RealEstatePortfolioViewSet
+from .api.views import (
+    RealEstatePortfolioViewSet,
+    JurisdictionViewSet,
+    TaxRuleViewSet
+)
 
 router = DefaultRouter()
+router.register(r'jurisdictions', JurisdictionViewSet, basename='jurisdiction')
+router.register(r'tax-rules', TaxRuleViewSet, basename='tax-rule')
 router.register(r'', RealEstatePortfolioViewSet, basename='real-estate-portfolio')
 
 urlpatterns = [

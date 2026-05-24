@@ -22,7 +22,9 @@ from .serializers import (
     PropertySaleWithMetricsSerializer,
     RealEstatePossibleCapitalSourceSerializer,
     RealEstateInvestorActionSerializer,
-    RealEstateInvestorStatsSerializer
+    RealEstateInvestorStatsSerializer,
+    JurisdictionSerializer,
+    TaxRuleSerializer
 )
 from ..models import (
     FinancingEntry, 
@@ -31,7 +33,9 @@ from ..models import (
     PropertySale, 
     RealEstateInvestorAction, 
     RealEstatePossibleCapitalSource,
-    InstallmentEntry
+    InstallmentEntry,
+    Jurisdiction,
+    TaxRule
 )
 from ..selectors.portfolio_selectors import PortfolioSelectors
 from ..selectors.property_selectors import PropertySelector
@@ -54,6 +58,25 @@ from users.services.permission_service import PermissionService
 
 from funds.interfaces.user_service_adapter import UserServiceAdapter
 user_adapter = UserServiceAdapter()
+
+class JurisdictionViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = JurisdictionSerializer
+    queryset = Jurisdiction.objects.all()
+
+    def get_queryset(self):
+        return Jurisdiction.objects.all().prefetch_related('rules')
+
+class TaxRuleViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = TaxRuleSerializer
+    queryset = TaxRule.objects.all()
+
+    def get_queryset(self):
+        jurisdiction_id = self.request.query_params.get('jurisdiction')
+        if jurisdiction_id:
+            return TaxRule.objects.filter(jurisdiction_id=jurisdiction_id)
+        return TaxRule.objects.all()
 
 class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]

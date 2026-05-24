@@ -9,6 +9,7 @@ import SalesAndDisposalsTab from "../components/SalesAndDisposalsTab";
 import CashFlowModelTab from "../components/CashFlowModelTab";
 import RealEstateDashboardTab from "../components/RealEstateDashboardTab";
 import REInvestorLogTab from "../components/REInvestorLogTab";
+import TaxationManagementTab from "../components/TaxationManagementTab";
 import "./FundDashboard.css"; // Reuse dashboard styles
 
 interface RealEstatePortfolio {
@@ -16,6 +17,8 @@ interface RealEstatePortfolio {
   name: string;
   description: string;
   region: string;
+  jurisdiction?: string;
+  jurisdiction_name?: string;
   status: "ACTIVE" | "DEACTIVATED";
 }
 
@@ -25,7 +28,7 @@ const RealEstatePortfolioDashboard: React.FC = () => {
   const [portfolio, setPortfolio] = useState<RealEstatePortfolio | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "properties" | "assumptions" | "financing" | "off-plan" | "sales" | "cash-flow" | "investor-log">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "properties" | "assumptions" | "financing" | "off-plan" | "sales" | "cash-flow" | "investor-log" | "taxation">("dashboard");
   const [canEdit, setCanEdit] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -84,6 +87,7 @@ const RealEstatePortfolioDashboard: React.FC = () => {
     { id: "investor-log", label: "Investor Log", icon: "👥" },
     { id: "financing", label: "Financing Model", icon: "💰" },
     { id: "off-plan", label: "Off-Plan Model", icon: "🏗️" },
+    { id: "taxation", label: "Taxation", icon: "⚖️" },
     { id: "cash-flow", label: "Cash Flow Model", icon: "📈" },
     { id: "sales", label: "Sales & Disposals", icon: "🤝" },
     { id: "assumptions", label: "Assumptions", icon: "⚙️" },
@@ -157,6 +161,9 @@ const RealEstatePortfolioDashboard: React.FC = () => {
           )}
           {activeTab === "cash-flow" && portfolioId && (
             <CashFlowModelTab portfolioId={portfolioId} />
+          )}
+          {activeTab === "taxation" && portfolioId && portfolio && (
+            <TaxationManagementTab portfolio={portfolio} onUpdate={fetchPortfolioData} canEdit={canEdit} />
           )}
         </div>
       </main>

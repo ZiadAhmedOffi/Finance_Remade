@@ -213,6 +213,20 @@ export const realEstateApi = {
   getPossibleSources: (portfolioId: string) => api.get(`/real-estate/${portfolioId}/possible-capital-sources/`),
   createPossibleSource: (portfolioId: string, data: any) => api.post(`/real-estate/${portfolioId}/possible-capital-sources/`, data),
   deletePossibleSource: (portfolioId: string, sourceId: string) => api.delete(`/real-estate/${portfolioId}/possible-capital-sources/${sourceId}/`),
+
+  // Jurisdictions & Tax Rules
+  getJurisdictions: () => api.get("/real-estate/jurisdictions/"),
+  createJurisdiction: (data: any) => api.post("/real-estate/jurisdictions/", data),
+  updateJurisdiction: (id: string, data: any) => api.patch(`/real-estate/jurisdictions/${id}/`, data),
+  deleteJurisdiction: (id: string) => api.delete(`/real-estate/jurisdictions/${id}/`),
+  
+  getTaxRules: (jurisdictionId?: string) => {
+    const params = jurisdictionId ? { jurisdiction: jurisdictionId } : {};
+    return api.get("/real-estate/tax-rules/", { params });
+  },
+  createTaxRule: (data: any) => api.post("/real-estate/tax-rules/", data),
+  updateTaxRule: (id: string, data: any) => api.patch(`/real-estate/tax-rules/${id}/`, data),
+  deleteTaxRule: (id: string) => api.delete(`/real-estate/tax-rules/${id}/`),
 };
 
 export { api, publicApi };

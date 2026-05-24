@@ -5,6 +5,7 @@ from ..models import RealEstatePortfolio, Property, OffPlanMilestone
 from .financing_selectors import FinancingSelectors
 from ..constants import SCENARIO_ADJUSTMENTS
 from ..calculation import PropertyDataCalc
+from ..services.taxation_service import TaxationService
 
 class CashFlowSelectors:
     @staticmethod
@@ -12,7 +13,7 @@ class CashFlowSelectors:
         """
         Calculates annual cash flows for all properties in a portfolio.
         Follows lifecycle and off-plan specific logic.
-        Integrates Mortgages and Primary Installments.
+        Integrates Mortgages, Primary Installments, and Taxation.
         """
         assumptions = portfolio.assumptions
         inception_year = assumptions.inception_date.year
@@ -29,12 +30,13 @@ class CashFlowSelectors:
         requested_years = list(range(start_year, end_year + 1))
         
         # Include properties that are SOLD but might have historical cash flow
-        properties = portfolio.properties.select_related('financing', 'off_plan_details', 'installment').prefetch_related('milestones', 'sale')
+        properties = portfolio.properties.select_related('financing', 'off_plan_details', 'installment', 'usufruct_details').prefetch_related('milestones', 'sale')
         
         property_cash_flows = {}
         portfolio_totals = defaultdict(Decimal)
         portfolio_noi = defaultdict(Decimal)
         portfolio_sales_proceeds = defaultdict(Decimal)
+        portfolio_taxes = defaultdict(Decimal)
         
         active_scenario = assumptions.active_scenario
         adjustments = SCENARIO_ADJUSTMENTS.get(active_scenario, {})
@@ -42,9 +44,11 @@ class CashFlowSelectors:
         app_adj = adjustments.get('appreciation', Decimal('0.00'))
         rent_adj = adjustments.get('rental_growth', Decimal('0.00'))
         vacancy_adj = adjustments.get('vacancy', Decimal('0.00'))
+        depreciation_rate = Decimal(str(assumptions.default_depreciation_rate)) / Decimal('100')
         
         for prop in properties:
             prop_data = {"name": prop.name, "annual_cf": {}, "metadata": {}}
+            lcf_pool = Decimal('0.00') # Loss Carry Forward pool for this property
             
             # Common rates
             is_usufruct = prop.status == "USUFRUCT"
@@ -87,6 +91,7 @@ class CashFlowSelectors:
 
             # Financing & Installments
             debt_service_by_year = defaultdict(Decimal)
+            interest_by_year = defaultdict(Decimal)
             if hasattr(prop, 'financing'):
                 schedule = FinancingSelectors.get_amortization_schedule(prop.financing)
                 loan_start_date = prop.financing.loan_start_date
@@ -94,6 +99,7 @@ class CashFlowSelectors:
                 for item in schedule:
                     y = loan_start_date.year + (loan_start_date.month + (months_per_period * (item['period'] - 1)) - 1) // 12
                     debt_service_by_year[y] += item['periodic_payment']
+                    interest_by_year[y] += item['interest_payment']
             
             installment_payments_by_year = defaultdict(Decimal)
             installment_down_payment = Decimal('0.00')
@@ -119,12 +125,18 @@ class CashFlowSelectors:
                 net_sale_inflow = Decimal('0.00')
                 debt_service = Decimal('0.00')
                 installments = Decimal('0.00')
+                annual_tax = Decimal('0.00')
+                
+                property_events = []
 
                 # 1. Check if property is within lifecycle
                 if year < purchase_year or (sale_year and year > sale_year):
                     cf = None # Signal to show (-)
                 else:
                     cf = Decimal('0.00')
+                    
+                    if year == purchase_year:
+                        property_events.append('CONTRACT_SIGNING')
                     
                     if is_usufruct and u_details:
                         t = Decimal(str(year - purchase_year))
@@ -166,6 +178,7 @@ class CashFlowSelectors:
                         sale_metrics = PropertySaleSelector.calculate_sale_metrics(prop.sale)
                         net_sale_inflow = sale_metrics['metrics']['net_proceeds']
                         cf += net_sale_inflow
+                        property_events.append('DISPOSAL')
                     
                     # 3. Handle Operating CF
                     elif is_off_plan_initial and completion_year and year < completion_year:
@@ -175,9 +188,12 @@ class CashFlowSelectors:
                         installments = installment_payments_by_year.get(year, Decimal('0.00'))
                         cf = -(construction_cost + debt_service + installments)
                         months_owned = 12
+                        if construction_cost > 0 or installments > 0:
+                            property_events.append('ON_PAYMENT')
                     
                     elif is_off_plan_initial and completion_year and year == completion_year:
                         # Completion Year
+                        property_events.append('HANDOVER')
                         if sale_at_completion:
                             # Sale at completion logic
                             appreciation_rate = prop.off_plan_details.appreciation_rate_at_completion / Decimal("100")
@@ -190,6 +206,7 @@ class CashFlowSelectors:
                             cf = net_sale_inflow - construction_cost - debt_service - installments
                             # Signal that it's "sold" effectively
                             sale_year = year 
+                            property_events.append('DISPOSAL')
                         else:
                             # Transition to rental property
                             # Pro-rate based on completion date
@@ -198,8 +215,8 @@ class CashFlowSelectors:
                             completion_jump_rate = prop.off_plan_details.appreciation_rate_at_completion / Decimal('100')
                             
                             # Appreciate rent and value
-                            current_monthly_rent = ((prop.monthly_rent or Decimal('0')) * Decimal(str(float(Decimal('1') + (rent_growth_rate / Decimal('100'))) ** float(t)))).quantize(Decimal('0.01'))
-                            current_monthly_rent *= (Decimal('1') + completion_jump_rate)
+                            current_market_value = PropertyDataCalc.market_value(prop.purchase_price or Decimal('0'), app_rate, t)
+                            current_market_value = (current_market_value * (Decimal('1') + completion_jump_rate)).quantize(Decimal('0.01'))
                             
                             effective_rent = PropertyDataCalc.effective_rent(
                                 prop.monthly_rent or Decimal('0'),
@@ -209,10 +226,7 @@ class CashFlowSelectors:
                                 months_in_period=months_owned
                             )
                             effective_rent = (effective_rent * (Decimal('1') + completion_jump_rate)).quantize(Decimal('0.01'))
-                            
-                            current_market_value = PropertyDataCalc.market_value(prop.purchase_price or Decimal('0'), app_rate, t)
-                            current_market_value = (current_market_value * (Decimal('1') + completion_jump_rate)).quantize(Decimal('0.01'))
-                            
+
                             maint_fee = PropertyDataCalc.maintenance_fees(current_market_value, maint_fee_pct)
                             mgmt_fee = PropertyDataCalc.management_fees(effective_rent, mgmt_fee_pct)
                             
@@ -269,11 +283,31 @@ class CashFlowSelectors:
                         installments = installment_payments_by_year.get(year, Decimal('0.00'))
                         cf += noi - debt_service - installments
 
+                    # --- TAXATION INTEGRATION ---
+                    interest_expense = interest_by_year.get(year, Decimal('0.00'))
+                    depreciation = ((prop.purchase_price or Decimal('0')) * depreciation_rate).quantize(Decimal('0.01'))
+                    taxable_income = noi - depreciation - interest_expense
+                    
+                    # Apply LCF
+                    adjusted_taxable, lcf_pool = TaxationService.apply_loss_carry_forward(taxable_income, lcf_pool)
+                    
+                    tax_context = {
+                        'market_value': current_market_value,
+                        'net_income': adjusted_taxable,
+                        'property_events': property_events,
+                        'is_disposal_year': year == sale_year,
+                        'loan_interest': interest_expense
+                    }
+                    annual_tax = TaxationService.calculate_property_tax_for_year(prop, year - inception_year, tax_context)
+                    cf -= annual_tax
+                    # --- END TAXATION ---
+
                 # Aggregation
                 if cf is not None:
                     portfolio_totals[year] += cf
                     portfolio_noi[year] += noi
                     portfolio_sales_proceeds[year] += net_sale_inflow
+                    portfolio_taxes[year] += annual_tax
                 
                 if year in requested_years:
                     prop_data["annual_cf"][year] = cf.quantize(Decimal('0.01')) if cf is not None else None
@@ -288,11 +322,14 @@ class CashFlowSelectors:
                             "opex": total_opex.quantize(Decimal('0.01')),
                             "noi": noi.quantize(Decimal('0.01')),
                             "debt_service": debt_service.quantize(Decimal('0.01')),
+                            "interest_expense": interest_expense.quantize(Decimal('0.01')),
                             "installments": installments.quantize(Decimal('0.01')),
                             "purchase_price": (prop.purchase_price or Decimal('0')) if year == purchase_year and not is_off_plan_initial and prop.financing_type not in ["MORTGAGED", "PRIMARY_INSTALLMENTS"] else Decimal("0.00"),
                             "down_payment": (installment_down_payment if prop.financing_type == "PRIMARY_INSTALLMENTS" else ((prop.purchase_price or Decimal('0')) - prop.financing.loan_amount if prop.financing_type == "MORTGAGED" and hasattr(prop, "financing") else Decimal("0.00"))) if year == purchase_year else Decimal("0.00"),
                             "construction_costs": construction_cost.quantize(Decimal('0.01')),
-                            "sale_proceeds": net_sale_inflow.quantize(Decimal('0.01'))
+                            "sale_proceeds": net_sale_inflow.quantize(Decimal('0.01')),
+                            "taxes": annual_tax.quantize(Decimal('0.01')),
+                            "lcf_pool": lcf_pool.quantize(Decimal('0.01'))
                         }
             
             property_cash_flows[str(prop.id)] = prop_data
@@ -311,5 +348,6 @@ class CashFlowSelectors:
             "portfolio_totals": {y: portfolio_totals[y].quantize(Decimal('0.01')) for y in requested_years},
             "portfolio_noi": {y: portfolio_noi[y].quantize(Decimal('0.01')) for y in requested_years},
             "portfolio_sales_proceeds": {y: portfolio_sales_proceeds[y].quantize(Decimal('0.01')) for y in requested_years},
+            "portfolio_taxes": {y: portfolio_taxes[y].quantize(Decimal('0.01')) for y in requested_years},
             "cumulative_cf": {y: cumulative_by_year[y] for y in requested_years}
         }

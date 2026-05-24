@@ -14,6 +14,8 @@ interface CashFlowMetadata {
   purchase_price: string;
   construction_costs: string;
   sale_proceeds: string;
+  taxes: string;
+  lcf_pool: string;
 }
 
 interface CashFlowData {
@@ -27,6 +29,7 @@ interface CashFlowData {
     };
   };
   portfolio_totals: { [year: string]: number };
+  portfolio_taxes: { [year: string]: number };
   cumulative_cf: { [year: string]: number };
 }
 
@@ -245,6 +248,15 @@ const CashFlowModelTab: React.FC<{ portfolioId: string }> = ({ portfolioId }) =>
                   </td>
                 ))}
               </tr>
+
+              <tr className="total-row" style={{ color: "#64748b", background: "#f8fafc" }}>
+                <td className="sticky-col">Total Portfolio Taxes</td>
+                {data.years.map(year => (
+                  <td key={year}>
+                    {formatCurrency(data.portfolio_taxes[year])}
+                  </td>
+                ))}
+              </tr>
               
               <tr className="cumulative-row">
                 <td className="sticky-col">Cumulative CF</td>
@@ -300,6 +312,18 @@ const CashFlowModelTab: React.FC<{ portfolioId: string }> = ({ portfolioId }) =>
                 <span className="metadata-label">Debt Service</span>
                 <span className="metadata-value">{formatCurrency(drillMetadata.debt_service)}</span>
               </div>
+
+              <div className="metadata-item">
+                <span className="metadata-label">Annual Taxes</span>
+                <span className="metadata-value" style={{ color: "#ef4444" }}>{formatCurrency(drillMetadata.taxes)}</span>
+              </div>
+              
+              {parseFloat(drillMetadata.lcf_pool) > 0 && (
+                <div className="metadata-item">
+                  <span className="metadata-label">LCF Pool Remaining</span>
+                  <span className="metadata-value" style={{ color: "#3b82f6" }}>{formatCurrency(drillMetadata.lcf_pool)}</span>
+                </div>
+              )}
               
               {parseFloat(drillMetadata.purchase_price) !== 0 && (
                 <div className="metadata-item">
