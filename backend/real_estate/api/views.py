@@ -89,8 +89,13 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
             return PortfolioSelectors.get_portfolios()
         
         # For non-superadmins, we should filter based on role assignments
-        portfolios = PortfolioSelectors.get_portfolios()
-        return [p for p in portfolios if PermissionService.can_view_re_portfolio(user, p)]
+        from users.models import UserRoleAssignment
+        portfolio_ids = UserRoleAssignment.objects.filter(
+            user=user,
+            real_estate_portfolio__isnull=False
+        ).values_list('real_estate_portfolio_id', flat=True)
+        
+        return PortfolioSelectors.get_portfolios().filter(id__in=portfolio_ids)
 
     def create(self, request, *args, **kwargs):
         if not PermissionService.is_super_admin(request.user):
