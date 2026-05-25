@@ -216,6 +216,11 @@ class Property(models.Model):
         ("PRIMARY_INSTALLMENTS", "Primary Sales with Installments"),
     ]
 
+    TRANSACTION_TYPE_CHOICES = [
+        ("PRIMARY", "Primary"),
+        ("SECONDARY", "Secondary"),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     portfolio = models.ForeignKey(
         RealEstatePortfolio, 
@@ -233,6 +238,7 @@ class Property(models.Model):
     property_type = models.CharField(max_length=50, choices=TYPE_CHOICES)
     financing_type = models.CharField(max_length=50, choices=FINANCING_CHOICES)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="HELD")
+    transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPE_CHOICES, default="SECONDARY")
 
     # Financial Inputs
     purchase_date = models.DateField()

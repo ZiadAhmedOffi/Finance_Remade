@@ -41,6 +41,15 @@ class PropertyService:
         monthly_rent = Decimal(str(monthly_rent_val)) if monthly_rent_val not in [None, ""] else None
         
         status_val = data.get('status', 'HELD')
+        transaction_type_val = data.get('transaction_type', 'SECONDARY')
+
+        # Enforcement: Off-Plan must be Primary
+        if status_val == "OFF_PLAN":
+            transaction_type_val = "PRIMARY"
+        
+        # Enforcement: Primary must have 0 acquisition fees
+        if transaction_type_val == "PRIMARY":
+            acq_fee = Decimal('0.00')
 
         property_obj = Property.objects.create(
             portfolio=portfolio,
@@ -51,6 +60,7 @@ class PropertyService:
             property_type=data['property_type'],
             financing_type=data['financing_type'],
             status=status_val,
+            transaction_type=transaction_type_val,
             purchase_date=data['purchase_date'],
             purchase_price=purchase_price,
             size=Decimal(str(data.get('size', 0.00))),
@@ -85,8 +95,8 @@ class PropertyService:
         """
         fields = [
             'name', 'city', 'country', 'submarket', 'property_type', 
-            'financing_type', 'status', 'purchase_date', 'purchase_price', 
-            'size', 'monthly_rent', 'other_operational_expenses', 
+            'financing_type', 'status', 'transaction_type', 'purchase_date', 
+            'purchase_price', 'size', 'monthly_rent', 'other_operational_expenses', 
             'acq_fee_percentage', 'appreciation_rate_percentage', 
             'vacancy_rate_percentage'
         ]
@@ -98,6 +108,13 @@ class PropertyService:
                     val = None
                 setattr(property_obj, field, val)
         
+        # Enforcement logic
+        if property_obj.status == "OFF_PLAN":
+            property_obj.transaction_type = "PRIMARY"
+        
+        if property_obj.transaction_type == "PRIMARY":
+            property_obj.acq_fee_percentage = Decimal('0.00')
+
         property_obj.save()
 
         # Handle Usufruct Details

@@ -11,6 +11,7 @@ interface Property {
   property_type: string;
   financing_type: string;
   status: "HELD" | "OFF_PLAN" | "USUFRUCT";
+  transaction_type: "PRIMARY" | "SECONDARY";
   purchase_date: string;
   purchase_price: string | null;
   size: string;
@@ -77,6 +78,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
     property_type: "RESIDENTIAL",
     financing_type: "ALL_CASH",
     status: "HELD" as "HELD" | "OFF_PLAN" | "USUFRUCT",
+    transaction_type: "SECONDARY" as "PRIMARY" | "SECONDARY",
     purchase_date: "",
     purchase_price: "",
     size: "0",
@@ -127,7 +129,23 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    let newFormData = { ...formData, [name]: value };
+
+    // Enforcement: Off-Plan must be Primary
+    if (name === "status" && value === "OFF_PLAN") {
+      newFormData.transaction_type = "PRIMARY";
+    }
+
+    // Enforcement: Primary must have 0 acquisition fees
+    if (newFormData.transaction_type === "PRIMARY") {
+      newFormData.acq_fee_percentage = "0";
+    } else if (name === "transaction_type" && value === "SECONDARY") {
+      // Restore default if switching back to secondary
+      newFormData.acq_fee_percentage = assumptions?.acquisition_fee_percentage?.toString() || "1.00";
+    }
+
+    setFormData(newFormData);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -156,6 +174,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
       property_type: "RESIDENTIAL",
       financing_type: "ALL_CASH",
       status: "HELD",
+      transaction_type: "SECONDARY",
       purchase_date: "",
       purchase_price: "",
       size: "0",
@@ -190,6 +209,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
       property_type: prop.property_type,
       financing_type: prop.financing_type,
       status: prop.status,
+      transaction_type: prop.transaction_type,
       purchase_date: prop.purchase_date,
       purchase_price: prop.purchase_price || "",
       size: prop.size,
@@ -309,7 +329,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
           <table className="property-table">
             <thead>
               <tr>
-                <th colSpan={9} className="group-header">Basic Information</th>
+                <th colSpan={10} className="group-header">Basic Information</th>
                 <th colSpan={3} className="group-header">Investment Inputs</th>
                 <th colSpan={3} className="group-header">Rates & Assumptions</th>
                 <th colSpan={14} className="group-header">Derived Metrics & Performance</th>
@@ -321,6 +341,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                 <th>Country</th>
                 <th>Submarket</th>
                 <th>Type</th>
+                <th>Sale Type</th>
                 <th>Size (Sqm)</th>
                 <th>Financing</th>
                 <th>Status</th>
@@ -358,6 +379,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                   <td>{property.country}</td>
                   <td>{property.submarket}</td>
                   <td>{formatPropertyType(property.property_type)}</td>
+                  <td>{property.transaction_type.charAt(0) + property.transaction_type.slice(1).toLowerCase()}</td>
                   <td>{parseFloat(property.size).toFixed(2)}</td>
                   <td>
                     {property.financing_type === "PRIMARY_INSTALLMENTS" ? "Installments" : 
@@ -439,7 +461,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
             <table className="property-table">
               <thead>
                 <tr>
-                  <th colSpan={9} className="group-header">Basic Information</th>
+                  <th colSpan={10} className="group-header">Basic Information</th>
                   <th colSpan={3} className="group-header">Investment Inputs</th>
                   <th colSpan={7} className="group-header">Usufruct Specific Inputs</th>
                   <th colSpan={3} className="group-header">Rates & Assumptions</th>
@@ -452,6 +474,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                   <th>Country</th>
                   <th>Submarket</th>
                   <th>Type</th>
+                  <th>Sale Type</th>
                   <th>Size (Sqm)</th>
                   <th>Financing</th>
                   <th>Status</th>
@@ -488,6 +511,7 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                     <td>{property.country}</td>
                     <td>{property.submarket}</td>
                     <td>{formatPropertyType(property.property_type)}</td>
+                    <td>{property.transaction_type.charAt(0) + property.transaction_type.slice(1).toLowerCase()}</td>
                     <td>{parseFloat(property.size).toFixed(2)}</td>
                     <td>-</td>
                     <td><span style={{ color: '#8b5cf6', fontWeight: 600 }}>Usufruct</span></td>
@@ -594,6 +618,19 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                   </select>
                 </div>
 
+                <div className="form-group">
+                  <label>Transaction Type</label>
+                  <select 
+                    name="transaction_type" 
+                    value={formData.transaction_type} 
+                    onChange={handleInputChange}
+                    disabled={formData.status === "OFF_PLAN"}
+                  >
+                    <option value="PRIMARY">Primary</option>
+                    <option value="SECONDARY">Secondary</option>
+                  </select>
+                </div>
+
                 {formData.status !== "USUFRUCT" && (
                   <div className="form-group">
                     <label>Financing</label>
@@ -631,8 +668,16 @@ const PropertyDataTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ 
                       <input type="number" name="other_operational_expenses" value={formData.other_operational_expenses} onChange={handleInputChange} required />
                     </div>
                     <div className="form-group">
-                      <label>Acq Fee % (Optional)</label>
-                      <input type="number" step="0.01" name="acq_fee_percentage" value={formData.acq_fee_percentage} onChange={handleInputChange} placeholder="Default from assumptions" />
+                      <label>Acq Fee % {formData.transaction_type === "PRIMARY" ? "(N/A for Primary)" : "(Optional)"}</label>
+                      <input 
+                        type="number" 
+                        step="0.01" 
+                        name="acq_fee_percentage" 
+                        value={formData.acq_fee_percentage} 
+                        onChange={handleInputChange} 
+                        placeholder={formData.transaction_type === "PRIMARY" ? "0.00" : "Default from assumptions"}
+                        disabled={formData.transaction_type === "PRIMARY"} 
+                      />
                     </div>
                     <div className="form-group">
                       <label>App Rate % (Optional)</label>

@@ -81,7 +81,7 @@ class PropertySerializer(serializers.ModelSerializer):
         model = Property
         fields = [
             'id', 'portfolio', 'name', 'city', 'country', 'submarket',
-            'property_type', 'financing_type', 'status',
+            'property_type', 'financing_type', 'status', 'transaction_type',
             'purchase_date', 'purchase_price', 'size', 'monthly_rent',
             'other_operational_expenses', 'acq_fee_percentage',
             'appreciation_rate_percentage', 'vacancy_rate_percentage',

@@ -183,6 +183,30 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
     });
   }, [data?.value_expansion_ladder]);
 
+  const yieldRadarData = useMemo(() => {
+    if (!data) return [];
+    return data.yield_analysis
+      .filter(r => r.id !== "total")
+      .map(r => ({
+        subject: r.name,
+        net_yield: Number(r.net_yield),
+        gross_yield: Number(r.gross_yield),
+        noi: Number(r.noi),
+      }));
+  }, [data?.yield_analysis]);
+
+  const yieldTicks = useMemo(() => {
+    if (yieldRadarData.length === 0) return [3.5, 7.0, 10.5];
+    const maxVal = Math.max(...yieldRadarData.map(d => d.net_yield), 10.5);
+    const ticks: number[] = [];
+    let currentTick = 3.5;
+    while (ticks.length < 3 || ticks[ticks.length - 1] < maxVal) {
+      ticks.push(Number(currentTick.toFixed(2)));
+      currentTick += 3.5;
+    }
+    return ticks;
+  }, [yieldRadarData]);
+
   if (loading) return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading Dashboard...</div>;
   if (!data) return <div style={{ padding: '2rem', textAlign: 'center' }}>Failed to load dashboard data.</div>;
 
@@ -529,6 +553,7 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
       <DashboardSection title="Intrinsic Value Analysis" id="intrinsic">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '2rem' }}>
           <div className="chart-container" style={{ height: '500px' }}>
+            <h4 style={{ textAlign: 'center', fontSize: '0.9rem', color: '#64748b', marginBottom: '0.5rem' }}>Valuation Multiples (Intrinsic vs Market)</h4>
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart cx="50%" cy="50%" outerRadius="80%" data={intrinsic_value.data}>
                 <PolarGrid />
@@ -548,6 +573,45 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
               </RadarChart>
             </ResponsiveContainer>
           </div>
+
+          <div className="chart-container" style={{ height: '500px' }}>
+            <h4 style={{ textAlign: 'center', fontSize: '0.9rem', color: '#64748b', marginBottom: '0.5rem' }}>Portfolio Yield Performance (Net Yield %)</h4>
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart cx="50%" cy="50%" outerRadius="80%" data={yieldRadarData}>
+                <PolarGrid />
+                <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: '0.7rem' }} />
+                <PolarRadiusAxis 
+                  angle={90} 
+                  domain={[0, Math.max(...yieldTicks)]} 
+                  ticks={yieldTicks} 
+                  tick={{ fontSize: '0.6rem' }}
+                  tickFormatter={(v) => v.toFixed(1) + '%'}
+                />
+                <Radar 
+                  name="Net Yield %" 
+                  dataKey="net_yield" 
+                  stroke="#8b5cf6" 
+                  fill="#8b5cf6" 
+                  fillOpacity={0.5} 
+                />
+                <Tooltip content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    return (
+                      <div style={{ background: 'white', padding: '0.75rem', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+                        <p style={{ fontWeight: 600, marginBottom: '0.5rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.25rem', fontSize: '0.9rem' }}>{data.subject}</p>
+                        <p style={{ fontSize: '0.8rem', margin: '0.2rem 0' }}>Gross Yield: <span style={{ fontWeight: 600 }}>{formatPercent(data.gross_yield)}</span></p>
+                        <p style={{ fontSize: '0.8rem', margin: '0.2rem 0' }}>Net Yield: <span style={{ fontWeight: 600, color: '#8b5cf6' }}>{formatPercent(data.net_yield)}</span></p>
+                        <p style={{ fontSize: '0.8rem', margin: '0.2rem 0' }}>NOI: <span style={{ fontWeight: 600 }}>{formatCurrency(data.noi)}</span></p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }} />
+              </RadarChart>
+            </ResponsiveContainer>
+          </div>
+
           <div className="dashboard-table-container">
             <table className="dashboard-table">
               <thead>
