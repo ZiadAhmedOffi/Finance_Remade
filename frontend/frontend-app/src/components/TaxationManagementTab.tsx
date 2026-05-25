@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { realEstateApi } from "../api/api";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { formatCurrency, formatNumber } from "../utils/formatters";
+import { formatCurrency } from "../utils/formatters";
 
 interface Jurisdiction {
   id: string;
@@ -71,7 +71,7 @@ const TaxationManagementTab: React.FC<{ portfolio: Portfolio; onUpdate: () => vo
   const [jurisdictions, setJurisdictions] = useState<Jurisdiction[]>([]);
   const [selectedJurisdictionId, setSelectedJurisdictionId] = useState<string | null>(portfolio.jurisdiction || null);
   const [taxRules, setTaxRules] = useState<TaxRule[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisData, setAnalysisData] = useState<TaxAnalysisData | null>(null);
   const [selectedBreakdownYear, setSelectedBreakdownYear] = useState<number | null>(null);
@@ -81,7 +81,6 @@ const TaxationManagementTab: React.FC<{ portfolio: Portfolio; onUpdate: () => vo
   const [showRuleModal, setShowRuleModal] = useState(false);
   
   const [newJur, setNewJur] = useState({ name: "", currency: "USD" });
-  const [editingJur, setEditingJur] = useState<Jurisdiction | null>(null);
 
   const [newRule, setNewRule] = useState<Partial<TaxRule>>({
     name: "",
@@ -94,7 +93,6 @@ const TaxationManagementTab: React.FC<{ portfolio: Portfolio; onUpdate: () => vo
     responsible_party: "BOTH",
     is_active: true
   });
-  const [editingRule, setEditingRule] = useState<TaxRule | null>(null);
 
   useEffect(() => {
     fetchJurisdictions();
@@ -513,7 +511,7 @@ const TaxationManagementTab: React.FC<{ portfolio: Portfolio; onUpdate: () => vo
                       <XAxis dataKey="year" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} tickFormatter={(val) => `$${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} />
                       <Tooltip 
-                        formatter={(val: number) => [formatCurrency(val), ""]}
+                        formatter={(val: any) => [formatCurrency(val), ""]}
                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                       />
                       <Legend verticalAlign="top" height={36}/>
