@@ -9,22 +9,23 @@ class TaxationService:
     def calculate_property_tax_for_year(property: Property, year_index: int, context: Dict[str, Any]) -> Decimal:
         """
         Calculates total tax liability for a property in a given year based on Jurisdiction rules.
-        year_index: 0-indexed year from investment start.
-        context: Dictionary containing:
-            - market_value: Decimal
-            - net_income: Decimal
-            - loan_interest: Decimal
-            - is_disposal_year: bool
-            - property_events: List of strings (e.g. ['CONTRACT_SIGNING', 'HANDOVER'])
-            - lcf_pool: Decimal (Loss Carry Forward pool from previous years)
+        """
+        breakdown = TaxationService.calculate_property_tax_breakdown(property, year_index, context)
+        return sum((item['amount'] for item in breakdown), Decimal('0.00'))
+
+    @staticmethod
+    def calculate_property_tax_breakdown(property: Property, year_index: int, context: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Calculates tax liability broken down by rule.
+        Returns a list of {"rule_id": str, "rule_name": str, "amount": Decimal}
         """
         portfolio = property.portfolio
         jurisdiction = portfolio.jurisdiction
         if not jurisdiction:
-            return Decimal('0.00')
+            return []
 
         rules = jurisdiction.rules.filter(is_active=True)
-        total_liability = Decimal('0.00')
+        breakdown = []
         
         # 1. Identify current events
         events = context.get('property_events', [])
@@ -55,9 +56,14 @@ class TaxationService:
             
             # Apply Rate
             tax_amount = (base_value * rule.rate).quantize(Decimal('0.01'))
-            total_liability += tax_amount
+            if tax_amount > 0:
+                breakdown.append({
+                    "rule_id": str(rule.id),
+                    "rule_name": rule.name,
+                    "amount": tax_amount
+                })
 
-        return total_liability
+        return breakdown
 
     @staticmethod
     def _get_tax_base_value(rule: TaxRule, property: Property, year_index: int, context: Dict[str, Any]) -> Decimal:

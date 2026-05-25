@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { realEstateApi } from "../api/api";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { formatCurrency, formatNumber } from "../utils/formatters";
 
 interface Jurisdiction {
   id: string;
@@ -24,6 +26,40 @@ interface TaxRule {
   is_active: boolean;
 }
 
+interface TaxSummaryMetrics {
+  total_cumulative: number;
+  avg_annual: number;
+  forecast_years: number;
+}
+
+interface AnnualRuleTotal {
+  year: number;
+  total: number;
+  [ruleName: string]: number;
+}
+
+interface TaxBreakdownProperty {
+  name: string;
+  amount: number;
+}
+
+interface TaxRuleBreakdown {
+  total: number;
+  properties: TaxBreakdownProperty[];
+}
+
+interface TaxAnalysisData {
+  annual_totals: AnnualRuleTotal[];
+  detailed_breakdown: { [year: string]: { [ruleName: string]: TaxRuleBreakdown } };
+  all_rule_names: string[];
+  summary_metrics: TaxSummaryMetrics;
+}
+
+const CHART_COLORS = [
+  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', 
+  '#ec4899', '#06b6d4', '#84cc16', '#6366f1', '#f43f5e'
+];
+
 interface Portfolio {
   id: string;
   name: string;
@@ -36,6 +72,10 @@ const TaxationManagementTab: React.FC<{ portfolio: Portfolio; onUpdate: () => vo
   const [selectedJurisdictionId, setSelectedJurisdictionId] = useState<string | null>(portfolio.jurisdiction || null);
   const [taxRules, setTaxRules] = useState<TaxRule[]>([]);
   const [loading, setLoading] = useState(true);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisData, setAnalysisData] = useState<TaxAnalysisData | null>(null);
+  const [selectedBreakdownYear, setSelectedBreakdownYear] = useState<number | null>(null);
+  const [expandedRule, setExpandedRule] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showJurModal, setShowJurModal] = useState(false);
   const [showRuleModal, setShowRuleModal] = useState(false);
@@ -63,10 +103,12 @@ const TaxationManagementTab: React.FC<{ portfolio: Portfolio; onUpdate: () => vo
   useEffect(() => {
     if (selectedJurisdictionId) {
       fetchTaxRules(selectedJurisdictionId);
+      fetchTaxAnalysis();
     } else {
       setTaxRules([]);
+      setAnalysisData(null);
     }
-  }, [selectedJurisdictionId]);
+  }, [selectedJurisdictionId, portfolio.id]);
 
   const fetchJurisdictions = async () => {
     try {
@@ -89,11 +131,27 @@ const TaxationManagementTab: React.FC<{ portfolio: Portfolio; onUpdate: () => vo
     }
   };
 
+  const fetchTaxAnalysis = async () => {
+    try {
+      setAnalysisLoading(true);
+      const res = await realEstateApi.getTaxAnalysis(portfolio.id);
+      setAnalysisData(res.data);
+      if (res.data.annual_totals.length > 0) {
+        setSelectedBreakdownYear(res.data.annual_totals[0].year);
+      }
+    } catch (err) {
+      console.error("Failed to fetch tax analysis", err);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
   const handleLinkJurisdiction = async (jurId: string) => {
     try {
       setSaving(true);
       await realEstateApi.updatePortfolio(portfolio.id, { jurisdiction: jurId });
       setSelectedJurisdictionId(jurId);
+      fetchTaxAnalysis();
       onUpdate();
     } catch (err) {
       alert("Failed to link jurisdiction");
@@ -122,6 +180,7 @@ const TaxationManagementTab: React.FC<{ portfolio: Portfolio; onUpdate: () => vo
       setSaving(true);
       await realEstateApi.createTaxRule({ ...newRule, jurisdiction: selectedJurisdictionId });
       fetchTaxRules(selectedJurisdictionId);
+      fetchTaxAnalysis();
       setShowRuleModal(false);
     } catch (err) {
       alert("Failed to create tax rule");
@@ -134,7 +193,10 @@ const TaxationManagementTab: React.FC<{ portfolio: Portfolio; onUpdate: () => vo
     if (!window.confirm("Are you sure you want to delete this rule?")) return;
     try {
       await realEstateApi.deleteTaxRule(id);
-      if (selectedJurisdictionId) fetchTaxRules(selectedJurisdictionId);
+      if (selectedJurisdictionId) {
+        fetchTaxRules(selectedJurisdictionId);
+        fetchTaxAnalysis();
+      }
     } catch (err) {
       alert("Failed to delete rule");
     }
@@ -225,6 +287,94 @@ const TaxationManagementTab: React.FC<{ portfolio: Portfolio; onUpdate: () => vo
           padding: 0.625rem;
           border: 1px solid #e2e8f0;
           border-radius: 6px;
+        }
+        .analysis-grid {
+          display: grid;
+          grid-template-columns: 1.5fr 1fr;
+          gap: 2rem;
+          margin-top: 1rem;
+        }
+        .summary-bar {
+          display: flex;
+          gap: 2rem;
+          margin-bottom: 2rem;
+          background: #f8fafc;
+          padding: 1.25rem;
+          border-radius: 10px;
+          border: 1px solid #e2e8f0;
+        }
+        .summary-item {
+          display: flex;
+          flex-direction: column;
+        }
+        .summary-label {
+          font-size: 0.75rem;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: 0.025em;
+          font-weight: 600;
+        }
+        .summary-value {
+          font-size: 1.25rem;
+          font-weight: 700;
+          color: #1e293b;
+        }
+        .breakdown-year-select {
+          padding: 0.5rem;
+          border: 1px solid #e2e8f0;
+          border-radius: 6px;
+          font-size: 0.875rem;
+          margin-bottom: 1rem;
+          width: 100%;
+        }
+        .rule-breakdown-container {
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          margin-bottom: 0.75rem;
+          overflow: hidden;
+          transition: all 0.2s;
+        }
+        .rule-breakdown-header {
+          padding: 1rem;
+          background: #fff;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          cursor: pointer;
+        }
+        .rule-breakdown-header:hover {
+          background: #f8fafc;
+        }
+        .rule-name {
+          font-weight: 600;
+          font-size: 0.9375rem;
+        }
+        .rule-amount {
+          font-weight: 700;
+          color: #3b82f6;
+        }
+        .click-hint {
+          font-size: 0.7rem;
+          color: #94a3b8;
+          font-weight: 400;
+          margin-left: 0.5rem;
+        }
+        .nested-table {
+          width: 100%;
+          border-top: 1px solid #f1f5f9;
+          background: #fcfdfe;
+          font-size: 0.8125rem;
+        }
+        .nested-table th, .nested-table td {
+          padding: 0.625rem 1rem;
+          text-align: left;
+        }
+        .nested-table th {
+          color: #94a3b8;
+          font-weight: 500;
+        }
+        .nested-table tr:not(:last-child) td {
+          border-bottom: 1px solid #f1f5f9;
         }
       `}</style>
 
@@ -320,6 +470,132 @@ const TaxationManagementTab: React.FC<{ portfolio: Portfolio; onUpdate: () => vo
                 ))}
               </tbody>
             </table>
+          )}
+        </div>
+      )}
+
+      {/* 3. Taxation Analysis Section */}
+      {selectedJurisdictionId && (
+        <div className="management-card">
+          <div className="management-header">
+            <h2>Taxation Analysis & Forecast</h2>
+          </div>
+
+          {analysisLoading ? (
+            <p style={{ textAlign: "center", padding: "3rem", color: "#64748b" }}>Calculating tax forecast...</p>
+          ) : !analysisData ? (
+            <p style={{ textAlign: "center", padding: "2rem", color: "#94a3b8" }}>No analysis data available.</p>
+          ) : (
+            <>
+              {/* Summary Metrics */}
+              <div className="summary-bar">
+                <div className="summary-item">
+                  <span className="summary-label">Total Cumulative Tax</span>
+                  <span className="summary-value">{formatCurrency(analysisData.summary_metrics.total_cumulative)}</span>
+                </div>
+                <div className="summary-item">
+                  <span className="summary-label">Avg. Annual Tax</span>
+                  <span className="summary-value">{formatCurrency(analysisData.summary_metrics.avg_annual)}</span>
+                </div>
+                <div className="summary-item">
+                  <span className="summary-label">Forecast Horizon</span>
+                  <span className="summary-value">{analysisData.summary_metrics.forecast_years} Years</span>
+                </div>
+              </div>
+
+              <div className="analysis-grid">
+                {/* Line Graph */}
+                <div className="chart-container" style={{ height: "400px", background: "white" }}>
+                  <h4 style={{ margin: "0 0 1rem 0", fontSize: "0.875rem", color: "#64748b" }}>Annual Tax Liability by Rule (Stacked)</h4>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={analysisData.annual_totals}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="year" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} tickFormatter={(val) => `$${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} />
+                      <Tooltip 
+                        formatter={(val: number) => [formatCurrency(val), ""]}
+                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                      />
+                      <Legend verticalAlign="top" height={36}/>
+                      {analysisData.all_rule_names.map((ruleName, index) => (
+                        <Area 
+                          key={ruleName}
+                          type="monotone" 
+                          dataKey={ruleName} 
+                          stackId="1"
+                          stroke={CHART_COLORS[index % CHART_COLORS.length]} 
+                          fill={CHART_COLORS[index % CHART_COLORS.length]} 
+                          fillOpacity={0.6}
+                        />
+                      ))}
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Breakdown Section */}
+                <div className="breakdown-column">
+                  <h4 style={{ margin: "0 0 1rem 0", fontSize: "0.875rem", color: "#64748b" }}>Taxes Breakdown</h4>
+                  <div className="form-group">
+                    <label style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Select Year</label>
+                    <select 
+                      className="breakdown-year-select"
+                      value={selectedBreakdownYear || ""}
+                      onChange={(e) => {
+                        setSelectedBreakdownYear(parseInt(e.target.value));
+                        setExpandedRule(null);
+                      }}
+                    >
+                      {analysisData.annual_totals.map(d => (
+                        <option key={d.year} value={d.year}>{d.year}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {selectedBreakdownYear && analysisData.detailed_breakdown[selectedBreakdownYear.toString()] ? (
+                    <div className="rules-list">
+                      <p style={{ fontSize: "0.75rem", color: "#64748b", fontStyle: "italic", marginBottom: "1rem" }}>
+                        Select a tax rule to see property-level division.
+                      </p>
+                      {Object.entries(analysisData.detailed_breakdown[selectedBreakdownYear.toString()]).map(([ruleName, breakdown]) => (
+                        <div key={ruleName} className="rule-breakdown-container">
+                          <div 
+                            className="rule-breakdown-header"
+                            onClick={() => setExpandedRule(expandedRule === ruleName ? null : ruleName)}
+                          >
+                            <div>
+                              <span className="rule-name">{ruleName}</span>
+                              <span className="click-hint">{expandedRule === ruleName ? " (Click to collapse)" : " (Click to expand)"}</span>
+                            </div>
+                            <span className="rule-amount">{formatCurrency(breakdown.total)}</span>
+                          </div>
+                          
+                          {expandedRule === ruleName && (
+                            <table className="nested-table">
+                              <thead>
+                                <tr>
+                                  <th>Property</th>
+                                  <th style={{ textAlign: "right" }}>Tax Amount</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {breakdown.properties.sort((a,b) => b.amount - a.amount).map(p => (
+                                  <tr key={p.name}>
+                                    <td>{p.name}</td>
+                                    <td style={{ textAlign: "right", fontWeight: 600 }}>{formatCurrency(p.amount)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ color: "#94a3b8", fontSize: "0.875rem" }}>No tax data for this year.</p>
+                  )}
+                </div>
+              </div>
+            </>
           )}
         </div>
       )}

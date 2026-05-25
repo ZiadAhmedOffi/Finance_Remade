@@ -46,6 +46,7 @@ from ..selectors.property_sale_selectors import PropertySaleSelector
 from ..selectors.cash_flow_selectors import CashFlowSelectors
 from ..selectors.portfolio_dashboard_selectors import PortfolioDashboardSelector
 from ..selectors.investor_selectors import RealEstateInvestorSelector
+from ..selectors.taxation_selectors import TaxationAnalysisSelector
 from ..services.portfolio_service import PortfolioService
 
 from ..services.property_service import PropertyService
@@ -465,6 +466,15 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
                 return Response({"error": "Invalid date format. Use YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
 
         data = PortfolioDashboardSelector.get_dashboard_data(portfolio, reference_date=reference_date)
+        return Response(data)
+
+    @action(detail=True, methods=['get'], url_path='tax-analysis')
+    def taxation_analysis(self, request, pk=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_view_re_portfolio(request.user, portfolio):
+            raise PermissionDenied("You do not have permission to view this portfolio's tax analysis.")
+
+        data = TaxationAnalysisSelector.get_taxation_analysis(portfolio)
         return Response(data)
 
     @action(detail=True, methods=['get'], url_path='investors')

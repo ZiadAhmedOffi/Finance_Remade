@@ -227,6 +227,7 @@ export const realEstateApi = {
   createTaxRule: (data: any) => api.post("/real-estate/tax-rules/", data),
   updateTaxRule: (id: string, data: any) => api.patch(`/real-estate/tax-rules/${id}/`, data),
   deleteTaxRule: (id: string) => api.delete(`/real-estate/tax-rules/${id}/`),
+  getTaxAnalysis: (portfolioId: string) => api.get(`/real-estate/${portfolioId}/tax-analysis/`),
 };
 
 export { api, publicApi };
