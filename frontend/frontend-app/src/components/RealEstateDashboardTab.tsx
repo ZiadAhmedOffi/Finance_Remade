@@ -583,7 +583,7 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
                 <PolarRadiusAxis 
                   angle={90} 
                   domain={[0, Math.max(...yieldTicks)]} 
-                  ticks={yieldTicks} 
+                  ticks={yieldTicks as any} 
                   tick={{ fontSize: '0.6rem' }}
                   tickFormatter={(v) => v.toFixed(1) + '%'}
                 />
