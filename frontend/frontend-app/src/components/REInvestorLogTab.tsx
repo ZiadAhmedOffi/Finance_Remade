@@ -45,6 +45,7 @@ interface REInvestorLogData {
   }[];
   graph_data: {
     year: number;
+    is_actuals: boolean;
     total_capital_invested: number;
     total_capital_required: number;
     total_capital_with_possible: number;
@@ -55,8 +56,11 @@ interface REInvestorLogData {
     assets_value: number;
     capital_breakdown: { name: string; amount: number; type: string }[];
     yearly_required: number;
+    uses: number;
+    sources: number;
     assets_breakdown: { name: string; value: number; status: string }[];
     cash_breakdown: { name: string; amount: number; type: string }[];
+    assets_change_breakdown: { name: string; amount: number; type: string }[];
   }[];
   actions: InvestorAction[];
   possible_capital_sources: PossibleCapitalSource[];
@@ -402,8 +406,8 @@ const REInvestorLogTab: React.FC<REInvestorLogTabProps> = ({ portfolioId, canEdi
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-2 bg-white rounded-xl border border-gray-200 p-6 shadow-xl">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-semibold text-gray-900">Capital Invested vs. Capital Required</h3>
-            <span className="text-xs text-gray-400 italic">Click a point on the graph to see breakdown</span>
+            <h3 className="text-lg font-semibold text-gray-900">Capital Invested vs. Net Requirements (Calls)</h3>
+            <span className="text-xs text-gray-400 italic">Click a point on the graph to see Sources & Uses</span>
           </div>
           <div className="h-[400px] w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -425,15 +429,13 @@ const REInvestorLogTab: React.FC<REInvestorLogTabProps> = ({ portfolioId, canEdi
                   }} 
                 />
                 <Legend verticalAlign="top" height={36} iconType="circle" />
-                <Area type="monotone" dataKey="redArea" stroke="none" fill="#ef4444" fillOpacity={0.4} name="Deficit Area" legendType="none" tooltipType="none" />
+                <Area type="monotone" dataKey="redArea" stroke="none" fill="#ef4444" fillOpacity={0.4} name="Shortfall Area" legendType="none" tooltipType="none" />
                 <Area type="monotone" dataKey="darkGreenArea" stroke="none" fill="#065f46" fillOpacity={0.6} name="Surplus Area" legendType="none" tooltipType="none" />
                 <Area type="monotone" dataKey="lightGreenArea" stroke="none" fill="#10b981" fillOpacity={0.3} name="Possible Capital Area" legendType="none" tooltipType="none" />
                 
                 <Line type="monotone" dataKey="total_capital_invested" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} name="Total Capital Invested" />
                 <Line type="monotone" dataKey="total_capital_with_possible" stroke="#10b981" strokeWidth={2} strokeDasharray="5 5" name="Total + Possible Sources" />
-                <Line type="monotone" dataKey="total_capital_required" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4 }} name="Total Capital Required" />
-                <Line type="monotone" dataKey="deficit" stroke="#ef4444" strokeOpacity={0} name="Deficit (Required - Invested)" dot={false} strokeWidth={0} legendType="none" />
-                <Line type="monotone" dataKey="surplus" stroke="#065f46" strokeOpacity={0} name="Surplus (Invested - Required)" dot={false} strokeWidth={0} legendType="none" />
+                <Line type="monotone" dataKey="total_capital_required" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4 }} name="Net Capital Requirements" />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -441,7 +443,15 @@ const REInvestorLogTab: React.FC<REInvestorLogTabProps> = ({ portfolioId, canEdi
 
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-xl flex flex-col h-full">
           <div className="flex flex-col gap-4 mb-6">
-            <h3 className="text-lg font-semibold text-gray-900">Capital Breakdown</h3>
+            <div className="flex justify-between items-start">
+              <h3 className="text-lg font-semibold text-gray-900">Sources & Uses</h3>
+              {selectedYearData && (
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${selectedYearData.is_actuals ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
+                  {selectedYearData.is_actuals ? 'Historical Actuals' : 'Projected Model'}
+                </span>
+              )}
+            </div>
+            
             <div className="flex items-center gap-3">
               <label className="text-sm text-gray-500 font-medium">Select Year:</label>
               <select 
@@ -458,32 +468,46 @@ const REInvestorLogTab: React.FC<REInvestorLogTabProps> = ({ portfolioId, canEdi
                 ))}
               </select>
             </div>
+
             {selectedYearData && (
-              <div className="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-lg text-sm font-bold flex justify-between items-center">
-                <span>Total for {selectedYearData.year}</span>
-                <span className="font-mono">{formatCurrency(selectedYearData.yearly_required)}</span>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-gray-50 p-2 rounded-lg border border-gray-100">
+                  <div className="text-[10px] text-gray-400 uppercase font-bold mb-1">Total Uses</div>
+                  <div className="text-sm font-mono font-bold text-red-600">{formatCurrency(selectedYearData.uses)}</div>
+                </div>
+                <div className="bg-gray-50 p-2 rounded-lg border border-gray-100">
+                  <div className="text-[10px] text-gray-400 uppercase font-bold mb-1">Total Sources</div>
+                  <div className="text-sm font-mono font-bold text-emerald-600">{formatCurrency(selectedYearData.sources)}</div>
+                </div>
+                <div className="col-span-2 bg-emerald-50 text-emerald-700 px-4 py-3 rounded-lg text-sm font-bold flex justify-between items-center border border-emerald-100">
+                  <span>{selectedYearData.uses > selectedYearData.sources ? 'Net Capital Call' : 'Cash Surplus'}</span>
+                  <span className="font-mono text-lg">{formatCurrency(selectedYearData.yearly_required)}</span>
+                </div>
               </div>
             )}
           </div>
           
           <div className="flex-1 overflow-y-auto space-y-4 pr-2">
             {selectedYearData?.capital_breakdown?.length > 0 ? (
-              selectedYearData.capital_breakdown.map((item: any, idx: number) => (
-                <div key={idx} className="p-4 rounded-lg bg-gray-50 border border-gray-100 transition-all hover:border-blue-200 hover:bg-blue-50 group">
-                  <div className="flex justify-between items-start mb-1">
-                    <span className="font-bold text-gray-900 text-sm group-hover:text-blue-700">{item.name}</span>
-                    <span className="font-mono text-emerald-600 font-bold text-sm">{formatCurrency(item.amount)}</span>
-                  </div>
-                  <div className="text-xs text-gray-500 uppercase tracking-tighter font-semibold">{item.type}</div>
+              <>
+                <div className="space-y-2">
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Details</div>
+                  {selectedYearData.capital_breakdown.map((item: any, idx: number) => (
+                    <div key={idx} className={`p-3 rounded-lg border transition-all hover:shadow-md group ${item.type === 'USE' ? 'bg-red-50/30 border-red-100' : 'bg-emerald-50/30 border-emerald-100'}`}>
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="font-bold text-gray-900 text-xs group-hover:text-blue-700">{item.name}</span>
+                        <span className={`font-mono font-bold text-xs ${item.type === 'USE' ? 'text-red-600' : 'text-emerald-600'}`}>
+                          {item.type === 'USE' ? '-' : '+'}{formatCurrency(item.amount)}
+                        </span>
+                      </div>
+                      <div className="text-[9px] text-gray-500 uppercase tracking-tighter font-semibold">{item.type}</div>
+                    </div>
+                  ))}
                 </div>
-              ))
+              </>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-center p-8 bg-gray-50 rounded-xl border border-dashed border-gray-300">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <p className="text-gray-500 font-medium">No additional capital requirements for {selectedYearData?.year}</p>
-                <p className="text-xs text-gray-400 mt-2">All previous obligations are met or no new events occurred this year.</p>
+                <p className="text-gray-500 font-medium">No financial movements for {selectedYearData?.year}</p>
               </div>
             )}
           </div>

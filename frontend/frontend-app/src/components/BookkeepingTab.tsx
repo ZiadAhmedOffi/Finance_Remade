@@ -48,9 +48,10 @@ interface TAccountDetails {
 interface BookkeepingTabProps {
   portfolioId: string;
   canEdit: boolean;
+  isAdmin?: boolean;
 }
 
-const BookkeepingTab: React.FC<BookkeepingTabProps> = ({ portfolioId, canEdit }) => {
+const BookkeepingTab: React.FC<BookkeepingTabProps> = ({ portfolioId, canEdit, isAdmin }) => {
   const [ledgerYears, setLedgerYears] = useState<LedgerYear[]>([]);
   const [selectedYear, setSelectedYear] = useState<LedgerYear | null>(null);
   const [trialBalance, setTrialBalance] = useState<TrialBalance | null>(null);
@@ -127,10 +128,24 @@ const BookkeepingTab: React.FC<BookkeepingTabProps> = ({ portfolioId, canEdit })
     if (!selectedYear || !window.confirm(`Are you sure you want to close the fiscal year ${selectedYear.year}? This will zero out income/expenses and carry forward balances.`)) return;
     try {
       setLoading(true);
-      await realEstateApi.closeLedger(portfolioId, selectedYear.id);
-      fetchLedgers();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteYear = async () => {
+    if (!selectedYear || !isAdmin) return;
+    if (!window.confirm(`DANGER: Are you sure you want to PERMANENTLY DELETE the fiscal year ${selectedYear.year}? All transactions and entries for this year will be lost. This cannot be undone.`)) return;
+    
+    try {
+      setLoading(true);
+      await realEstateApi.deleteLedger(portfolioId, selectedYear.id);
+      const remainingYears = ledgerYears.filter(y => y.id !== selectedYear.id);
+      setLedgerYears(remainingYears);
+      setSelectedYear(remainingYears.length > 0 ? remainingYears[0] : null);
+      if (remainingYears.length === 0) setTrialBalance(null);
     } catch (err: any) {
-      alert(err.response?.data?.error || "Failed to close year.");
+      alert(err.response?.data?.error || "Failed to delete year.");
     } finally {
       setLoading(false);
     }
@@ -154,6 +169,11 @@ const BookkeepingTab: React.FC<BookkeepingTabProps> = ({ portfolioId, canEdit })
           {canEdit && (
             <button className="btn-secondary" onClick={handleInitialize}>
               Initialize New Year
+            </button>
+          )}
+          {isAdmin && selectedYear && (
+            <button className="btn-danger" onClick={handleDeleteYear} style={{ background: '#7f1d1d' }}>
+              Delete Year
             </button>
           )}
         </div>

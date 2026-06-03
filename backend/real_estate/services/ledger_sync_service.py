@@ -92,7 +92,51 @@ class LedgerSyncService:
                 "entry_type": "CREDIT"
             })
 
-        # 4. Retained Earnings (The plug to balance the opening transaction if historical P&L isn't tracked)
+        # 4. Liabilities (Mortgages & Installments)
+        total_liabilities = Decimal(str(metrics.get("total_liabilities", 0)))
+        if total_liabilities > 0:
+            # We need to distinguish between Mortgage and Installment payables for the ledger
+            from ..selectors.financing_selectors import FinancingSelectors
+            from ..selectors.installment_selectors import InstallmentSelectors
+
+            mortgage_acc = LedgerSyncService._get_account(portfolio, "Mortgage Payable")
+            installment_acc = LedgerSyncService._get_account(portfolio, "Installment Payable")
+            
+            # Recalculate granularly for the ledger entries
+            # Mortgages
+            financing_entries = FinancingEntry.objects.filter(property__portfolio=portfolio, loan_start_date__lte=reference_date)
+            for f in financing_entries:
+                schedule = FinancingSelectors.get_amortization_schedule(f)
+                last_balance = f.loan_amount
+                months_per_period = 12 // f.payments_per_year
+                for item in schedule:
+                    total_months_offset = months_per_period * (item['period'] - 1)
+                    payment_date = date(f.loan_start_date.year + (f.loan_start_date.month + total_months_offset - 1) // 12, 
+                                        (f.loan_start_date.month + total_months_offset - 1) % 12 + 1, 1)
+                    if payment_date <= reference_date:
+                        last_balance = Decimal(str(item['ending_balance']))
+                    else: break
+                
+                if last_balance > 0:
+                    entries.append({"account": mortgage_acc, "amount": last_balance, "entry_type": "CREDIT"})
+
+            # Installments
+            installment_entries = InstallmentEntry.objects.filter(property__portfolio=portfolio, start_date__lte=reference_date)
+            for i in installment_entries:
+                schedule = InstallmentSelectors.get_installment_schedule(i)
+                total_paid = Decimal('0.00')
+                total_principal = i.property.purchase_price - i.down_payment
+                for item in schedule:
+                    y, m = map(int, item['date'].split('-'))
+                    if date(y, m, 1) <= reference_date:
+                        total_paid += Decimal(str(item['payment']))
+                    else: break
+                
+                remaining = max(Decimal('0.00'), total_principal - total_paid)
+                if remaining > 0:
+                    entries.append({"account": installment_acc, "amount": remaining, "entry_type": "CREDIT"})
+
+        # 5. Retained Earnings (The plug to balance the opening transaction if historical P&L isn't tracked)
         re_account = LedgerSyncService._get_account(portfolio, "Retained Earnings")
         
         current_debit = sum((Decimal(str(e["amount"])) for e in entries if e["entry_type"] == "DEBIT"), Decimal('0.00'))

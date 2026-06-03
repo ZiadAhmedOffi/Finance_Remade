@@ -168,7 +168,7 @@ const RealEstatePortfolioDashboard: React.FC = () => {
             <TaxationManagementTab portfolio={portfolio} onUpdate={fetchPortfolioData} canEdit={canEdit} />
           )}
           {activeTab === "bookkeeping" && portfolioId && (
-            <BookkeepingTab portfolioId={portfolioId} canEdit={canEdit} />
+            <BookkeepingTab portfolioId={portfolioId} canEdit={canEdit} isAdmin={isAdmin} />
           )}
         </div>
       </main>

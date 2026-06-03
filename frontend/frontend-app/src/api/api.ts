@@ -225,6 +225,7 @@ export const realEstateApi = {
   getTransactionTemplates: (portfolioId: string) => api.get(`/real_estate/${portfolioId}/ledgers/templates/`),
   syncCashFlow: (portfolioId: string, yearId: string) => api.post(`/real_estate/${portfolioId}/ledgers/${yearId}/sync-cash-flow/`),
   closeLedger: (portfolioId: string, yearId: string) => api.post(`/real_estate/${portfolioId}/ledgers/${yearId}/close/`),
+  deleteLedger: (portfolioId: string, yearId: string) => api.delete(`/real_estate/${portfolioId}/ledgers/${yearId}/delete/`),
 
 
   // Jurisdictions & Tax Rules

@@ -45,7 +45,7 @@ class PortfolioSelectors:
         from .property_selectors import PropertySelector
         from .property_sale_selectors import PropertySaleSelector
         from .cash_flow_selectors import CashFlowSelectors
-        from ..models import RealEstateInvestorAction, LedgerYear, LedgerAccount
+        from ..models import RealEstateInvestorAction, LedgerYear, LedgerAccount, FinancingEntry, InstallmentEntry
         from .ledger_selectors import LedgerSelectors
         from datetime import date
 
@@ -149,8 +149,53 @@ class PortfolioSelectors:
         if yearly_taxes > 0:
             cash_change_breakdown.append({"name": f"Taxes ({ref_year})", "amount": float(yearly_taxes), "type": "OUTFLOW"})
 
+        # 4. Liabilities Calculation (Mortgages & Installments)
+        total_liabilities = Decimal('0.00')
+        from .financing_selectors import FinancingSelectors
+        from .installment_selectors import InstallmentSelectors
+
+        # Mortgages
+        financing_entries = FinancingEntry.objects.filter(property__portfolio=portfolio, loan_start_date__lte=reference_date)
+        for f in financing_entries:
+            schedule = FinancingSelectors.get_amortization_schedule(f)
+            # Find the balance at the end of the last period before or on reference_date
+            # Or simpler: find the first period that starts AFTER reference_date and take prev balance
+            months_per_period = 12 // f.payments_per_year
+
+            # Find last payment before reference_date
+            last_balance = f.loan_amount
+            for item in schedule:
+                period = item['period']
+                total_months_offset = months_per_period * (period - 1)
+                payment_date = date(f.loan_start_date.year + (f.loan_start_date.month + total_months_offset - 1) // 12, 
+                                    (f.loan_start_date.month + total_months_offset - 1) % 12 + 1, 1)
+
+                if payment_date <= reference_date:
+                    last_balance = Decimal(str(item['ending_balance']))
+                else:
+                    break
+            total_liabilities += last_balance
+
+        # Installments
+        installment_entries = InstallmentEntry.objects.filter(property__portfolio=portfolio, start_date__lte=reference_date)
+        for i in installment_entries:
+            schedule = InstallmentSelectors.get_installment_schedule(i)
+            # Find the balance after the last payment before reference_date
+            total_paid = Decimal('0.00')
+            total_principal = i.property.purchase_price - i.down_payment
+            for item in schedule:
+                # item['date'] is "YYYY-MM"
+                y, m = map(int, item['date'].split('-'))
+                payment_date = date(y, m, 1)
+                if payment_date <= reference_date:
+                    total_paid += Decimal(str(item['payment']))
+                else:
+                    break
+            total_liabilities += max(Decimal('0.00'), total_principal - total_paid)
+
         # 5. NAV Calculation
-        nav = total_market_value_held + cash_reserves
+        # True NAV = (Assets + Cash) - Liabilities
+        nav = total_market_value_held + cash_reserves - total_liabilities
 
         # Total Units
         total_units_at_ref = PortfolioSelectors.get_total_units_at_year(portfolio, ref_year)
@@ -162,6 +207,7 @@ class PortfolioSelectors:
             "total_investments": float(total_investments),
             "total_net_proceeds": float(total_net_proceeds),
             "cash_reserves": float(cash_reserves),
+            "total_liabilities": float(total_liabilities),
             "nav": float(nav),
             "total_units": total_units_at_ref,
             "price_per_unit": float(nav / Decimal(str(total_units_at_ref))) if total_units_at_ref > 0 else 1.0,
@@ -170,3 +216,4 @@ class PortfolioSelectors:
             "assets_change_breakdown": assets_change_breakdown,
             "is_ledger_sourced": is_ledger_sourced
         }
+

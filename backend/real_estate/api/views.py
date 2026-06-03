@@ -514,18 +514,18 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
         inception_year = inception_date.year
         end_year = inception_year + assumptions.forecast_horizon - 1
         
-        # 1. Investor Table Data
+        # 1. Investor Table Data (Current)
         investor_stats = RealEstateInvestorSelector.get_investor_stats(portfolio)
         investors_list = RealEstateInvestorStatsSerializer(investor_stats, many=True).data
-        total_units = float(portfolio.total_units)
+        total_units_current = float(portfolio.total_units)
         for inv in investors_list:
-            inv["ownership_percentage"] = (float(inv["units"]) / total_units * 100.0) if total_units > 0 else 0.0
+            inv["ownership_percentage"] = (float(inv["units"]) / total_units_current * 100.0) if total_units_current > 0 else 0.0
 
-        # 2. Graph Data
-        graph_data = []
-        yearly_cap_data = RealEstateInvestorSelector.calculate_portfolio_capital_required(portfolio)
-
+        # 2. Unified Capital Pipeline (Historical + Projections)
+        pipeline = RealEstateInvestorSelector.get_unified_capital_pipeline(portfolio)
         investor_actions = RealEstateInvestorSelector.get_investor_actions(portfolio)
+        
+        # Aggregate Invested Capital by year (Primary only)
         invested_by_year = {}
         for action in investor_actions:
             if action.type == "PRIMARY_INVESTMENT":
@@ -536,61 +536,58 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
         for source in possible_sources:
             possible_by_year[source.year] = possible_by_year.get(source.year, 0.0) + float(source.amount)
 
+        graph_data = []
         cumulative_invested = 0.0
         cumulative_required = 0.0
         cumulative_possible = 0.0
-        primary_units_by_year = RealEstateInvestorSelector.get_primary_units_by_year(portfolio)
-        cumulative_units = 0.0
 
         for yr in range(inception_year, end_year + 1):
+            year_data = pipeline.get(yr)
+            if not year_data:
+                continue
+
             cumulative_invested += invested_by_year.get(yr, 0.0)
-            
-            # Use the new structure
-            yr_data = yearly_cap_data.get(yr, {"total": 0.0, "breakdown": []})
-            cumulative_required += yr_data["total"]
-            
+            cumulative_required += float(year_data["net_required"])
             cumulative_possible += possible_by_year.get(yr, 0.0)
-            cumulative_units += primary_units_by_year.get(yr, 0.0)
             
+            # Point-in-time NAV Metrics
             ref_date = datetime(yr, 12, 31).date()
             nav_metrics = PortfolioSelectors.get_portfolio_nav_metrics(portfolio, reference_date=ref_date)
             
             graph_data.append({
                 "year": yr,
+                "is_actuals": year_data["is_actuals"],
                 "total_capital_invested": float(cumulative_invested),
                 "total_capital_required": float(cumulative_required),
                 "total_capital_with_possible": float(cumulative_invested + cumulative_possible),
                 "portfolio_value": float(nav_metrics["nav"]),
-                "units_at_year": float(cumulative_units),
+                "units_at_year": float(nav_metrics["total_units"]),
                 "price_per_unit": float(nav_metrics["price_per_unit"]),
-                "cash_reserves": max(0.0, float(nav_metrics["cash_reserves"])),
+                "cash_reserves": float(nav_metrics["cash_reserves"]),
                 "assets_value": float(nav_metrics["total_market_value_held"]),
-                "capital_breakdown": yr_data["breakdown"],
-                "yearly_required": float(yr_data["total"]),
+                "capital_breakdown": year_data["breakdown"],
+                "yearly_required": float(year_data["net_required"]),
+                "uses": float(year_data["uses"]),
+                "sources": float(year_data["sources"]),
                 "assets_breakdown": nav_metrics["assets_breakdown"],
                 "cash_breakdown": nav_metrics["cash_change_breakdown"],
-                "assets_change_breakdown": nav_metrics["assets_change_breakdown"]
+                "assets_change_breakdown": nav_metrics.get("assets_change_breakdown", [])
             })
 
+        # 3. Final Metrics & Comparison
         final_nav_metrics = PortfolioSelectors.get_portfolio_nav_metrics(portfolio)
         
-        # Calculate NAV for the end of the previous year (Current Year - 1)
+        # Calculate NAV for the end of the previous year
         prev_year = datetime.now().year - 1
         ref_date_prev = datetime(prev_year, 12, 31).date()
-        
-        # Consistent NAV calculation for previous year
         prev_nav_metrics = PortfolioSelectors.get_portfolio_nav_metrics(portfolio, reference_date=ref_date_prev)
-        nav_prev = prev_nav_metrics['nav']
-        price_per_unit_prev = prev_nav_metrics['price_per_unit']
-        market_value_prev = prev_nav_metrics['total_market_value_held']
-        invested_capital_prev = prev_nav_metrics['total_investments']
 
         return Response({
             "investors": investors_list,
             "graph_data": graph_data,
             "actions": RealEstateInvestorActionSerializer(investor_actions, many=True).data,
             "possible_capital_sources": RealEstatePossibleCapitalSourceSerializer(possible_sources, many=True).data,
-            "total_units": total_units,
+            "total_units": total_units_current,
             "nav_metrics": {
                 "total_market_value_held": float(final_nav_metrics["total_market_value_held"]),
                 "total_investments": float(final_nav_metrics["total_investments"]),
@@ -599,10 +596,10 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
                 "nav": float(final_nav_metrics["nav"]),
                 "total_units": float(final_nav_metrics["total_units"]),
                 "price_per_unit": float(final_nav_metrics["price_per_unit"]),
-                "prev_year_nav": float(nav_prev),
-                "prev_year_price_per_unit": float(price_per_unit_prev),
-                "prev_year_market_value": float(market_value_prev),
-                "prev_year_invested_capital": float(invested_capital_prev),
+                "prev_year_nav": float(prev_nav_metrics["nav"]),
+                "prev_year_price_per_unit": float(prev_nav_metrics["price_per_unit"]),
+                "prev_year_market_value": float(prev_nav_metrics["total_market_value_held"]),
+                "prev_year_invested_capital": float(prev_nav_metrics["total_investments"]),
                 "prev_year": prev_year
             }
         })
@@ -836,5 +833,21 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
             ledger_year = LedgerYearService.close_year(ledger_year, request.user)
             serializer = LedgerYearSerializer(ledger_year)
             return Response(serializer.data)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['delete'], url_path='ledgers/(?P<year_id>[0-9a-f-]+)/delete')
+    def delete_ledger(self, request, pk=None, year_id=None):
+        if not PermissionService.is_super_admin(request.user):
+            raise PermissionDenied("Only superadmins can delete ledgers.")
+        
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        try:
+            ledger_year = LedgerSelectors.get_ledger_year_by_id(year_id)
+            if ledger_year.portfolio != portfolio:
+                return Response({"error": "Ledger year not found for this portfolio."}, status=status.HTTP_404_NOT_FOUND)
+            
+            LedgerYearService.delete_year(ledger_year)
+            return Response(status=status.HTTP_204_NO_CONTENT)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

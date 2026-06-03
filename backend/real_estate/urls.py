@@ -25,6 +25,7 @@ urlpatterns = [
     path('<uuid:pk>/ledgers/<uuid:year_id>/transactions/', RealEstatePortfolioViewSet.as_view({'post': 'manual_transaction'}), name='portfolio-ledgers-transactions'),
     path('<uuid:pk>/ledgers/<uuid:year_id>/sync-cash-flow/', RealEstatePortfolioViewSet.as_view({'post': 'sync_cash_flow'}), name='portfolio-ledgers-sync-cash-flow'),
     path('<uuid:pk>/ledgers/<uuid:year_id>/close/', RealEstatePortfolioViewSet.as_view({'post': 'close_ledger'}), name='portfolio-ledgers-close'),
+    path('<uuid:pk>/ledgers/<uuid:year_id>/delete/', RealEstatePortfolioViewSet.as_view({'delete': 'delete_ledger'}), name='portfolio-ledgers-delete'),
 
     path('', include(router.urls)),
 ]

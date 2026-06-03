@@ -206,3 +206,13 @@ class LedgerYearService:
             )
 
         return ledger_year
+
+    @staticmethod
+    @transaction.atomic
+    def delete_year(ledger_year: LedgerYear):
+        """
+        Deletes a ledger year and all its associated transactions and entries.
+        """
+        # Note: LedgerEntry and LedgerTransaction have on_delete=models.CASCADE 
+        # so they will be removed automatically.
+        ledger_year.delete()

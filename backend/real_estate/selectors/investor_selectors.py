@@ -46,107 +46,149 @@ class RealEstateInvestorSelector:
     @staticmethod
     def calculate_portfolio_capital_required(portfolio: RealEstatePortfolio):
         """
+        [DEPRECATED] Use get_unified_capital_pipeline instead.
         Calculates total capital required per year for the portfolio.
         Returns a dict of year -> { "total": float, "breakdown": [ { "name": str, "amount": float, "type": str } ] }
         """
-        from .off_plan_selectors import OffPlanSelectors
-        from .financing_selectors import FinancingSelectors
-        from .installment_selectors import InstallmentSelectors
+        # Kept for backward compatibility if any views still use it directly
+        pipeline = RealEstateInvestorSelector.get_unified_capital_pipeline(portfolio)
+        return {yr: {"total": float(data["net_required"]), "breakdown": data["breakdown"]} for yr, data in pipeline.items()}
+
+    @staticmethod
+    def get_unified_capital_pipeline(portfolio: RealEstatePortfolio):
+        """
+        Unified pipeline blending Ledger actuals (for closed years) and 
+        Cash Flow projections (for open/future years).
+        
+        Returns: { 
+            year: { 
+                "net_required": Decimal, 
+                "uses": Decimal, 
+                "sources": Decimal, 
+                "breakdown": list,
+                "is_actuals": bool 
+            } 
+        }
+        """
+        from .cash_flow_selectors import CashFlowSelectors
+        from .ledger_selectors import LedgerSelectors
+        from ..models import LedgerYear
         from decimal import Decimal
 
-        yearly_data = {}
-        properties = portfolio.properties.all().select_related('financing', 'off_plan_details', 'installment', 'usufruct_details')
+        assumptions = portfolio.assumptions
+        inception_year = assumptions.inception_date.year
+        end_year = inception_year + assumptions.forecast_horizon - 1
+        
+        # 1. Get Projected Data (Base Scenario)
+        cf_data = CashFlowSelectors.get_portfolio_cash_flow(portfolio, force_base_scenario=True)
+        
+        # 2. Get Closed Ledger Years
+        closed_years = LedgerYear.objects.filter(portfolio=portfolio, is_closed=True).values_list('year', flat=True)
+        
+        pipeline = {}
+        cumulative_surplus = Decimal('0.00')
 
-        def add_to_year(yr, amount, name, payment_type):
-            if yr not in yearly_data:
-                yearly_data[yr] = {"total": 0.0, "breakdown": []}
-            yearly_data[yr]["total"] += amount
-            yearly_data[yr]["breakdown"].append({
-                "name": name,
-                "amount": amount,
-                "type": payment_type
-            })
-
-        for prop in properties:
-            if prop.status == "USUFRUCT":
-                # Usufruct properties use prep_cost as initial capital requirement
-                u_details = getattr(prop, 'usufruct_details', None)
-                if u_details:
-                    yr = prop.purchase_date.year
-                    add_to_year(yr, float(u_details.prep_cost), prop.name, "Usufruct Prep Cost")
+        for yr in range(inception_year, end_year + 1):
+            is_actuals = yr in closed_years
+            uses = Decimal('0.00')
+            sources = Decimal('0.00')
+            breakdown = []
             
-            elif prop.status == "OFF_PLAN":
-                # Off-Plan properties use their milestones
-                schedule_data = OffPlanSelectors.get_payment_schedule(prop)
-                for item in schedule_data["schedule"]:
-                    if item["milestone"] != "Sale at Completion":
-                        yr = item["date"].year
-                        amount = abs(float(item["cash_flow"]))
-                        add_to_year(yr, amount, prop.name, f"Off-Plan Milestone: {item['milestone']}")
+            # ... [Logic to populate uses, sources, breakdown is the same] ...
+            # Wait, I need to keep the logic for uses/sources from the previous turn
             
-            elif prop.financing_type == "MORTGAGED":
-                # Mortgaged properties use financing model
-                try:
-                    financing = prop.financing
-                    # Down Payment in purchase year
-                    dp = float((prop.purchase_price or 0) - financing.loan_amount)
-                    yr_start = prop.purchase_date.year
-                    add_to_year(yr_start, dp, prop.name, "Mortgage Down Payment")
-                    
-                    # Annual Debt Service
-                    schedule = FinancingSelectors.get_amortization_schedule(financing)
-                    months_per_period = 12 // financing.payments_per_year
-                    start_date = financing.loan_start_date
-                    
-                    # Aggregate by year
-                    annual_payments = {}
-                    for item in schedule:
-                        period = item['period']
-                        total_months_offset = months_per_period * (period - 1)
-                        year_offset = (start_date.month + total_months_offset - 1) // 12
-                        yr = start_date.year + year_offset
-                        
-                        amount = float(item["periodic_payment"])
-                        annual_payments[yr] = annual_payments.get(yr, 0.0) + amount
-                    
-                    for yr, amount in annual_payments.items():
-                        add_to_year(yr, amount, prop.name, "Mortgage Debt Service")
-                except:
-                    # Fallback to ALL_CASH if no financing entry found
-                    yr = prop.purchase_date.year
-                    add_to_year(yr, float(prop.purchase_price or 0), prop.name, "Purchase (Cash Fallback)")
-
-            elif prop.financing_type == "PRIMARY_INSTALLMENTS":
-                # Primary Sales with Installments
-                try:
-                    installment = prop.installment
-                    # Down Payment in purchase year
-                    dp = float(installment.down_payment)
-                    yr_start = prop.purchase_date.year
-                    add_to_year(yr_start, dp, prop.name, "Installment Down Payment")
-
-                    # Annual Installments
-                    schedule = InstallmentSelectors.get_installment_schedule(installment)
-                    months_per_period = 12 // installment.payments_per_year
-                    start_date = installment.start_date
-
-                    annual_payments = {}
-                    for item in schedule:
-                        # item['date'] is "YYYY-MM"
-                        yr = int(item['date'].split('-')[0])
-                        amount = float(item["payment"])
-                        annual_payments[yr] = annual_payments.get(yr, 0.0) + amount
-                    
-                    for yr, amount in annual_payments.items():
-                        add_to_year(yr, amount, prop.name, "Installment Payment")
-                except:
-                    # Fallback to ALL_CASH if no installment entry found
-                    yr = prop.purchase_date.year
-                    add_to_year(yr, float(prop.purchase_price or 0), prop.name, "Purchase (Cash Fallback)")
-            
+            if is_actuals:
+                # --- PULL FROM LEDGER ---
+                ledger_year = LedgerYear.objects.get(portfolio=portfolio, year=yr)
+                tb = LedgerSelectors.get_trial_balance(ledger_year)
+                for acc in tb["accounts"]:
+                    debit, credit = Decimal(str(acc["debit"])), Decimal(str(acc["credit"]))
+                    if acc["account_type"] == "EXPENSE" and debit > 0:
+                        amt = debit - credit
+                        uses += amt
+                        breakdown.append({"name": acc["account_name"], "amount": float(amt), "type": "USE"})
+                    elif acc["account_type"] == "REVENUE" and credit > 0:
+                        amt = credit - debit
+                        sources += amt
+                        breakdown.append({"name": acc["account_name"], "amount": float(amt), "type": "SOURCE"})
+                    elif acc["account_type"] == "ASSET" and acc["account_name"] != "Cash":
+                        if debit > credit:
+                            amt = debit - credit
+                            uses += amt
+                            breakdown.append({"name": f"Asset Addition: {acc['account_name']}", "amount": float(amt), "type": "USE"})
+                        elif credit > debit:
+                            amt = credit - debit
+                            sources += amt
+                            breakdown.append({"name": f"Asset Disposal: {acc['account_name']}", "amount": float(amt), "type": "SOURCE"})
+                    elif acc["account_type"] == "LIABILITY":
+                        if debit > credit:
+                            amt = debit - credit
+                            uses += amt
+                            breakdown.append({"name": f"Debt Repayment: {acc['account_name']}", "amount": float(amt), "type": "USE"})
+                        elif credit > debit:
+                            amt = credit - debit
+                            sources += amt
+                            breakdown.append({"name": f"Loan Drawdown: {acc['account_name']}", "amount": float(amt), "type": "SOURCE"})
+                    elif acc["account_type"] == "EQUITY" and acc["account_name"] == "Retained Earnings" and credit > debit:
+                        amt = credit - debit
+                        sources += amt
+                        breakdown.append({"name": "Realized Gain on Sales", "amount": float(amt), "type": "SOURCE"})
             else:
-                # ALL_CASH HELD/SOLD
-                yr = prop.purchase_date.year
-                add_to_year(yr, float(prop.purchase_price or 0), prop.name, "Full Cash Purchase")
+                # --- PULL FROM CASH FLOW MODEL ---
+                total_opex, total_rent, total_debt_service, total_taxes, total_acq = Decimal('0.00'), Decimal('0.00'), Decimal('0.00'), Decimal('0.00'), Decimal('0.00')
+                total_sales = cf_data["portfolio_sales_proceeds"].get(yr, Decimal('0.00'))
+                for prop_id, prop_data in cf_data["properties"].items():
+                    meta = prop_data["metadata"].get(yr)
+                    if meta:
+                        total_rent += meta.get("effective_rent", Decimal('0.00'))
+                        total_opex += meta.get("opex", Decimal('0.00'))
+                        total_debt_service += (meta.get("debt_service", Decimal('0.00')) + meta.get("installments", Decimal('0.00')))
+                        total_taxes += meta.get("taxes", Decimal('0.00'))
+                        total_acq += (meta.get("purchase_price", Decimal('0.00')) + meta.get("down_payment", Decimal('0.00')) + meta.get("construction_costs", Decimal('0.00')))
+                if total_rent > 0:
+                    sources += total_rent
+                    breakdown.append({"name": "Projected Rental Income", "amount": float(total_rent), "type": "SOURCE"})
+                if total_sales > 0:
+                    sources += total_sales
+                    breakdown.append({"name": "Projected Sale Proceeds", "amount": float(total_sales), "type": "SOURCE"})
+                if total_acq > 0:
+                    uses += total_acq
+                    breakdown.append({"name": "Projected Acquisitions/CapEx", "amount": float(total_acq), "type": "USE"})
+                if total_opex > 0:
+                    uses += total_opex
+                    breakdown.append({"name": "Projected Opex", "amount": float(total_opex), "type": "USE"})
+                if total_debt_service > 0:
+                    uses += total_debt_service
+                    breakdown.append({"name": "Projected Debt Service", "amount": float(total_debt_service), "type": "USE"})
+                if total_taxes > 0:
+                    uses += total_taxes
+                    breakdown.append({"name": "Projected Taxes", "amount": float(total_taxes), "type": "USE"})
 
-        return yearly_data
+            # --- NET REQUIRED CALCULATION (CUMULATIVE AWARE) ---
+            # Current year net cash flow (Sources - Uses)
+            net_cash_flow = sources - uses
+            
+            # Cumulative position before any new capital injection this year
+            position_before_call = cumulative_surplus + net_cash_flow
+            
+            net_required = Decimal('0.00')
+            if position_before_call < 0:
+                # We have a shortfall that must be met by a capital call
+                net_required = abs(position_before_call)
+                # After the call, the surplus is zero (we met the requirement exactly)
+                cumulative_surplus = Decimal('0.00')
+            else:
+                # We have enough cash to cover everything, or even a surplus
+                net_required = Decimal('0.00')
+                cumulative_surplus = position_before_call
+
+            pipeline[yr] = {
+                "net_required": net_required,
+                "uses": uses,
+                "sources": sources,
+                "breakdown": breakdown,
+                "is_actuals": is_actuals
+            }
+        return pipeline
+
+        return pipeline
