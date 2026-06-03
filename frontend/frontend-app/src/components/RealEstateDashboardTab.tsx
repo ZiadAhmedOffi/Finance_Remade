@@ -154,9 +154,11 @@ const DashboardSection: React.FC<{
 const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId }) => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [ledgerStatus, setLedgerStatus] = useState<{ balanced: boolean; year: number } | null>(null);
 
   useEffect(() => {
     fetchDashboardData();
+    fetchLedgerStatus();
   }, [portfolioId]);
 
   const fetchDashboardData = async () => {
@@ -168,6 +170,20 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
       console.error("Failed to fetch dashboard data", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchLedgerStatus = async () => {
+    try {
+      const response = await realEstateApi.getLedgers(portfolioId);
+      const currentYear = new Date().getFullYear();
+      const currentLedger = response.data.find((l: any) => l.year === currentYear);
+      if (currentLedger) {
+        const tbRes = await realEstateApi.getTrialBalance(portfolioId, currentLedger.id);
+        setLedgerStatus({ balanced: tbRes.data.is_balanced, year: currentYear });
+      }
+    } catch (err) {
+      console.error("Failed to fetch ledger status", err);
     }
   };
 
@@ -314,6 +330,23 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
       {/* Section 1: Metrics & Distribution */}
       <DashboardSection title="Portfolio Overview & Capital Distribution" id="overview">
         <div className="metrics-grid">
+          {ledgerStatus && (
+            <div className="metric-card" style={{ 
+              background: ledgerStatus.balanced ? '#f0fdf4' : '#fef2f2', 
+              border: ledgerStatus.balanced ? '1px solid #bbf7d0' : '1px solid #fecaca' 
+            }}>
+              <div className="metric-label">Ledger Status ({ledgerStatus.year})</div>
+              <div className="metric-value" style={{ 
+                color: ledgerStatus.balanced ? '#166534' : '#991b1b', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.5rem',
+                fontSize: '1.1rem'
+              }}>
+                {ledgerStatus.balanced ? '✅ Balanced' : '⚠️ Unbalanced'}
+              </div>
+            </div>
+          )}
           <div className="metric-card">
             <div className="metric-label">Active Properties</div>
             <div className="metric-value">{metrics.property_count_active}</div>

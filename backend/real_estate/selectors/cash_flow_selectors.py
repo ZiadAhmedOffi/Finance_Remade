@@ -9,7 +9,7 @@ from ..services.taxation_service import TaxationService
 
 class CashFlowSelectors:
     @staticmethod
-    def get_portfolio_cash_flow(portfolio: RealEstatePortfolio, start_year: int = None, end_year: int = None) -> dict:
+    def get_portfolio_cash_flow(portfolio: RealEstatePortfolio, start_year: int = None, end_year: int = None, force_base_scenario: bool = False) -> dict:
         """
         Calculates annual cash flows for all properties in a portfolio.
         Follows lifecycle and off-plan specific logic.
@@ -38,7 +38,7 @@ class CashFlowSelectors:
         portfolio_sales_proceeds = defaultdict(Decimal)
         portfolio_taxes = defaultdict(Decimal)
         
-        active_scenario = assumptions.active_scenario
+        active_scenario = assumptions.active_scenario if not force_base_scenario else "BASE"
         adjustments = SCENARIO_ADJUSTMENTS.get(active_scenario, {})
         
         app_adj = adjustments.get('appreciation', Decimal('0.00'))

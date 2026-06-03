@@ -30,6 +30,10 @@ class PropertySaleService:
         property_obj.status = "SOLD"
         property_obj.save()
         
+        # Bookkeeping Integration
+        from .ledger_sync_service import LedgerSyncService
+        LedgerSyncService.sync_property_sale(sale)
+        
         return sale
 
     @staticmethod

@@ -24,7 +24,10 @@ from .serializers import (
     RealEstateInvestorActionSerializer,
     RealEstateInvestorStatsSerializer,
     JurisdictionSerializer,
-    TaxRuleSerializer
+    TaxRuleSerializer,
+    LedgerYearSerializer,
+    LedgerTransactionSerializer,
+    LedgerAccountSerializer
 )
 from ..models import (
     FinancingEntry, 
@@ -35,7 +38,9 @@ from ..models import (
     RealEstatePossibleCapitalSource,
     InstallmentEntry,
     Jurisdiction,
-    TaxRule
+    TaxRule,
+    LedgerYear,
+    LedgerAccount
 )
 from ..selectors.portfolio_selectors import PortfolioSelectors
 from ..selectors.property_selectors import PropertySelector
@@ -47,14 +52,17 @@ from ..selectors.cash_flow_selectors import CashFlowSelectors
 from ..selectors.portfolio_dashboard_selectors import PortfolioDashboardSelector
 from ..selectors.investor_selectors import RealEstateInvestorSelector
 from ..selectors.taxation_selectors import TaxationAnalysisSelector
-from ..services.portfolio_service import PortfolioService
+from ..selectors.ledger_selectors import LedgerSelectors
 
+from ..services.portfolio_service import PortfolioService
 from ..services.property_service import PropertyService
 from ..services.financing_service import FinancingService
 from ..services.installment_service import InstallmentService
 from ..services.off_plan_service import OffPlanService
 from ..services.property_sale_service import PropertySaleService
 from ..services.investor_service import RealEstateInvestorService
+from ..services.ledger_service import LedgerYearService, LedgerTransactionService
+from ..services.ledger_sync_service import LedgerSyncService
 from users.services.permission_service import PermissionService
 
 from funds.interfaces.user_service_adapter import UserServiceAdapter
@@ -672,3 +680,161 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
             return Response(status=status.HTTP_204_NO_CONTENT)
         except RealEstatePossibleCapitalSource.DoesNotExist:
             return Response({"error": "Source not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    # -----------------------------
+    # Bookkeeping Actions
+    # -----------------------------
+    @action(detail=True, methods=['get'], url_path='ledgers')
+    def ledgers(self, request, pk=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_view_ledger(request.user, portfolio):
+            raise PermissionDenied("Access denied.")
+        
+        years = LedgerSelectors.get_ledger_years(portfolio)
+        serializer = LedgerYearSerializer(years, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='ledgers/initialize')
+    def initialize_ledger(self, request, pk=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_edit_ledger(request.user, portfolio):
+            raise PermissionDenied("Access denied.")
+        
+        year = request.data.get('year')
+        if not year:
+            return Response({"error": "Year is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            year = int(year)
+            LedgerSyncService.sync_historical_data(portfolio, year)
+            ledger_year = LedgerYear.objects.get(portfolio=portfolio, year=year)
+            serializer = LedgerYearSerializer(ledger_year)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='ledgers/(?P<year_id>[0-9a-f-]+)/sync-cash-flow')
+    def sync_cash_flow(self, request, pk=None, year_id=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_edit_ledger(request.user, portfolio):
+            raise PermissionDenied("Access denied.")
+
+        try:
+            ledger_year = LedgerSelectors.get_ledger_year_by_id(year_id)
+            LedgerSyncService.sync_projected_cash_flow(portfolio, ledger_year.year)
+            return Response({"message": "Cash flow synced successfully."})
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        
+    @action(detail=True, methods=['post'], url_path='ledgers/(?P<year_id>[0-9a-f-]+)/close')
+    def trial_balance(self, request, pk=None, year_id=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_view_ledger(request.user, portfolio):
+            raise PermissionDenied("Access denied.")
+        
+        try:
+            ledger_year = LedgerSelectors.get_ledger_year_by_id(year_id)
+            if ledger_year.portfolio != portfolio:
+                return Response({"error": "Ledger year not found for this portfolio."}, status=status.HTTP_404_NOT_FOUND)
+            
+            data = LedgerSelectors.get_trial_balance(ledger_year)
+            return Response(data)
+        except LedgerYear.DoesNotExist:
+            return Response({"error": "Ledger year not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=True, methods=['get'], url_path='ledgers/(?P<year_id>[0-9a-f-]+)/accounts/(?P<account_id>[0-9a-f-]+)/t-account')
+    def t_account(self, request, pk=None, year_id=None, account_id=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_view_ledger(request.user, portfolio):
+            raise PermissionDenied("Access denied.")
+        
+        try:
+            ledger_year = LedgerSelectors.get_ledger_year_by_id(year_id)
+            account = LedgerAccount.objects.get(id=account_id, portfolio=portfolio)
+            
+            data = LedgerSelectors.get_t_account_details(ledger_year, account)
+            return Response(data)
+        except (LedgerYear.DoesNotExist, LedgerAccount.DoesNotExist):
+            return Response({"error": "Resource not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=True, methods=['post'], url_path='ledgers/(?P<year_id>[0-9a-f-]+)/transactions')
+    def manual_transaction(self, request, pk=None, year_id=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_edit_ledger(request.user, portfolio):
+            raise PermissionDenied("Access denied.")
+        
+        try:
+            ledger_year = LedgerSelectors.get_ledger_year_by_id(year_id)
+            
+            # Extract entries and convert to LedgerAccount objects
+            entries_data = request.data.get('entries', [])
+            processed_entries = []
+            for e in entries_data:
+                account = LedgerAccount.objects.get(id=e['account_id'], portfolio=portfolio)
+                processed_entries.append({
+                    "account": account,
+                    "amount": Decimal(str(e['amount'])),
+                    "entry_type": e['entry_type']
+                })
+            
+            transaction_obj = LedgerTransactionService.create_transaction(
+                portfolio=portfolio,
+                ledger_year=ledger_year,
+                description=request.data.get('description'),
+                date=datetime.strptime(request.data.get('date'), '%Y-%m-%d').date(),
+                entries=processed_entries
+            )
+            
+            serializer = LedgerTransactionSerializer(transaction_obj)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['get'], url_path='ledgers/templates')
+    def transaction_templates(self, request, pk=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        accounts = LedgerAccount.objects.filter(portfolio=portfolio)
+        
+        def get_acc_id(name):
+            acc = accounts.filter(name=name).first()
+            return str(acc.id) if acc else None
+
+        templates = [
+            {
+                "name": "General Expense",
+                "entries": [
+                    {"account_id": get_acc_id("Cash"), "entry_type": "CREDIT", "amount": 0},
+                    {"account_id": None, "entry_type": "DEBIT", "amount": 0}
+                ]
+            },
+            {
+                "name": "Capital Injection",
+                "entries": [
+                    {"account_id": get_acc_id("Cash"), "entry_type": "DEBIT", "amount": 0},
+                    {"account_id": get_acc_id("Paid-in Capital"), "entry_type": "CREDIT", "amount": 0}
+                ]
+            },
+            {
+                "name": "Rental Income",
+                "entries": [
+                    {"account_id": get_acc_id("Cash"), "entry_type": "DEBIT", "amount": 0},
+                    {"account_id": get_acc_id("Rental Income"), "entry_type": "CREDIT", "amount": 0}
+                ]
+            }
+        ]
+        return Response(templates)
+
+    @action(detail=True, methods=['post'], url_path='ledgers/(?P<year_id>[0-9a-f-]+)/close')
+    def close_ledger(self, request, pk=None, year_id=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_finalize_ledger(request.user, portfolio):
+            raise PermissionDenied("Access denied.")
+        
+        try:
+            ledger_year = LedgerSelectors.get_ledger_year_by_id(year_id)
+            ledger_year = LedgerYearService.close_year(ledger_year, request.user)
+            serializer = LedgerYearSerializer(ledger_year)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

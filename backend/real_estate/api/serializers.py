@@ -13,7 +13,11 @@ from ..models import (
     InstallmentEntry,
     UsufructDetails,
     Jurisdiction,
-    TaxRule
+    TaxRule,
+    LedgerAccount,
+    LedgerYear,
+    LedgerTransaction,
+    LedgerEntry
 )
 
 class JurisdictionSerializer(serializers.ModelSerializer):
@@ -197,3 +201,37 @@ class RealEstateInvestorStatsSerializer(serializers.ModelSerializer):
             'amount_invested', 'capital_deployed', 'realized_gain', 'units'
         ]
         read_only_fields = ['id']
+
+class LedgerAccountSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LedgerAccount
+        fields = ['id', 'portfolio', 'name', 'type', 'is_system_account', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+class LedgerYearSerializer(serializers.ModelSerializer):
+    closed_by_email = serializers.EmailField(source='closed_by.email', read_only=True)
+
+    class Meta:
+        model = LedgerYear
+        fields = ['id', 'portfolio', 'year', 'is_closed', 'closed_at', 'closed_by_email']
+        read_only_fields = ['id', 'closed_at', 'closed_by_email']
+
+class LedgerEntrySerializer(serializers.ModelSerializer):
+    account_name = serializers.CharField(source='account.name', read_only=True)
+    account_type = serializers.CharField(source='account.type', read_only=True)
+
+    class Meta:
+        model = LedgerEntry
+        fields = ['id', 'transaction', 'account', 'account_name', 'account_type', 'amount', 'entry_type']
+        read_only_fields = ['id']
+
+class LedgerTransactionSerializer(serializers.ModelSerializer):
+    entries = LedgerEntrySerializer(many=True, read_only=True)
+
+    class Meta:
+        model = LedgerTransaction
+        fields = [
+            'id', 'portfolio', 'ledger_year', 'description', 'date', 
+            'source_type', 'source_id', 'entries', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'entries']

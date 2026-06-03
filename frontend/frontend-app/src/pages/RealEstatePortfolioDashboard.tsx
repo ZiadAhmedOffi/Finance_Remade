@@ -10,6 +10,7 @@ import CashFlowModelTab from "../components/CashFlowModelTab";
 import RealEstateDashboardTab from "../components/RealEstateDashboardTab";
 import REInvestorLogTab from "../components/REInvestorLogTab";
 import TaxationManagementTab from "../components/TaxationManagementTab";
+import BookkeepingTab from "../components/BookkeepingTab";
 import "./FundDashboard.css"; // Reuse dashboard styles
 
 interface RealEstatePortfolio {
@@ -28,7 +29,7 @@ const RealEstatePortfolioDashboard: React.FC = () => {
   const [portfolio, setPortfolio] = useState<RealEstatePortfolio | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "properties" | "assumptions" | "financing" | "off-plan" | "sales" | "cash-flow" | "investor-log" | "taxation">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "properties" | "assumptions" | "financing" | "off-plan" | "sales" | "cash-flow" | "investor-log" | "taxation" | "bookkeeping">("dashboard");
   const [canEdit, setCanEdit] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -90,6 +91,7 @@ const RealEstatePortfolioDashboard: React.FC = () => {
     { id: "taxation", label: "Taxation", icon: "⚖️" },
     { id: "cash-flow", label: "Cash Flow Model", icon: "📈" },
     { id: "sales", label: "Sales & Disposals", icon: "🤝" },
+    { id: "bookkeeping", label: "Bookkeeping", icon: "📓" },
     { id: "assumptions", label: "Assumptions", icon: "⚙️" },
   ];
 
@@ -164,6 +166,9 @@ const RealEstatePortfolioDashboard: React.FC = () => {
           )}
           {activeTab === "taxation" && portfolioId && portfolio && (
             <TaxationManagementTab portfolio={portfolio} onUpdate={fetchPortfolioData} canEdit={canEdit} />
+          )}
+          {activeTab === "bookkeeping" && portfolioId && (
+            <BookkeepingTab portfolioId={portfolioId} canEdit={canEdit} />
           )}
         </div>
       </main>

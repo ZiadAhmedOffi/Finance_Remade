@@ -102,6 +102,24 @@ class PermissionService:
             or PermissionService.is_re_investor(user, portfolio)
         )
 
+    # -----------------------------
+    # Bookkeeping Permissions
+    # -----------------------------
+    @staticmethod
+    def can_view_ledger(user, portfolio):
+        """ Determines if a user can view the bookkeeping ledger. """
+        return PermissionService.can_view_re_portfolio(user, portfolio)
+
+    @staticmethod
+    def can_edit_ledger(user, portfolio):
+        """ Determines if a user can add/edit ledger transactions. """
+        return PermissionService.can_edit_re_portfolio(user, portfolio)
+
+    @staticmethod
+    def can_finalize_ledger(user, portfolio):
+        """ Determines if a user can close/finalize a fiscal year. """
+        return PermissionService.can_edit_re_portfolio(user, portfolio)
+
     @staticmethod
     def can_assign_roles(user):
         """ Determines if a user has permissions to assign roles to others. """

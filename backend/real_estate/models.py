@@ -614,3 +614,130 @@ class RealEstateInvestorStats(models.Model):
         stats.realized_gain = total_realized_gain
         stats.units = total_units
         stats.save()
+
+class LedgerAccount(models.Model):
+    """
+    Represents a category in the Chart of Accounts for a Real Estate Portfolio.
+    """
+    ACCOUNT_TYPE_CHOICES = [
+        ("ASSET", "Asset"),
+        ("LIABILITY", "Liability"),
+        ("EQUITY", "Equity"),
+        ("REVENUE", "Revenue"),
+        ("EXPENSE", "Expense"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    portfolio = models.ForeignKey(
+        RealEstatePortfolio,
+        on_delete=models.CASCADE,
+        related_name="ledger_accounts"
+    )
+    name = models.CharField(max_length=255)
+    type = models.CharField(max_length=20, choices=ACCOUNT_TYPE_CHOICES)
+    is_system_account = models.BooleanField(default=False)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["type", "name"]
+        unique_together = ["portfolio", "name"]
+        verbose_name = "Ledger Account"
+        verbose_name_plural = "Ledger Accounts"
+
+    def __str__(self):
+        return f"{self.portfolio.name} - {self.name} ({self.type})"
+
+class LedgerYear(models.Model):
+    """
+    Tracks the fiscal year status for a portfolio's bookkeeping.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    portfolio = models.ForeignKey(
+        RealEstatePortfolio,
+        on_delete=models.CASCADE,
+        related_name="ledger_years"
+    )
+    year = models.PositiveIntegerField()
+    is_closed = models.BooleanField(default=False)
+    
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="re_ledgers_closed"
+    )
+
+    class Meta:
+        ordering = ["-year"]
+        unique_together = ["portfolio", "year"]
+        verbose_name = "Ledger Year"
+        verbose_name_plural = "Ledger Years"
+
+    def __str__(self):
+        status = "Closed" if self.is_closed else "Open"
+        return f"{self.portfolio.name} - {self.year} ({status})"
+
+class LedgerTransaction(models.Model):
+    """
+    Groups a set of balanced entries representing a financial event.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    portfolio = models.ForeignKey(
+        RealEstatePortfolio,
+        on_delete=models.CASCADE,
+        related_name="ledger_transactions"
+    )
+    ledger_year = models.ForeignKey(
+        LedgerYear,
+        on_delete=models.CASCADE,
+        related_name="transactions"
+    )
+    description = models.TextField()
+    date = models.DateField()
+    
+    # Metadata for integration
+    source_type = models.CharField(max_length=100, null=True, blank=True)
+    source_id = models.UUIDField(null=True, blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-date", "-created_at"]
+        verbose_name = "Ledger Transaction"
+        verbose_name_plural = "Ledger Transactions"
+
+    def __str__(self):
+        return f"{self.date} - {self.description[:50]}"
+
+class LedgerEntry(models.Model):
+    """
+    Individual debit or credit line item.
+    """
+    ENTRY_TYPE_CHOICES = [
+        ("DEBIT", "Debit"),
+        ("CREDIT", "Credit"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    transaction = models.ForeignKey(
+        LedgerTransaction,
+        on_delete=models.CASCADE,
+        related_name="entries"
+    )
+    account = models.ForeignKey(
+        LedgerAccount,
+        on_delete=models.CASCADE,
+        related_name="entries"
+    )
+    amount = models.DecimalField(max_digits=30, decimal_places=2)
+    entry_type = models.CharField(max_length=10, choices=ENTRY_TYPE_CHOICES)
+
+    class Meta:
+        verbose_name = "Ledger Entry"
+        verbose_name_plural = "Ledger Entries"
+
+    def __str__(self):
+        return f"{self.entry_type}: {self.amount} ({self.account.name})"

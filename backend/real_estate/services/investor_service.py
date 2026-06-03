@@ -74,6 +74,11 @@ class RealEstateInvestorService:
         else: # SECONDARY_INVESTMENT or other
             action = RealEstateInvestorAction.objects.create(**data)
 
+        # Bookkeeping Integration
+        if action.type == "PRIMARY_INVESTMENT":
+            from .ledger_sync_service import LedgerSyncService
+            LedgerSyncService.sync_investor_investment(action)
+
         return action
 
     @staticmethod

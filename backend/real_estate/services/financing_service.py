@@ -30,6 +30,10 @@ class FinancingService:
             loan_start_date=data.get('loan_start_date')
         )
         
+        # Bookkeeping Integration
+        from .ledger_sync_service import LedgerSyncService
+        LedgerSyncService.sync_financing_entry(entry)
+        
         return entry
 
     @staticmethod

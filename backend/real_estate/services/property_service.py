@@ -85,6 +85,10 @@ class PropertyService:
                 inflow_rent_appreciation_percentage=Decimal(str(data.get('inflow_rent_appreciation_percentage', 0.00))),
             )
         
+        # Bookkeeping Integration
+        from .ledger_sync_service import LedgerSyncService
+        LedgerSyncService.sync_property_acquisition(property_obj)
+        
         return property_obj
 
     @staticmethod
