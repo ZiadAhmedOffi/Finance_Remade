@@ -51,6 +51,9 @@ interface BookkeepingTabProps {
   isAdmin?: boolean;
 }
 
+const formatCurrency = (val: number) => 
+  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact" }).format(val);
+
 const BookkeepingTab: React.FC<BookkeepingTabProps> = ({ portfolioId, canEdit, isAdmin }) => {
   const [ledgerYears, setLedgerYears] = useState<LedgerYear[]>([]);
   const [selectedYear, setSelectedYear] = useState<LedgerYear | null>(null);
@@ -172,8 +175,8 @@ const BookkeepingTab: React.FC<BookkeepingTabProps> = ({ portfolioId, canEdit, i
             </button>
           )}
           {isAdmin && selectedYear && (
-            <button className="btn-danger" onClick={handleDeleteYear} style={{ background: '#7f1d1d' }}>
-              Delete Year
+            <button className="btn-delete-ledger" onClick={handleDeleteYear}>
+              <span style={{ fontSize: '1rem' }}>🗑️</span> Delete Year
             </button>
           )}
         </div>
@@ -272,14 +275,14 @@ const BookkeepingTab: React.FC<BookkeepingTabProps> = ({ portfolioId, canEdit, i
                   {selectedAccount.debits.map(e => (
                     <div key={e.id} className="entry-item">
                       <span className="entry-date">{e.date}</span>
-                      <span className="entry-desc">{e.description}</span>
-                      <span className="entry-amount">${parseFloat(e.amount).toLocaleString()}</span>
+                      <span className="entry-desc" title={e.description}>{e.description}</span>
+                      <span className="entry-amount">{formatCurrency(parseFloat(e.amount))}</span>
                     </div>
                   ))}
                   {selectedAccount.debits.length === 0 && <p className="muted">No debit entries</p>}
                 </div>
                 <div className="column-total">
-                  Total Debit: ${selectedAccount.total_debit.toLocaleString()}
+                  Total Dr: {formatCurrency(selectedAccount.total_debit)}
                 </div>
               </div>
               
@@ -289,20 +292,20 @@ const BookkeepingTab: React.FC<BookkeepingTabProps> = ({ portfolioId, canEdit, i
                   {selectedAccount.credits.map(e => (
                     <div key={e.id} className="entry-item">
                       <span className="entry-date">{e.date}</span>
-                      <span className="entry-desc">{e.description}</span>
-                      <span className="entry-amount">${parseFloat(e.amount).toLocaleString()}</span>
+                      <span className="entry-desc" title={e.description}>{e.description}</span>
+                      <span className="entry-amount">{formatCurrency(parseFloat(e.amount))}</span>
                     </div>
                   ))}
                   {selectedAccount.credits.length === 0 && <p className="muted">No credit entries</p>}
                 </div>
                 <div className="column-total">
-                  Total Credit: ${selectedAccount.total_credit.toLocaleString()}
+                  Total Cr: {formatCurrency(selectedAccount.total_credit)}
                 </div>
               </div>
             </div>
             
-            <div className="t-account-footer">
-              <strong>Net Balance: ${ (selectedAccount.total_debit - selectedAccount.total_credit).toLocaleString() }</strong>
+            <div className="t-account-footer" style={{ borderTop: '2px solid #1e293b', marginTop: 0 }}>
+              <strong>Net Balance: { formatCurrency(Math.abs(selectedAccount.total_debit - selectedAccount.total_credit)) } { (selectedAccount.total_debit > selectedAccount.total_credit ? 'Dr' : 'Cr') }</strong>
             </div>
           </div>
         </div>
@@ -427,7 +430,21 @@ const ManualTransactionModal: React.FC<ManualTransactionModalProps> = ({
           </div>
 
           <div className="entries-section">
-            <label>Entries</label>
+            <div className="flex justify-between items-center mb-2">
+              <label className="m-0">Transaction Entries</label>
+              <div className="flex gap-4 text-xs font-bold">
+                <span className="text-blue-600">Total Debit: {formatCurrency(entries.filter(e => e.entry_type === "DEBIT").reduce((sum, e) => sum + parseFloat(e.amount || "0"), 0))}</span>
+                <span className="text-emerald-600">Total Credit: {formatCurrency(entries.filter(e => e.entry_type === "CREDIT").reduce((sum, e) => sum + parseFloat(e.amount || "0"), 0))}</span>
+              </div>
+            </div>
+            
+            <div className="entry-row-header" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1.2fr auto', gap: '0.75rem', padding: '0 0.5rem', marginBottom: '0.5rem' }}>
+               <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Account</span>
+               <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Type</span>
+               <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Amount ($)</span>
+               <span></span>
+            </div>
+
             {entries.map((entry, index) => (
               <div key={index} className="entry-row">
                 <select 
@@ -451,6 +468,11 @@ const ManualTransactionModal: React.FC<ManualTransactionModalProps> = ({
                     newEntries[index].entry_type = e.target.value as any;
                     setEntries(newEntries);
                   }}
+                  style={{ 
+                    color: entry.entry_type === "DEBIT" ? "#2563eb" : "#059669",
+                    fontWeight: 'bold',
+                    background: entry.entry_type === "DEBIT" ? "#eff6ff" : "#ecfdf5"
+                  }}
                 >
                   <option value="DEBIT">Debit</option>
                   <option value="CREDIT">Credit</option>
@@ -464,18 +486,40 @@ const ManualTransactionModal: React.FC<ManualTransactionModalProps> = ({
                     newEntries[index].amount = e.target.value;
                     setEntries(newEntries);
                   }}
-                  placeholder="Amount"
+                  placeholder="0.00"
                   required
+                  style={{ fontFamily: 'JetBrains Mono, monospace' }}
                 />
-                <button type="button" className="btn-remove" onClick={() => handleRemoveEntry(index)}>&times;</button>
+                <button type="button" className="btn-remove" onClick={() => handleRemoveEntry(index)} title="Remove Line">&times;</button>
               </div>
             ))}
-            <button type="button" className="btn-add-entry" onClick={handleAddEntry}>+ Add Line</button>
+            <button type="button" className="btn-add-entry" onClick={handleAddEntry}>+ Add New Entry Line</button>
           </div>
 
-          <div className="modal-footer">
-            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary">Save Transaction</button>
+          <div className="modal-footer" style={{ borderTop: '1px solid #e2e8f0', paddingTop: '1.5rem', marginTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="balance-status">
+              {(() => {
+                const d = entries.filter(e => e.entry_type === "DEBIT").reduce((sum, e) => sum + parseFloat(e.amount || "0"), 0);
+                const c = entries.filter(e => e.entry_type === "CREDIT").reduce((sum, e) => sum + parseFloat(e.amount || "0"), 0);
+                const balanced = Math.abs(d - c) < 0.01;
+                return (
+                  <span style={{ 
+                    fontSize: '0.85rem', 
+                    fontWeight: 700, 
+                    color: balanced ? '#059669' : '#dc2626',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem'
+                  }}>
+                    {balanced ? '✅ Ledger Balanced' : `⚠️ Unbalanced: ${formatCurrency(Math.abs(d-c))} diff`}
+                  </span>
+                );
+              })()}
+            </div>
+            <div className="flex gap-3">
+              <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+              <button type="submit" className="btn-primary">Save Transaction</button>
+            </div>
           </div>
         </form>
       </div>
