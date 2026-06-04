@@ -582,6 +582,10 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
         ref_date_prev = datetime(prev_year, 12, 31).date()
         prev_nav_metrics = PortfolioSelectors.get_portfolio_nav_metrics(portfolio, reference_date=ref_date_prev)
 
+        # Dashboard-level metrics for the card view
+        dashboard_data = PortfolioDashboardSelector.get_dashboard_data(portfolio)
+        aggregated = dashboard_data.get("metrics", {})
+
         return Response({
             "investors": investors_list,
             "graph_data": graph_data,
@@ -600,7 +604,15 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
                 "prev_year_price_per_unit": float(prev_nav_metrics["price_per_unit"]),
                 "prev_year_market_value": float(prev_nav_metrics["total_market_value_held"]),
                 "prev_year_invested_capital": float(prev_nav_metrics["total_investments"]),
-                "prev_year": prev_year
+                "prev_year": prev_year,
+                # New Card Metrics
+                "liquidation_index": dashboard_data.get("liquidation_index", {}).get("portfolio_average", 0),
+                "weighted_net_yield": float(aggregated.get("portfolio_net_yield", 0)),
+                "weighted_occupancy": float(100.0 - float(aggregated.get("portfolio_vacancy_rate", 0))),
+                "property_count_active": aggregated.get("property_count_active", 0),
+                "annual_cash_flow_current": float(aggregated.get("net_cash_flow_y1", 0)),
+                # Calculate prev year cash flow for YOY comparison
+                "annual_cash_flow_prev": float(PortfolioDashboardSelector.get_dashboard_data(portfolio, reference_date=ref_date_prev).get("metrics", {}).get("net_cash_flow_y1", 0))
             }
         })
 

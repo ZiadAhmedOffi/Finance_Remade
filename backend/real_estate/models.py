@@ -18,6 +18,14 @@ class RealEstatePortfolio(models.Model):
     description = models.TextField(blank=True)
     region = models.CharField(max_length=255, blank=True)
     
+    # New: Immersive card customization
+    cover_image = models.URLField(
+        max_length=500, 
+        null=True, 
+        blank=True, 
+        help_text="URL for the portfolio's background image"
+    )
+    
     # New: Link to Jurisdiction
     jurisdiction = models.ForeignKey(
         'Jurisdiction',

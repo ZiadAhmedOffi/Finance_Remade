@@ -6,16 +6,15 @@ interface LiquidityGaugeProps {
   ageFactor: number;
   age: number;
   fundName?: string;
+  isMini?: boolean;
 }
 
 /**
  * Horizontal Bar Gauge for Liquidity Index Visualization
- * Features color gradients: 
- * - 0-40%: Green gradient
- * - 40-60%: Yellow gradient
- * - 60-100%: Red gradient
  */
-const LiquidityGauge: React.FC<LiquidityGaugeProps> = ({ value, portfolioL, ageFactor, age, fundName }) => {
+const LiquidityGauge: React.FC<LiquidityGaugeProps> = ({ 
+  value, portfolioL, ageFactor, age, fundName, isMini = false 
+}) => {
   // Clamp value between 0 and 100
   const clampedValue = Math.min(Math.max(value, 0), 100);
 
@@ -26,6 +25,47 @@ const LiquidityGauge: React.FC<LiquidityGaugeProps> = ({ value, portfolioL, ageF
     if (v >= 20) return "Illiquid";
     return "Highly Illiquid";
   };
+
+  if (isMini) {
+    return (
+      <div style={{ width: '100%', padding: '0 5px' }}>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          marginBottom: '4px'
+        }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: '900', color: '#1e293b' }}>
+            {value.toFixed(1)}%
+          </span>
+          <span style={{ fontSize: '0.6rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
+            {getStatus(value)}
+          </span>
+        </div>
+        <div style={{
+          height: '10px',
+          width: '100%',
+          borderRadius: '5px',
+          background: 'linear-gradient(to right, #ef4444 0%, #f97316 30%, #facc15 50%, #22c55e 70%, #10b981 100%)',
+          boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)',
+          position: 'relative'
+        }}>
+          <div style={{
+            position: 'absolute',
+            left: `${clampedValue}%`,
+            top: '-3px',
+            bottom: '-3px',
+            width: '3px',
+            backgroundColor: '#1e293b',
+            borderRadius: '2px',
+            border: '1px solid white',
+            zIndex: 2,
+            transition: 'left 1s ease'
+          }} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', padding: '0.5rem 1rem 0' }}>

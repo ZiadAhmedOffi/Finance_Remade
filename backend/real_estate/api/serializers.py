@@ -60,7 +60,7 @@ class RealEstatePortfolioSerializer(serializers.ModelSerializer):
     class Meta:
         model = RealEstatePortfolio
         fields = [
-            'id', 'name', 'description', 'region', 'jurisdiction', 'jurisdiction_name',
+            'id', 'name', 'description', 'region', 'cover_image', 'jurisdiction', 'jurisdiction_name',
             'status', 'created_by_email', 'created_at',
             'assumptions'
         ]

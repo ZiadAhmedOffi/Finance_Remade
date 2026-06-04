@@ -17,22 +17,27 @@ interface Assumptions {
 
 const RealEstateAssumptionsTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ portfolioId, canEdit }) => {
   const [assumptions, setAssumptions] = useState<Assumptions | null>(null);
+  const [coverImage, setCoverImage] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   useEffect(() => {
-    const fetchAssumptions = async () => {
+    const fetchData = async () => {
       try {
-        const response = await realEstateApi.getAssumptions(portfolioId);
-        setAssumptions(response.data);
+        const [assumptionsRes, portfolioRes] = await Promise.all([
+          realEstateApi.getAssumptions(portfolioId),
+          realEstateApi.getPortfolio(portfolioId)
+        ]);
+        setAssumptions(assumptionsRes.data);
+        setCoverImage(portfolioRes.data.cover_image || "");
       } catch (err) {
-        console.error("Failed to fetch assumptions", err);
+        console.error("Failed to fetch data", err);
       } finally {
         setLoading(false);
       }
     };
-    fetchAssumptions();
+    fetchData();
   }, [portfolioId]);
 
   const handleInputChange = (field: keyof Assumptions, value: any) => {
@@ -46,10 +51,13 @@ const RealEstateAssumptionsTab: React.FC<{ portfolioId: string; canEdit: boolean
     setSaving(true);
     setMessage(null);
     try {
-      await realEstateApi.updateAssumptions(portfolioId, assumptions);
-      setMessage({ type: 'success', text: "Assumptions saved successfully!" });
+      await Promise.all([
+        realEstateApi.updateAssumptions(portfolioId, assumptions),
+        realEstateApi.updatePortfolio(portfolioId, { cover_image: coverImage })
+      ]);
+      setMessage({ type: 'success', text: "Changes saved successfully!" });
     } catch (err) {
-      setMessage({ type: 'error', text: "Failed to save assumptions." });
+      setMessage({ type: 'error', text: "Failed to save changes." });
     } finally {
       setSaving(false);
     }
@@ -164,7 +172,33 @@ const RealEstateAssumptionsTab: React.FC<{ portfolioId: string; canEdit: boolean
           align-items: center;
           z-index: 10;
         }
+        .image-preview {
+          width: 100%;
+          height: 120px;
+          border-radius: 8px;
+          object-fit: cover;
+          margin-top: 1rem;
+          border: 1px solid #e2e8f0;
+        }
       `}</style>
+
+      <div className="assumptions-section">
+        <h3 className="section-title">Portfolio Appearance</h3>
+        <div className="input-field" style={{maxWidth: '100%'}}>
+          <label>Cover Image URL (Immersive Dashboard Card)</label>
+          <input 
+            type="url" 
+            value={coverImage} 
+            onChange={(e) => setCoverImage(e.target.value)}
+            placeholder="https://images.unsplash.com/photo-..."
+            disabled={!canEdit}
+          />
+          {coverImage && <img src={coverImage} alt="Preview" className="image-preview" onError={(e) => (e.currentTarget.style.display = 'none')} />}
+          <p style={{fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.5rem'}}>
+            Provide a high-resolution URL (e.g., from Unsplash) to create an immersive experience on the main dashboard.
+          </p>
+        </div>
+      </div>
 
       <div className="assumptions-section">
         <h3 className="section-title">Portfolio Timeline</h3>

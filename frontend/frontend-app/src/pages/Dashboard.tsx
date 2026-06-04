@@ -19,6 +19,7 @@ interface RealEstatePortfolio {
   description: string;
   region: string;
   status: "ACTIVE" | "DEACTIVATED";
+  cover_image?: string;
 }
 
 /**

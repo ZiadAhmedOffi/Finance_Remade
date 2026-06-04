@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { realEstateApi } from "../api/api";
+import RealEstateCard from "../components/RealEstateCard";
 import "./Dashboard.css"; // Reuse dashboard styles for consistency
 
 interface RealEstatePortfolio {
@@ -10,6 +11,7 @@ interface RealEstatePortfolio {
   region: string;
   status: "ACTIVE" | "DEACTIVATED";
   created_by_email: string;
+  cover_image?: string;
 }
 
 const RealEstateDashboard: React.FC = () => {
@@ -108,27 +110,7 @@ const RealEstateDashboard: React.FC = () => {
               <p style={{gridColumn: '1/-1', textAlign: 'center', color: '#64748b', padding: '4rem'}}>No real estate portfolios found.</p>
             ) : (
               portfolios.map(portfolio => (
-                <div key={portfolio.id} className="fund-card">
-                  <div className="card-header">
-                    <span className="fund-tag">REAL ESTATE</span>
-                    <span className={`status-pill ${portfolio.status.toLowerCase()}`}>{portfolio.status}</span>
-                  </div>
-                  <div className="card-body">
-                    <h3 className="fund-name">{portfolio.name}</h3>
-                    <p className="fund-description">{portfolio.description || "No description provided."}</p>
-                    <div className="fund-meta">
-                      <div className="meta-item">
-                        <span className="meta-label">Region</span>
-                        <span className="meta-value">{portfolio.region || "N/A"}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="card-footer">
-                    <Link to={`/real-estate/${portfolio.id}`} className="view-btn" style={{width: '100%', textAlign: 'center'}}>
-                      View Dashboard
-                    </Link>
-                  </div>
-                </div>
+                <RealEstateCard key={portfolio.id} portfolio={portfolio} />
               ))
             )}
           </div>
