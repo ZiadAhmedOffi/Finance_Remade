@@ -9,6 +9,7 @@ import SalesAndDisposalsTab from "../components/SalesAndDisposalsTab";
 import CashFlowModelTab from "../components/CashFlowModelTab";
 import RealEstateDashboardTab from "../components/RealEstateDashboardTab";
 import REInvestorLogTab from "../components/REInvestorLogTab";
+import RealEstateReportsTab from "../components/RealEstateReportsTab";
 import TaxationManagementTab from "../components/TaxationManagementTab";
 import BookkeepingTab from "../components/BookkeepingTab";
 import "./FundDashboard.css"; // Reuse dashboard styles
@@ -29,7 +30,7 @@ const RealEstatePortfolioDashboard: React.FC = () => {
   const [portfolio, setPortfolio] = useState<RealEstatePortfolio | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "properties" | "assumptions" | "financing" | "off-plan" | "sales" | "cash-flow" | "investor-log" | "taxation" | "bookkeeping">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "properties" | "assumptions" | "financing" | "off-plan" | "sales" | "cash-flow" | "investor-log" | "taxation" | "bookkeeping" | "reports">("dashboard");
   const [canEdit, setCanEdit] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -86,6 +87,7 @@ const RealEstatePortfolioDashboard: React.FC = () => {
     { id: "dashboard", label: "Dashboard", icon: "📊" },
     { id: "properties", label: "Property Data", icon: "🏢" },
     { id: "investor-log", label: "Investor Log", icon: "👥" },
+    { id: "reports", label: "Reports", icon: "📄" },
     { id: "financing", label: "Financing Model", icon: "💰" },
     { id: "off-plan", label: "Off-Plan Model", icon: "🏗️" },
     { id: "taxation", label: "Taxation", icon: "⚖️" },
@@ -148,6 +150,9 @@ const RealEstatePortfolioDashboard: React.FC = () => {
           )}
           {activeTab === "investor-log" && portfolioId && (
             <REInvestorLogTab portfolioId={portfolioId} canEdit={canEdit} />
+          )}
+          {activeTab === "reports" && portfolioId && (
+            <RealEstateReportsTab portfolioId={portfolioId} isAdmin={isAdmin} />
           )}
           {activeTab === "assumptions" && portfolioId && (
             <RealEstateAssumptionsTab portfolioId={portfolioId} canEdit={canEdit} />

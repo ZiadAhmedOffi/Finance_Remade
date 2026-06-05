@@ -749,3 +749,55 @@ class LedgerEntry(models.Model):
 
     def __str__(self):
         return f"{self.entry_type}: {self.amount} ({self.account.name})"
+
+class RealEstateReport(models.Model):
+    """
+    Model for dynamic real estate portfolio reports.
+    """
+    REPORT_TYPE_CHOICES = [
+        ("DYNAMIC", "Dynamic Portfolio Report"),
+        ("ANNUAL", "Annual Performance Report"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    slug = models.SlugField(unique=True, db_index=True)
+    name = models.CharField(max_length=255)
+    portfolio = models.ForeignKey(RealEstatePortfolio, on_delete=models.CASCADE, related_name='reports')
+    
+    report_type = models.CharField(
+        max_length=20,
+        choices=REPORT_TYPE_CHOICES,
+        default="DYNAMIC",
+        db_index=True
+    )
+
+    config_json = models.JSONField(help_text="Metrics selection, chart types, sections, etc.")
+    
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ("ACTIVE", "Active"), 
+            ("INACTIVE", "Inactive"), 
+            ("GENERATING", "Generating"),
+            ("FAILED", "Failed")
+        ],
+        default="INACTIVE",
+        db_index=True
+    )
+    
+    static_url = models.URLField(blank=True, null=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=["slug"]),
+            models.Index(fields=["status"]),
+        ]
+        verbose_name = "Real Estate Report"
+        verbose_name_plural = "Real Estate Reports"
+
+    def __str__(self):
+        return f"{self.name} - {self.portfolio.name}"

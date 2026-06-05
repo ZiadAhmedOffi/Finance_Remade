@@ -27,7 +27,8 @@ from .serializers import (
     TaxRuleSerializer,
     LedgerYearSerializer,
     LedgerTransactionSerializer,
-    LedgerAccountSerializer
+    LedgerAccountSerializer,
+    RealEstateReportSerializer
 )
 from ..models import (
     FinancingEntry, 
@@ -40,7 +41,9 @@ from ..models import (
     Jurisdiction,
     TaxRule,
     LedgerYear,
-    LedgerAccount
+    LedgerAccount,
+    RealEstatePortfolio,
+    RealEstateReport
 )
 from ..selectors.portfolio_selectors import PortfolioSelectors
 from ..selectors.property_selectors import PropertySelector
@@ -53,6 +56,7 @@ from ..selectors.portfolio_dashboard_selectors import PortfolioDashboardSelector
 from ..selectors.investor_selectors import RealEstateInvestorSelector
 from ..selectors.taxation_selectors import TaxationAnalysisSelector
 from ..selectors.ledger_selectors import LedgerSelectors
+from ..selectors.report_selectors import RealEstateReportSelector
 
 from ..services.portfolio_service import PortfolioService
 from ..services.property_service import PropertyService
@@ -63,7 +67,11 @@ from ..services.property_sale_service import PropertySaleService
 from ..services.investor_service import RealEstateInvestorService
 from ..services.ledger_service import LedgerYearService, LedgerTransactionService
 from ..services.ledger_sync_service import LedgerSyncService
+from ..services.report_service import RealEstateReportService
 from users.services.permission_service import PermissionService
+
+from rest_framework.views import APIView
+from rest_framework.permissions import AllowAny
 
 from funds.interfaces.user_service_adapter import UserServiceAdapter
 user_adapter = UserServiceAdapter()
@@ -863,3 +871,132 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
             return Response(status=status.HTTP_204_NO_CONTENT)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+class RealEstateReportListView(APIView):
+    """
+    Lists all reports for a specific portfolio.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        portfolio_id = request.query_params.get("portfolio_id")
+        if not portfolio_id:
+            return Response({"error": "portfolio_id query param is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        portfolio = get_object_or_404(RealEstatePortfolio, id=portfolio_id)
+        if not PermissionService.is_super_admin(request.user):
+            # For now, strict check. Could be expanded to SC roles.
+            return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+            
+        reports = portfolio.reports.all()
+        return Response(RealEstateReportSerializer(reports, many=True).data)
+
+    def post(self, request):
+        if not PermissionService.is_super_admin(request.user):
+            return Response({"error": "Only super admins can create reports."}, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            report = RealEstateReportService.create_report(
+                actor=request.user,
+                data=request.data,
+                ip_address=request.META.get("REMOTE_ADDR")
+            )
+            return Response(RealEstateReportSerializer(report).data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+class RealEstateReportDetailView(APIView):
+    """
+    Handles updating and deleting specific reports.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, report_id):
+        report = RealEstateReportSelector.get_report_by_id(report_id)
+        if not report:
+             return Response({"error": "Report not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Super admin check for now
+        if not PermissionService.is_super_admin(request.user):
+            return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        return Response(RealEstateReportSerializer(report).data)
+
+    def patch(self, request, report_id):
+        report = RealEstateReportSelector.get_report_by_id(report_id)
+        if not report:
+             return Response({"error": "Report not found."}, status=status.HTTP_404_NOT_FOUND)
+             
+        if not PermissionService.is_super_admin(request.user):
+            return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            report = RealEstateReportService.update_report(
+                actor=request.user,
+                report=report,
+                data=request.data,
+                ip_address=request.META.get("REMOTE_ADDR")
+            )
+            return Response(RealEstateReportSerializer(report).data)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, report_id):
+        report = RealEstateReportSelector.get_report_by_id(report_id)
+        if not report:
+             return Response({"error": "Report not found."}, status=status.HTTP_404_NOT_FOUND)
+             
+        if not PermissionService.is_super_admin(request.user):
+            return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        RealEstateReportService.delete_report(
+            actor=request.user,
+            report=report,
+            ip_address=request.META.get("REMOTE_ADDR")
+        )
+        return Response({"message": "Report deleted."}, status=status.HTTP_200_OK)
+
+class RealEstateReportRegenerateView(APIView):
+    """
+    Triggers regeneration of the static report.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, report_id):
+        report = RealEstateReportSelector.get_report_by_id(report_id)
+        if not report:
+            return Response({"error": "Report not found."}, status=status.HTTP_404_NOT_FOUND)
+            
+        if not PermissionService.is_super_admin(request.user):
+            return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+            
+        report = RealEstateReportService.regenerate_report(
+            actor=request.user,
+            report=report,
+            ip_address=request.META.get("REMOTE_ADDR")
+        )
+        return Response(RealEstateReportSerializer(report).data)
+
+class PublicRealEstateReportView(APIView):
+    """
+    Endpoint for public access to real estate reports via slug.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request, slug):
+        report = get_object_or_404(RealEstateReport, slug=slug)
+        
+        if report.status != "ACTIVE":
+            # If not active, only super admin can see it
+            from rest_framework_simplejwt.authentication import JWTAuthentication
+            auth = JWTAuthentication().authenticate(request)
+            if not auth or not PermissionService.is_super_admin(auth[0]):
+                return Response({"error": "Report is not active or available."}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Aggregate institutional performance data
+        performance_data = RealEstateReportSelector.get_portfolio_performance_data(report.portfolio)
+        
+        data = RealEstateReportSerializer(report).data
+        data["performance_data"] = performance_data
+        
+        return Response(data)

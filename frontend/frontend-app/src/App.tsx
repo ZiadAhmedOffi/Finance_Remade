@@ -15,6 +15,7 @@ import AdminRoute from "./components/AdminRoute";
 import NotFound from "./pages/NotFound";
 import ErrorPage from "./pages/ErrorPage";
 import PublicReportPage from "./pages/PublicReportPage";
+import RealEstatePublicReportPage from "./pages/RealEstatePublicReportPage";
 
 /**
  * Main App component. Handles routing and global user activity tracking
@@ -158,6 +159,7 @@ function App() {
       </Route>
       
       <Route path="/reports/public/:slug" element={<PublicReportPage />} />
+      <Route path="/real-estate/reports/public/:slug" element={<RealEstatePublicReportPage />} />
 
       {/* Catch-all route for 404 */}
       <Route path="*" element={<NotFound />} />

@@ -242,6 +242,14 @@ export const realEstateApi = {
   updateTaxRule: (id: string, data: any) => api.patch(`/real-estate/tax-rules/${id}/`, data),
   deleteTaxRule: (id: string) => api.delete(`/real-estate/tax-rules/${id}/`),
   getTaxAnalysis: (portfolioId: string) => api.get(`/real-estate/${portfolioId}/tax-analysis/`),
+
+  // Reports
+  getReports: (portfolioId: string) => api.get("/real-estate/reports/", { params: { portfolio_id: portfolioId } }),
+  createReport: (data: any) => api.post("/real-estate/reports/", data),
+  updateReport: (id: string, data: any) => api.patch(`/real-estate/reports/${id}/`, data),
+  deleteReport: (id: string) => api.delete(`/real-estate/reports/${id}/`),
+  regenerateReport: (id: string) => api.post(`/real-estate/reports/${id}/regenerate/`),
+  getPublicReport: (slug: string) => publicApi.get(`/real-estate/reports/public/${slug}/`),
 };
 
 export { api, publicApi };

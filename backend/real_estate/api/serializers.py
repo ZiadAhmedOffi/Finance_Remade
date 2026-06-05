@@ -17,8 +17,22 @@ from ..models import (
     LedgerAccount,
     LedgerYear,
     LedgerTransaction,
-    LedgerEntry
+    LedgerEntry,
+    RealEstateReport
 )
+
+class RealEstateReportSerializer(serializers.ModelSerializer):
+    portfolio_name = serializers.CharField(source='portfolio.name', read_only=True)
+    created_by_email = serializers.EmailField(source='created_by.email', read_only=True)
+
+    class Meta:
+        model = RealEstateReport
+        fields = [
+            'id', 'slug', 'name', 'portfolio', 'portfolio_name',
+            'report_type', 'config_json', 'status', 'static_url',
+            'created_by_email', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'created_by_email', 'portfolio_name']
 
 class JurisdictionSerializer(serializers.ModelSerializer):
     rules_count = serializers.IntegerField(source='rules.count', read_only=True)
