@@ -46,6 +46,7 @@ const RealEstatePublicReportPage: React.FC = () => {
   const performanceData = report?.performance_data;
   const metrics = performanceData?.metrics;
   const instMetrics = performanceData?.institutional_metrics;
+  const textualInfo = performanceData?.portfolio_textual_info;
   const typeDistribution = performanceData?.distribution?.by_type || [];
   const countryDistribution = performanceData?.distribution?.by_country || [];
   const valueExpansion = performanceData?.value_expansion_ladder || [];
@@ -114,17 +115,26 @@ const RealEstatePublicReportPage: React.FC = () => {
         {config.sections.map((section: any) => {
           if (!section.enabled) return null;
 
+          if (section.type === 'CUSTOM') {
+            return (
+              <section key={section.id} className="re-section">
+                <div className="re-section-header"><h2>{section.title}</h2></div>
+                <div className="re-prose">
+                   <p style={{ whiteSpace: 'pre-wrap' }}>{section.text}</p>
+                </div>
+              </section>
+            );
+          }
+
           switch (section.id) {
             case 'overview':
+            case 'annual_summary':
               return (
                 <section key={section.id} className="re-section">
-                  <div className="re-section-header"><h2>Executive Summary</h2></div>
+                  <div className="re-section-header"><h2>{section.title || (section.id === 'overview' ? 'Executive Summary' : 'Annual Performance Summary')}</h2></div>
                   <div className="re-prose">
-                    <p>
-                        The portfolio currently comprises <strong>{metrics?.property_count_active} active assets</strong> with a total market valuation 
-                        of <strong>{formatCurrency(metrics?.portfolio_market_value)}</strong>. Financial performance remains robust 
-                        with a current Net Yield of <strong>{formatPercent(metrics?.portfolio_net_yield)}</strong> and an 
-                        annualized FFO of <strong>{formatCurrency(instMetrics?.ffo)}</strong>.
+                    <p style={{ whiteSpace: 'pre-wrap' }}>
+                        {textualInfo?.overview || `The portfolio currently comprises ${metrics?.property_count_active} active assets with a total market valuation of ${formatCurrency(metrics?.portfolio_market_value)}. Financial performance remains robust with a current Net Yield of ${formatPercent(metrics?.portfolio_net_yield)} and an annualized FFO of ${formatCurrency(instMetrics?.ffo)}.`}
                     </p>
                   </div>
                   
@@ -156,7 +166,7 @@ const RealEstatePublicReportPage: React.FC = () => {
             case 'allocation':
               return (
                 <section key={section.id} className="re-section">
-                  <div className="re-section-header"><h2>Strategic Allocation</h2></div>
+                  <div className="re-section-header"><h2>{section.title || "Strategic Allocation"}</h2></div>
                   <div className="re-charts-row">
                     <div className="re-chart-box">
                       <h3>Allocation by Asset Class</h3>
@@ -203,7 +213,7 @@ const RealEstatePublicReportPage: React.FC = () => {
             case 'growth':
               return (
                 <section key={section.id} className="re-section">
-                  <div className="re-section-header"><h2>Capital Appreciation & Expansion</h2></div>
+                  <div className="re-section-header"><h2>{section.title || "Capital Appreciation & Expansion"}</h2></div>
                   <div className="re-chart-full">
                     <ResponsiveContainer width="100%" height={400}>
                       <ComposedChart data={valueExpansion}>
@@ -224,7 +234,7 @@ const RealEstatePublicReportPage: React.FC = () => {
             case 'financing':
                 return (
                   <section key={section.id} className="re-section">
-                    <div className="re-section-header"><h2>Debt & Financing Profile</h2></div>
+                    <div className="re-section-header"><h2>{section.title || "Debt & Financing Profile"}</h2></div>
                     <div className="re-debt-grid">
                         <div className="re-debt-card">
                             <span className="re-debt-label">Total Outstanding Debt</span>
@@ -243,9 +253,10 @@ const RealEstatePublicReportPage: React.FC = () => {
                 );
 
             case 'assets':
+            case 'asset_highlights':
               return (
                 <section key={section.id} className="re-section">
-                  <div className="re-section-header"><h2>Asset Performance Details</h2></div>
+                  <div className="re-section-header"><h2>{section.title || "Asset Performance Details"}</h2></div>
                   <div className="re-table-wrapper">
                     <table className="re-asset-table">
                       <thead>
@@ -279,8 +290,94 @@ const RealEstatePublicReportPage: React.FC = () => {
                 </section>
               );
 
+            case 'cash_flow':
+              return (
+                <section key={section.id} className="re-section">
+                  <div className="re-section-header"><h2>{section.title || "Cash Flow Analysis"}</h2></div>
+                  <div className="re-prose">
+                    <p>The portfolio generates consistent cash flow through rental income and realized capital gains. Operating expenses and financing costs are managed to optimize Net Operating Income (NOI).</p>
+                    <div style={{ marginTop: '1rem' }}>
+                        <p style={{ whiteSpace: 'pre-wrap' }}>{textualInfo?.structure || ""}</p>
+                    </div>
+                  </div>
+                  <div className="re-kpi-grid">
+                    <div className="re-kpi-card">
+                        <span className="re-kpi-label">Annual NOI</span>
+                        <span className="re-kpi-value">{formatCurrency(metrics?.total_noi, { notation: "compact" })}</span>
+                    </div>
+                    <div className="re-kpi-card">
+                        <span className="re-kpi-label">Occupancy Rate</span>
+                        <span className="re-kpi-value">{formatPercent(100 - (metrics?.portfolio_vacancy_rate || 0))}</span>
+                    </div>
+                  </div>
+                </section>
+              );
+
+            case 'portfolio_strategy':
+              return (
+                <section key={section.id} className="re-section">
+                  <div className="re-section-header"><h2>{section.title || "Portfolio Strategy"}</h2></div>
+                  <div className="re-prose">
+                    <p style={{ whiteSpace: 'pre-wrap' }}>{textualInfo?.strategy || "The portfolio employs a disciplined investment strategy focused on acquiring high-quality assets in resilient submarkets, aiming for sustainable yield and long-term capital appreciation."}</p>
+                  </div>
+                </section>
+              );
+
+            case 'financial_statements':
+              return (
+                <section key={section.id} className="re-section">
+                  <div className="re-section-header"><h2>{section.title || "Portfolio Structure"}</h2></div>
+                  <div className="re-prose">
+                    <p style={{ whiteSpace: 'pre-wrap' }}>{textualInfo?.structure || "The portfolio is structured as a diversified real estate investment vehicle, optimized for tax efficiency and operational transparency across multiple jurisdictions."}</p>
+                  </div>
+                </section>
+              );
+
+            case 'market_review':
+              return (
+                <section key={section.id} className="re-section">
+                  <div className="re-section-header"><h2>{section.title || "Portfolio Lifecycle & Market Review"}</h2></div>
+                  <div className="re-prose">
+                    <p style={{ whiteSpace: 'pre-wrap' }}>{textualInfo?.portfolio_lifecycle || "The portfolio is currently in its growth and stabilization phase, actively identifying expansion opportunities while optimizing the performance of held assets."}</p>
+                  </div>
+                </section>
+              );
+
+            case 'risk_measures':
+              return (
+                <section key={section.id} className="re-section">
+                  <div className="re-section-header"><h2>{section.title || "Risk Profile & Measures"}</h2></div>
+                  <div className="re-prose">
+                    <p>Our risk management framework focuses on asset-level stability, geographic diversification, and prudent leverage ratios to protect investor capital against market volatility.</p>
+                  </div>
+                </section>
+              );
+
+            case 'why_invest':
+              return (textualInfo?.reasons_to_invest?.length > 0) ? (
+                <section key={section.id} className="re-section">
+                  <div className="re-section-header"><h2>Why Invest With Us?</h2></div>
+                  <div className="re-reasons-grid">
+                    {textualInfo.reasons_to_invest.map((reason: any, idx: number) => (
+                      <div key={idx} className="re-reason-card">
+                        <div className="re-reason-num">0{idx + 1}</div>
+                        <h3>{reason.title}</h3>
+                        <p>{reason.brief_desc}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : null;
+
             default:
-              return null;
+              return (
+                <section key={section.id} className="re-section">
+                   <div className="re-section-header"><h2>{section.title}</h2></div>
+                   <div className="re-prose">
+                     <p>Detailed analysis for {section.title} is available in the full institutional data package.</p>
+                   </div>
+                </section>
+              );
           }
         })}
       </main>

@@ -76,7 +76,8 @@ class RealEstatePortfolioSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'description', 'region', 'cover_image', 'jurisdiction', 'jurisdiction_name',
             'status', 'created_by_email', 'created_at',
-            'assumptions'
+            'assumptions', 'report_config',
+            'overview', 'strategy', 'structure', 'portfolio_lifecycle', 'reasons_to_invest'
         ]
         read_only_fields = ['id', 'created_at', 'created_by_email', 'jurisdiction_name']
 

@@ -79,6 +79,13 @@ class RealEstateReportSelector:
                 "ltv_percentage": ltv.quantize(Decimal('0.01')),
                 "interest_coverage_ratio": (dashboard_data['metrics']['total_noi'] / total_interest) if total_interest > 0 else None,
             },
+            "portfolio_textual_info": {
+                "overview": portfolio.overview,
+                "strategy": portfolio.strategy,
+                "structure": portfolio.structure,
+                "portfolio_lifecycle": portfolio.portfolio_lifecycle,
+                "reasons_to_invest": portfolio.reasons_to_invest,
+            },
             "reference_date": reference_date.isoformat(),
         }
         

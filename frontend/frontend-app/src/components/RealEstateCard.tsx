@@ -25,6 +25,13 @@ const RealEstateCard: React.FC<RealEstateCardProps> = ({ portfolio }) => {
   const [investorLog, setInvestorLog] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=2070&auto=format&fit=crop";
+  const [imgSrc, setImgSrc] = useState(portfolio.cover_image || FALLBACK_IMAGE);
+
+  useEffect(() => {
+    setImgSrc(portfolio.cover_image || FALLBACK_IMAGE);
+  }, [portfolio.cover_image]);
+
   useEffect(() => {
     const fetchInvestorLog = async () => {
       try {
@@ -56,14 +63,16 @@ const RealEstateCard: React.FC<RealEstateCardProps> = ({ portfolio }) => {
   const cfChange = cfPrev !== 0 ? ((cfCurrent - cfPrev) / Math.abs(cfPrev)) * 100 : 0;
   const isInitialYear = cfPrev === 0;
 
-  // Fallback image
-  const bgImage = portfolio.cover_image || "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=2070&auto=format&fit=crop";
-
   return (
     <div className="fund-card-immersive">
       {/* PART 1: Top Immersive Section */}
       <div className="card-top-section">
-        <img src={bgImage} alt={portfolio.name} className="card-bg-image" />
+        <img 
+          src={imgSrc} 
+          alt={portfolio.name} 
+          className="card-bg-image" 
+          onError={() => setImgSrc(FALLBACK_IMAGE)}
+        />
         <div className="card-overlay"></div>
         
         <div className="top-content-overlay">

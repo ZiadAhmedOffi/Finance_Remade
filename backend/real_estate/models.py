@@ -20,7 +20,7 @@ class RealEstatePortfolio(models.Model):
     
     # New: Immersive card customization
     cover_image = models.URLField(
-        max_length=500, 
+        max_length=1000, 
         null=True, 
         blank=True, 
         help_text="URL for the portfolio's background image"
@@ -49,6 +49,14 @@ class RealEstatePortfolio(models.Model):
         db_index=True
     )
     total_units = models.DecimalField(max_digits=30, decimal_places=4, default=0.0000)
+    report_config = models.JSONField(default=dict, blank=True)
+
+    # Textual Information for Reports
+    overview = models.TextField(blank=True)
+    strategy = models.TextField(blank=True)
+    structure = models.TextField(blank=True)
+    portfolio_lifecycle = models.TextField(blank=True)
+    reasons_to_invest = models.JSONField(default=list, blank=True)
 
     class Meta:
         ordering = ["-created_at"]

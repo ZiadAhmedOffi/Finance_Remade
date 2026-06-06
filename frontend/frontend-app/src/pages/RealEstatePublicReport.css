@@ -244,6 +244,54 @@
     font-weight: 600;
 }
 
+/* Reasons to Invest */
+.re-reasons-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+}
+
+.re-reason-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 2.5rem;
+    border-radius: 1rem;
+    position: relative;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.re-reason-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.re-reason-num {
+    font-size: 3rem;
+    font-weight: 900;
+    color: #e2e8f0;
+    position: absolute;
+    top: 1rem;
+    right: 1.5rem;
+    line-height: 1;
+}
+
+.re-reason-card h3 {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #1e293b;
+    margin-bottom: 1rem;
+    position: relative;
+    z-index: 1;
+}
+
+.re-reason-card p {
+    font-size: 1rem;
+    color: #64748b;
+    line-height: 1.6;
+    position: relative;
+    z-index: 1;
+}
+
 /* Footer */
 .re-report-footer {
     margin-top: 5rem;
