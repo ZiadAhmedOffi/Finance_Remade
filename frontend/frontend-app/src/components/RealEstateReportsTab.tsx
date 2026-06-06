@@ -44,8 +44,8 @@ const DEFAULT_ANNUAL_SECTIONS = [
 
 const RealEstateReportsTab: React.FC<RealEstateReportsTabProps> = ({ portfolioId, isAdmin }) => {
   const [dynamicReports, setDynamicReports] = useState<Report[]>([]);
-  const [annualReports, setAnnualReports] = useState<Report[]>([]);
-  const [portfolio, setPortfolio] = useState<any>(null);
+  // const [annualReports, setAnnualReports] = useState<Report[]>([]);
+  // const [portfolio, setPortfolio] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -61,21 +61,23 @@ const RealEstateReportsTab: React.FC<RealEstateReportsTabProps> = ({ portfolioId
   const [newReportName, setNewReportName] = useState("");
 
   const [isDynamicOpen, setIsDynamicOpen] = useState(true);
-  const [isAnnualOpen, setIsAnnualOpen] = useState(false);
+  // const [isAnnualOpen, setIsAnnualOpen] = useState(false);
   const [dynamicPage, setDynamicPage] = useState(1);
-  const [annualPage, setAnnualPage] = useState(1);
+  // const [annualPage, setAnnualPage] = useState(1);
   const reportsPerPage = 10;
 
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<any>({});
 
-  // Textual Info State
+  // Textual Info State (Hidded/WIP)
+  /*
   const [overview, setOverview] = useState("");
   const [strategy, setStrategy] = useState("");
   const [structure, setStructure] = useState("");
   const [portfolioLifecycle, setPortfolioLifecycle] = useState("");
   const [reasonsToInvest, setReasonsToInvest] = useState<{ title: string; brief_desc: string }[]>([]);
   const [isSavingTextual, setIsSavingTextual] = useState(false);
+  */
 
   const [isAddingCustom, setIsAddingCustom] = useState<"DYNAMIC" | "ANNUAL" | null>(null);
   const [customTitle, setCustomTitle] = useState("");
@@ -91,15 +93,17 @@ const RealEstateReportsTab: React.FC<RealEstateReportsTabProps> = ({ portfolioId
       
       const allReports = reportsRes.data;
       setDynamicReports(allReports.filter((r: Report) => r.report_type === "DYNAMIC"));
-      setAnnualReports(allReports.filter((r: Report) => r.report_type === "ANNUAL"));
-      setPortfolio(portfolioRes.data);
+      // setAnnualReports(allReports.filter((r: Report) => r.report_type === "ANNUAL"));
+      // setPortfolio(portfolioRes.data);
       
-      // Set Textual Info
+      // Set Textual Info (Hidded/WIP)
+      /*
       setOverview(portfolioRes.data.overview || "");
       setStrategy(portfolioRes.data.strategy || "");
       setStructure(portfolioRes.data.structure || "");
       setPortfolioLifecycle(portfolioRes.data.portfolio_lifecycle || "");
       setReasonsToInvest(portfolioRes.data.reasons_to_invest || []);
+      */
 
       if (portfolioRes.data.report_config && Object.keys(portfolioRes.data.report_config).length > 0) {
         let config = JSON.parse(JSON.stringify(portfolioRes.data.report_config));
@@ -185,8 +189,8 @@ const RealEstateReportsTab: React.FC<RealEstateReportsTabProps> = ({ portfolioId
     setReportConfig(newConfig);
   };
 
-  const handleAddCustomSection = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAddCustomSection = (_e: React.FormEvent) => {
+    _e.preventDefault();
     if (!customTitle || !customText || !isAddingCustom) return;
 
     const type = isAddingCustom === "DYNAMIC" ? "dynamic" : "annual";
@@ -278,6 +282,7 @@ const RealEstateReportsTab: React.FC<RealEstateReportsTabProps> = ({ portfolioId
     }
   };
 
+  /*
   const handleUpdateTextualInfo = async () => {
     try {
       setIsSavingTextual(true);
@@ -295,6 +300,7 @@ const RealEstateReportsTab: React.FC<RealEstateReportsTabProps> = ({ portfolioId
       setIsSavingTextual(false);
     }
   };
+  */
 
   const renderReportTable = (
     reports: Report[], 
@@ -450,6 +456,7 @@ const RealEstateReportsTab: React.FC<RealEstateReportsTabProps> = ({ portfolioId
     );
   };
 
+  /*
   const renderTextualInfo = () => {
     return (
       <div className="content-card textual-info-section" style={{ marginTop: '2.5rem' }}>
@@ -596,6 +603,7 @@ const RealEstateReportsTab: React.FC<RealEstateReportsTabProps> = ({ portfolioId
       </div>
     );
   };
+  */
 
   const renderPlanningMode = () => {
     const renderSectionList = (type: 'dynamic' | 'annual', title: string) => {
@@ -614,7 +622,7 @@ const RealEstateReportsTab: React.FC<RealEstateReportsTabProps> = ({ portfolioId
                 key={s.id} 
                 className="planning-section-item"
                 draggable
-                onDragStart={(e) => {
+                onDragStart={() => {
                    setDraggedItem({ type, index: idx });
                 }}
                 onDragOver={(e) => {
