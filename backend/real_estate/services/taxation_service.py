@@ -6,25 +6,26 @@ from ..calculation import PropertyDataCalc
 
 class TaxationService:
     @staticmethod
-    def calculate_property_tax_for_year(property: Property, year_index: int, context: Dict[str, Any]) -> Decimal:
+    def calculate_property_tax_for_year(property: Property, year_index: int, context: Dict[str, Any], rules: List[TaxRule] = None) -> Decimal:
         """
         Calculates total tax liability for a property in a given year based on Jurisdiction rules.
         """
-        breakdown = TaxationService.calculate_property_tax_breakdown(property, year_index, context)
+        breakdown = TaxationService.calculate_property_tax_breakdown(property, year_index, context, rules=rules)
         return sum((item['amount'] for item in breakdown), Decimal('0.00'))
 
     @staticmethod
-    def calculate_property_tax_breakdown(property: Property, year_index: int, context: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def calculate_property_tax_breakdown(property: Property, year_index: int, context: Dict[str, Any], rules: List[TaxRule] = None) -> List[Dict[str, Any]]:
         """
         Calculates tax liability broken down by rule.
         Returns a list of {"rule_id": str, "rule_name": str, "amount": Decimal}
         """
-        portfolio = property.portfolio
-        jurisdiction = portfolio.jurisdiction
-        if not jurisdiction:
-            return []
-
-        rules = jurisdiction.rules.filter(is_active=True)
+        if rules is None:
+            portfolio = property.portfolio
+            jurisdiction = portfolio.jurisdiction
+            if not jurisdiction:
+                return []
+            rules = list(jurisdiction.rules.filter(is_active=True))
+        
         breakdown = []
         
         # 1. Identify current events

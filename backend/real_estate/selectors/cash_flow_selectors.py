@@ -32,6 +32,10 @@ class CashFlowSelectors:
         # Include properties that are SOLD but might have historical cash flow
         properties = portfolio.properties.select_related('financing', 'off_plan_details', 'installment', 'usufruct_details').prefetch_related('milestones', 'sale')
         
+        # Prefetch tax rules once for the portfolio's jurisdiction
+        jurisdiction = portfolio.jurisdiction
+        tax_rules = list(jurisdiction.rules.filter(is_active=True)) if jurisdiction else []
+
         property_cash_flows = {}
         portfolio_totals = defaultdict(Decimal)
         portfolio_noi = defaultdict(Decimal)
@@ -298,7 +302,7 @@ class CashFlowSelectors:
                         'is_disposal_year': year == sale_year,
                         'loan_interest': interest_expense
                     }
-                    annual_tax = TaxationService.calculate_property_tax_for_year(prop, year - inception_year, tax_context)
+                    annual_tax = TaxationService.calculate_property_tax_for_year(prop, year - inception_year, tax_context, rules=tax_rules)
                     cf -= annual_tax
                     # --- END TAXATION ---
 

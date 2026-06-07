@@ -22,6 +22,10 @@ class TaxationAnalysisSelector:
         years = list(range(inception_year, end_year + 1))
         properties = portfolio.properties.all().select_related('financing', 'off_plan_details', 'usufruct_details').prefetch_related('milestones', 'sale')
         
+        # Prefetch tax rules once for the portfolio's jurisdiction
+        jurisdiction = portfolio.jurisdiction
+        tax_rules = list(jurisdiction.rules.filter(is_active=True)) if jurisdiction else []
+
         # We need the same data as CashFlowSelectors to get NOI, market_value, etc.
         # But we'll rebuild the iteration to capture the rule breakdown.
         cf_data = CashFlowSelectors.get_portfolio_cash_flow(portfolio)
@@ -85,7 +89,7 @@ class TaxationAnalysisSelector:
                 # Actually, CashFlowSelectors applies LCF then calculates tax.
                 # Let's just use the TaxationService.calculate_property_tax_breakdown
                 
-                breakdown = TaxationService.calculate_property_tax_breakdown(prop, year - inception_year, tax_context)
+                breakdown = TaxationService.calculate_property_tax_breakdown(prop, year - inception_year, tax_context, rules=tax_rules)
                 
                 for item in breakdown:
                     rule_name = item['rule_name']
