@@ -337,8 +337,9 @@ def calculate_dashboard_metrics(investor):
                 "yoy_gain": yoy_gain if line_graph_data else None
             })
 
-    unrealized_gains = line_graph_data[-1]["value"] - total_capital_injected
-    unrealized_multiple = (total_current_portfolio_value / total_capital_injected) if total_capital_deployed > 0 else 0.0
+    last_value = line_graph_data[-1]["value"] if line_graph_data else total_current_portfolio_value
+    unrealized_gains = last_value - total_capital_injected
+    unrealized_multiple = (total_current_portfolio_value / total_capital_injected) if total_capital_injected > 0 else 0.0
 
     return {
         "metrics": {
