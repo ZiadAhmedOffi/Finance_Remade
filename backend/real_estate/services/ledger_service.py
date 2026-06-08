@@ -62,8 +62,23 @@ class LedgerTransactionService:
         debit_sum = sum(e["amount"] for e in entries if e["entry_type"] == "DEBIT")
         credit_sum = sum(e["amount"] for e in entries if e["entry_type"] == "CREDIT")
 
-        if abs(debit_sum - credit_sum) > Decimal('0.0001'):
-            raise ValueError(f"Transaction is not balanced. Debits: {debit_sum}, Credits: {credit_sum}")
+        diff = debit_sum - credit_sum
+        if abs(diff) > Decimal('0.0001'):
+            # Auto-balance for minor rounding errors (up to 0.05)
+            if abs(diff) <= Decimal('0.05') and entries:
+                last_entry = entries[-1]
+                if last_entry["entry_type"] == "DEBIT":
+                    last_entry["amount"] = (last_entry["amount"] - diff).quantize(Decimal('0.01'))
+                else:
+                    last_entry["amount"] = (last_entry["amount"] + diff).quantize(Decimal('0.01'))
+                
+                # Final check after adjustment
+                debit_sum = sum(e["amount"] for e in entries if e["entry_type"] == "DEBIT")
+                credit_sum = sum(e["amount"] for e in entries if e["entry_type"] == "CREDIT")
+                if abs(debit_sum - credit_sum) > Decimal('0.0001'):
+                    raise ValueError(f"Transaction is not balanced after adjustment. Debits: {debit_sum}, Credits: {credit_sum}")
+            else:
+                raise ValueError(f"Transaction is not balanced. Debits: {debit_sum}, Credits: {credit_sum}")
 
         transaction_obj = LedgerTransaction.objects.create(
             portfolio=portfolio,
@@ -83,6 +98,20 @@ class LedgerTransactionService:
             )
 
         return transaction_obj
+
+    @staticmethod
+    @transaction.atomic
+    def delete_transaction_by_source(*, source_type: str, source_id: str):
+        """
+        Removes any ledger transactions associated with a specific source.
+        Checks if the ledger year is closed before deletion.
+        """
+        transactions = LedgerTransaction.objects.filter(source_type=source_type, source_id=source_id)
+        for tx in transactions:
+            if tx.ledger_year.is_closed:
+                raise ValueError(f"Cannot delete transaction for source {source_type}:{source_id} because ledger year {tx.ledger_year.year} is closed.")
+            tx.delete() # Entries are deleted via CASCADE
+
 
 class LedgerYearService:
     @staticmethod

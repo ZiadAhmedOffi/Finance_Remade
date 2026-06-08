@@ -24,6 +24,7 @@ class PropertySaleSelector:
         Calculates derived metrics for a single property sale.
         """
         from ..calculation import PropertyDataCalc
+        from .installment_selectors import InstallmentSelectors
         
         selling_price = sale.selling_price
         selling_fee_pct = sale.selling_fee_percentage
@@ -31,7 +32,7 @@ class PropertySaleSelector:
         selling_costs = PropertyDataCalc.selling_costs(selling_price, selling_fee_pct)
         cost_basis = PropertyDataCalc.total_cost_basis(sale.property.purchase_price, sale.property.acq_fee_percentage)
         
-        # Calculate Loan Payoff
+        # 1. Calculate Mortgage Loan Payoff
         loan_payoff = Decimal('0.00')
         if hasattr(sale.property, 'financing'):
             financing = sale.property.financing
@@ -55,7 +56,31 @@ class PropertySaleSelector:
             else:
                 loan_payoff = financing.loan_amount
 
-        net_proceeds = PropertyDataCalc.net_proceeds(selling_price, selling_costs, loan_payoff)
+        # 2. Calculate Installment Payoff
+        installment_payoff = Decimal('0.00')
+        if hasattr(sale.property, 'installment'):
+            inst = sale.property.installment
+            schedule = InstallmentSelectors.get_installment_schedule(inst)
+            
+            start_date = inst.start_date
+            sale_date = sale.sale_date
+            
+            total_principal = inst.property.purchase_price - inst.down_payment
+            paid_principal = Decimal('0.00')
+            
+            if sale_date > start_date:
+                for item in schedule:
+                    # item['date'] is "YYYY-MM"
+                    y, m = map(int, item['date'].split('-'))
+                    from datetime import date
+                    if date(y, m, 1) < sale_date:
+                        paid_principal += item['payment']
+                    else:
+                        break
+            
+            installment_payoff = max(Decimal('0.00'), total_principal - paid_principal)
+
+        net_proceeds = PropertyDataCalc.net_proceeds(selling_price, selling_costs, loan_payoff + installment_payoff)
         realized_gain = PropertyDataCalc.realized_gain(selling_price, cost_basis, selling_costs)
         roi = (selling_price / cost_basis) if cost_basis > 0 else Decimal('0.00')
         
@@ -65,6 +90,7 @@ class PropertySaleSelector:
                 "selling_costs": selling_costs,
                 "cost_basis": cost_basis,
                 "loan_payoff": loan_payoff,
+                "installment_payoff": installment_payoff,
                 "net_proceeds": net_proceeds,
                 "realized_gain": realized_gain,
                 "roi": round(roi, 4),

@@ -10,18 +10,34 @@ class PropertySaleService:
         """
         Creates a new property sale entry and marks the property as SOLD.
         """
-        # Check if sale already exists for this property
-        if hasattr(property_obj, 'sale'):
-            raise ValidationError(f"A sale entry already exists for property {property_obj.name}.")
+        # 1. Ownership and Type Validations
+        if property_obj.status != "HELD":
+            if property_obj.status == "SOLD":
+                raise ValidationError(f"Property {property_obj.name} is already sold.")
+            elif property_obj.status == "OFF_PLAN":
+                raise ValidationError(f"Property {property_obj.name} is Off-Plan and cannot be sold until it is completed and 'Held'.")
+            elif property_obj.status == "USUFRUCT":
+                raise ValidationError(f"Property {property_obj.name} is a Usufruct property and cannot be sold.")
+            else:
+                raise ValidationError(f"Property {property_obj.name} has status '{property_obj.status}' and cannot be sold.")
 
         selling_fee_percentage = data.get('selling_fee_percentage')
         if selling_fee_percentage is None:
             # Fallback to portfolio default if not provided
             selling_fee_percentage = property_obj.portfolio.assumptions.selling_fee_percentage
 
+        from django.utils.dateparse import parse_date
+        sale_date = data.get('sale_date')
+        if isinstance(sale_date, str):
+            sale_date = parse_date(sale_date)
+
+        # 2. Date Validation
+        if sale_date < property_obj.purchase_date:
+            raise ValidationError(f"Sale date ({sale_date}) cannot be before purchase date ({property_obj.purchase_date}).")
+
         sale = PropertySale.objects.create(
             property=property_obj,
-            sale_date=data.get('sale_date'),
+            sale_date=sale_date,
             selling_price=Decimal(str(data.get('selling_price'))),
             selling_fee_percentage=Decimal(str(selling_fee_percentage))
         )
@@ -43,7 +59,9 @@ class PropertySaleService:
         Updates an existing property sale entry.
         """
         if 'sale_date' in data:
-            sale.sale_date = data.get('sale_date')
+            from django.utils.dateparse import parse_date
+            sd = data.get('sale_date')
+            sale.sale_date = parse_date(sd) if isinstance(sd, str) else sd
             
         if 'selling_price' in data:
             sale.selling_price = Decimal(str(data.get('selling_price')))
@@ -61,7 +79,18 @@ class PropertySaleService:
         Deletes a property sale entry and reverts property status to HELD.
         """
         property_obj = sale.property
+        sale_id = sale.id
+        
+        # 1. Cleanup Ledger
+        from .ledger_service import LedgerTransactionService
+        LedgerTransactionService.delete_transaction_by_source(
+            source_type="PROPERTY_SALE",
+            source_id=sale_id
+        )
+
+        # 2. Delete Sale Record
         sale.delete()
         
+        # 3. Revert Status
         property_obj.status = "HELD"
         property_obj.save()

@@ -614,7 +614,11 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
                 "prev_year_invested_capital": float(prev_nav_metrics["total_investments"]),
                 "prev_year": prev_year,
                 # New Card Metrics
+                "developer": assumptions.developer,
                 "liquidation_index": dashboard_data.get("liquidation_index", {}).get("portfolio_average", 0),
+                "portfolio_irr": float(aggregated.get("portfolio_simple_irr", 0)),
+                "irr_yield": float(aggregated.get("portfolio_net_yield", 0)),
+                "irr_capital_growth": float(aggregated.get("portfolio_avg_appreciation", 0)),
                 "weighted_net_yield": float(aggregated.get("portfolio_net_yield", 0)),
                 "weighted_occupancy": float(100.0 - float(aggregated.get("portfolio_vacancy_rate", 0))),
                 "property_count_active": aggregated.get("property_count_active", 0),

@@ -51,6 +51,11 @@ class PropertyService:
         if transaction_type_val == "PRIMARY":
             acq_fee = Decimal('0.00')
 
+        from django.utils.dateparse import parse_date
+        purchase_date = data['purchase_date']
+        if isinstance(purchase_date, str):
+            purchase_date = parse_date(purchase_date)
+
         property_obj = Property.objects.create(
             portfolio=portfolio,
             name=data['name'],
@@ -61,7 +66,7 @@ class PropertyService:
             financing_type=data['financing_type'],
             status=status_val,
             transaction_type=transaction_type_val,
-            purchase_date=data['purchase_date'],
+            purchase_date=purchase_date,
             purchase_price=purchase_price,
             size=Decimal(str(data.get('size', 0.00))),
             monthly_rent=monthly_rent,
@@ -110,6 +115,11 @@ class PropertyService:
                 val = data[field]
                 if field in ['purchase_price', 'monthly_rent'] and val in [None, ""]:
                     val = None
+                
+                if field == 'purchase_date' and isinstance(val, str):
+                    from django.utils.dateparse import parse_date
+                    val = parse_date(val)
+                    
                 setattr(property_obj, field, val)
         
         # Enforcement logic

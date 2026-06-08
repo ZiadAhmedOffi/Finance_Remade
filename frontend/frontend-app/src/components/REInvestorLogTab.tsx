@@ -434,8 +434,7 @@ const REInvestorLogTab: React.FC<REInvestorLogTabProps> = ({ portfolioId, canEdi
                 <Area type="monotone" dataKey="lightGreenArea" stroke="none" fill="#10b981" fillOpacity={0.3} name="Possible Capital Area" legendType="none" tooltipType="none" />
                 
                 <Line type="monotone" dataKey="total_capital_invested" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} name="Total Capital Invested" />
-                <Line type="monotone" dataKey="total_capital_with_possible" stroke="#10b981" strokeWidth={2} strokeDasharray="5 5" name="Total + Possible Sources" />
-                <Line type="monotone" dataKey="total_capital_required" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4 }} name="Net Capital Requirements" />
+                <Line type="monotone" dataKey="total_capital_required" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4 }} name="Assets Value" />
               </ComposedChart>
             </ResponsiveContainer>
           </div>

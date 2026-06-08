@@ -66,10 +66,13 @@ class OffPlanService:
         if not details:
             return None
             
+        from django.utils.dateparse import parse_date
         if "construction_start_date" in data:
-            details.construction_start_date = data["construction_start_date"]
+            csd = data["construction_start_date"]
+            details.construction_start_date = parse_date(csd) if isinstance(csd, str) else csd
         if "expected_completion_date" in data:
-            details.expected_completion_date = data["expected_completion_date"]
+            ecd = data["expected_completion_date"]
+            details.expected_completion_date = parse_date(ecd) if isinstance(ecd, str) else ecd
         if "appreciation_rate_at_completion" in data:
             details.appreciation_rate_at_completion = Decimal(str(data["appreciation_rate_at_completion"]))
         if "sale_at_completion" in data:
@@ -84,10 +87,15 @@ class OffPlanService:
         """
         Creates a new milestone for an off-plan property.
         """
+        from django.utils.dateparse import parse_date
+        m_date = data.get('date', timezone.now().date())
+        if isinstance(m_date, str):
+            m_date = parse_date(m_date)
+
         return OffPlanMilestone.objects.create(
             property=property_obj,
             milestone_name=data.get('milestone_name', 'New Milestone'),
-            date=data.get('date', timezone.now().date()),
+            date=m_date,
             percentage_of_price=Decimal(str(data.get('percentage_of_price', '0.00')))
         )
 
@@ -99,7 +107,9 @@ class OffPlanService:
         """
         milestone = OffPlanMilestone.objects.get(id=milestone_id)
         if "date" in data:
-            milestone.date = data["date"]
+            from django.utils.dateparse import parse_date
+            m_date = data["date"]
+            milestone.date = parse_date(m_date) if isinstance(m_date, str) else m_date
         if "percentage_of_price" in data:
             milestone.percentage_of_price = Decimal(str(data["percentage_of_price"]))
         if "milestone_name" in data:

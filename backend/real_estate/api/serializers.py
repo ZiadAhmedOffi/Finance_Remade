@@ -62,7 +62,7 @@ class RealEstateAssumptionsSerializer(serializers.ModelSerializer):
             'default_vacancy_rate', 'default_discount_rate', 'default_depreciation_rate',
             'acquisition_fee_percentage', 'property_mgmt_fee_percentage',
             'maintenance_percentage_of_value', 'selling_fee_percentage',
-            'active_scenario', 'updated_at'
+            'active_scenario', 'developer', 'updated_at'
         ]
         read_only_fields = ['id', 'portfolio', 'updated_at']
 

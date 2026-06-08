@@ -13,6 +13,7 @@ interface Assumptions {
   maintenance_percentage_of_value: string;
   selling_fee_percentage: string;
   active_scenario: "BASE" | "BULL" | "BEAR";
+  developer: string;
 }
 
 const RealEstateAssumptionsTab: React.FC<{ portfolioId: string; canEdit: boolean }> = ({ portfolioId, canEdit }) => {
@@ -184,20 +185,32 @@ const RealEstateAssumptionsTab: React.FC<{ portfolioId: string; canEdit: boolean
 
       <div className="assumptions-section">
         <h3 className="section-title">Portfolio Appearance</h3>
-        <div className="input-field" style={{maxWidth: '100%'}}>
-          <label>Cover Image URL (Immersive Dashboard Card)</label>
-          <input 
-            type="url" 
-            value={coverImage} 
-            onChange={(e) => setCoverImage(e.target.value)}
-            placeholder="https://images.unsplash.com/photo-..."
-            disabled={!canEdit}
-          />
-          {coverImage && <img src={coverImage} alt="Preview" className="image-preview" onError={(e) => (e.currentTarget.style.display = 'none')} />}
-          <p style={{fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.5rem'}}>
-            Provide a high-resolution URL (e.g., from Unsplash) to create an immersive experience on the main dashboard.
-          </p>
+        <div className="input-grid">
+          <div className="input-field" style={{ gridColumn: 'span 2' }}>
+            <label>Cover Image URL (Immersive Dashboard Card)</label>
+            <input 
+              type="url" 
+              value={coverImage} 
+              onChange={(e) => setCoverImage(e.target.value)}
+              placeholder="https://images.unsplash.com/photo-..."
+              disabled={!canEdit}
+            />
+          </div>
+          <div className="input-field">
+            <label>Portfolio Developer</label>
+            <input 
+              type="text" 
+              value={assumptions.developer || ""} 
+              onChange={(e) => handleInputChange('developer', e.target.value)}
+              placeholder="Developer Name"
+              disabled={!canEdit}
+            />
+          </div>
         </div>
+        {coverImage && <img src={coverImage} alt="Preview" className="image-preview" onError={(e) => (e.currentTarget.style.display = 'none')} />}
+        <p style={{fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.5rem'}}>
+          Provide a high-resolution URL for the dashboard card and the developer name for the portfolio.
+        </p>
       </div>
 
       <div className="assumptions-section">

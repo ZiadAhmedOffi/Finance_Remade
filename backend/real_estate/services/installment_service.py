@@ -21,12 +21,17 @@ class InstallmentService:
         if hasattr(property_obj, 'installment'):
             raise ValidationError(f"An installment entry already exists for property {property_obj.name}.")
 
+        from django.utils.dateparse import parse_date
+        start_date = data.get('start_date', property_obj.purchase_date)
+        if isinstance(start_date, str):
+            start_date = parse_date(start_date)
+
         entry = InstallmentEntry.objects.create(
             property=property_obj,
             down_payment=down_payment,
             tenor=int(data.get('tenor', 5)),
             payments_per_year=int(data.get('payments_per_year', 1)),
-            start_date=data.get('start_date', property_obj.purchase_date)
+            start_date=start_date
         )
         
         return entry
@@ -47,7 +52,9 @@ class InstallmentService:
             entry.payments_per_year = int(data.get('payments_per_year'))
             
         if 'start_date' in data:
-            entry.start_date = data.get('start_date')
+            from django.utils.dateparse import parse_date
+            sd = data.get('start_date')
+            entry.start_date = parse_date(sd) if isinstance(sd, str) else sd
 
         entry.save()
         return entry

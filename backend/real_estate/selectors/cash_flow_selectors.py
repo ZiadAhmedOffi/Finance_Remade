@@ -26,7 +26,9 @@ class CashFlowSelectors:
         max_year = inception_year + assumptions.forecast_horizon - 1
         end_year = min(end_year, max_year)
         
-        full_years_range = list(range(inception_year, end_year + 1))
+        # Ensure we cover the range from the earlier of inception or start_year
+        actual_start = min(inception_year, start_year)
+        full_years_range = list(range(actual_start, end_year + 1))
         requested_years = list(range(start_year, end_year + 1))
         
         # Include properties that are SOLD but might have historical cash flow

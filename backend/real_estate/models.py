@@ -194,6 +194,8 @@ class RealEstateAssumptions(models.Model):
         choices=SCENARIO_CHOICES, 
         default="BASE"
     )
+    
+    developer = models.CharField(max_length=255, blank=True, help_text="The developer of the portfolio")
 
     updated_at = models.DateTimeField(auto_now=True)
 

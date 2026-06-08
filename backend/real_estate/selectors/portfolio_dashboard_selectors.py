@@ -1,11 +1,12 @@
 from decimal import Decimal
 from django.utils import timezone
 from collections import defaultdict
-from ..models import RealEstatePortfolio, Property, PropertySale
+from ..models import RealEstatePortfolio, Property, PropertySale, RealEstateInvestorAction
 from .property_selectors import PropertySelector
 from .cash_flow_selectors import CashFlowSelectors
 from .financing_selectors import FinancingSelectors
 from ..calculation import PropertyDataCalc
+from ..utils.xirr import xirr
 
 class PortfolioDashboardSelector:
     """
@@ -125,6 +126,12 @@ class PortfolioDashboardSelector:
         total_noi = sum(m['metrics'].get('noi') or Decimal('0.00') for m in active_properties_metrics)
         total_debt_service = sum(m['metrics'].get('annual_debt_service') or Decimal('0.00') for m in active_properties_metrics)
         
+        # New: Portfolio vacancy rate as average across all active properties
+        active_props_for_vacancy = [m for m in active_properties_metrics if m['status'] != "OFF_PLAN"]
+        portfolio_vacancy_rate = Decimal('0.00')
+        if active_props_for_vacancy:
+            portfolio_vacancy_rate = sum(Decimal(str(m['property'].vacancy_rate_percentage)) for m in active_props_for_vacancy) / len(active_props_for_vacancy)
+
         # Portfolio realized gains = Gains from sales + Positive annual portfolio cash flows (excluding sale proceeds)
         portfolio_operational_gain = sum(
             (cf - cf_data['portfolio_sales_proceeds'][year]) for year, cf in cf_data['portfolio_totals'].items()
@@ -141,6 +148,55 @@ class PortfolioDashboardSelector:
         if total_invested_capital > 0:
             portfolio_roi = (((total_unrealized_gains + total_realized_gains) / total_invested_capital) * Decimal('100')).quantize(Decimal('0.01'))
 
+        # IRR Calculation (Equity IRR)
+        # 1. Total Return IRR: Flows = [-Injections, +Current Equity NAV]
+        # 2. Yield IRR: Flows = [-Injections, +(Total Investments + Cumulative Operational Cash Flow)]
+        
+        injections = RealEstateInvestorAction.objects.filter(portfolio=portfolio, type="PRIMARY_INVESTMENT").order_by('created_at')
+        from .portfolio_selectors import PortfolioSelectors
+        nav_metrics = PortfolioSelectors.get_portfolio_nav_metrics(portfolio, reference_date=reference_date)
+        
+        # Correct Equity NAV: (Assets + Cash) - Liabilities
+        equity_nav = float(nav_metrics["nav"])
+        total_investments = float(nav_metrics["total_investments"])
+        
+        # Cumulative Operational CF to date
+        # We subtract total_investments from cash_reserves because cash_reserves = total_investments + cumulative_cf
+        # and cumulative_cf is exactly the sum of NOI - Debt Service - Taxes - Installments - Acquisitions + Sales Proceeds.
+        # However, we want the "Yield" component to ignore asset appreciation and ONLY look at net income.
+        cumulative_cf = float(nav_metrics["cash_reserves"]) - total_investments
+        
+        flows_total = []
+        flows_yield = []
+        
+        for inv in injections:
+            amt = float(inv.amount)
+            if amt > 0:
+                # Flow date should be the date of injection
+                f_date = inv.created_at.date()
+                flows_total.append((f_date, -amt))
+                flows_yield.append((f_date, -amt))
+        
+        if not flows_total:
+            # Handle case with no injections
+            portfolio_irr = 0.0
+            irr_yield = 0.0
+            irr_capital_growth = 0.0
+        else:
+            # Add terminal values
+            # Total Return includes the current equity value (Appreciation + Cash)
+            flows_total.append((reference_date, equity_nav))
+            
+            # Yield Return assumes NO appreciation, so terminal value is just the net cash generated + principal value
+            # Actually, Equity (No Growth) = (Initial Purchase Price - Remaining Debt) + Cash
+            # But a simpler proxy for "Yield Return" is: Injections + Cumulative Net Operational Cash Flow
+            # This represents how much cash the investor got (or has in the pot) relative to what they put in.
+            flows_yield.append((reference_date, total_investments + cumulative_cf))
+            
+            portfolio_irr = xirr(flows_total)
+            irr_yield = xirr(flows_yield)
+            irr_capital_growth = portfolio_irr - irr_yield
+
         aggregated_metrics = {
             "property_count_active": len(active_properties_metrics),
             "portfolio_market_value": total_market_value,
@@ -153,7 +209,13 @@ class PortfolioDashboardSelector:
             "net_cash_flow_y1": y1_net_cf,
             "portfolio_gross_yield": portfolio_gross_yield,
             "portfolio_net_yield": portfolio_net_yield,
-            "portfolio_roi": portfolio_roi
+            "portfolio_roi": portfolio_roi,
+            "portfolio_vacancy_rate": portfolio_vacancy_rate,
+            "portfolio_avg_appreciation": sum(Decimal(str(m['property'].appreciation_rate_percentage)) for m in active_properties_metrics) / len(active_properties_metrics) if active_properties_metrics else Decimal('0.00'),
+            "portfolio_simple_irr": portfolio_net_yield + (sum(Decimal(str(m['property'].appreciation_rate_percentage)) for m in active_properties_metrics) / len(active_properties_metrics) if active_properties_metrics else Decimal('0.00')),
+            "portfolio_irr": Decimal(str(portfolio_irr * 100)).quantize(Decimal('0.01')),
+            "irr_yield": Decimal(str(irr_yield * 100)).quantize(Decimal('0.01')),
+            "irr_capital_growth": Decimal(str(irr_capital_growth * 100)).quantize(Decimal('0.01'))
         }
 
         # 3. Capital Distribution (Section 1)

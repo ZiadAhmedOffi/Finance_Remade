@@ -235,6 +235,7 @@ class LedgerSyncService:
         Hook for property sale.
         Debit: Cash (Net Proceeds)
         Debit: Mortgage Payable (Loan Payoff)
+        Debit: Installment Payable (Installment Payoff)
         Credit: Property Assets (Cost Basis)
         Credit/Debit: Retained Earnings (Realized Gain/Loss)
         """
@@ -254,19 +255,25 @@ class LedgerSyncService:
         if m["loan_payoff"] > 0:
             entries.append({"account": LedgerSyncService._get_account(portfolio, "Mortgage Payable"), "amount": m["loan_payoff"], "entry_type": "DEBIT"})
             
-        # 3. Property Assets (Cost Basis)
+        # 3. Installment Payable (Installment Payoff)
+        if m.get("installment_payoff", 0) > 0:
+            entries.append({"account": LedgerSyncService._get_account(portfolio, "Installment Payable"), "amount": m["installment_payoff"], "entry_type": "DEBIT"})
+
+        # 4. Property Assets (Cost Basis)
         if m["cost_basis"] > 0:
             entries.append({"account": LedgerSyncService._get_account(portfolio, "Property Assets"), "amount": m["cost_basis"], "entry_type": "CREDIT"})
             
-        # 4. Retained Earnings (Realized Gain)
-        # realized_gain = selling_price - cost_basis - selling_costs
-        # Wait, the balancing plug should be exactly realized_gain
-        realized_gain = m["realized_gain"]
-        if realized_gain != 0:
+        # 5. Retained Earnings (Realized Gain/Loss - Dynamic Balancing Plug)
+        # We calculate the balancing figure to ensure the transaction always balances.
+        current_debit = sum(e["amount"] for e in entries if e["entry_type"] == "DEBIT")
+        current_credit = sum(e["amount"] for e in entries if e["entry_type"] == "CREDIT")
+        balancing_diff = current_debit - current_credit
+        
+        if balancing_diff != 0:
             entries.append({
                 "account": LedgerSyncService._get_account(portfolio, "Retained Earnings"), 
-                "amount": abs(realized_gain), 
-                "entry_type": "CREDIT" if realized_gain > 0 else "DEBIT"
+                "amount": abs(balancing_diff), 
+                "entry_type": "CREDIT" if balancing_diff > 0 else "DEBIT"
             })
 
         LedgerTransactionService.create_transaction(

@@ -86,6 +86,9 @@ const RealEstateCard: React.FC<RealEstateCardProps> = ({ portfolio }) => {
           <div className="nav-main-display">
             <div className="nav-label-small">AUM</div>
             <div className="nav-value-large">{formatCurrency(m.nav || 0)}</div>
+            {m.developer && (
+              <div className="developer-tag-small">By {m.developer}</div>
+            )}
           </div>
 
           <div className="performance-grid">
@@ -118,9 +121,15 @@ const RealEstateCard: React.FC<RealEstateCardProps> = ({ portfolio }) => {
                 <span className="lab">Props</span>
                 <span className="val">{m.property_count_active}</span>
               </div>
-              <div className="kpi-item">
-                <span className="lab">Yield</span>
-                <span className="val">{formatPercent(m.weighted_net_yield)}</span>
+              <div className="kpi-item" title={`Net Yield: ${formatPercent(m.irr_yield || 0)} | Avg Appreciation: ${formatPercent(m.irr_capital_growth || 0)}`}>
+                <span className="lab">IRR</span>
+                <div className="irr-container-main">
+                    <span className="val">{formatPercent(m.portfolio_irr || 0)}</span>
+                    <div className="irr-breakdown-row">
+                        <span className="break-item y">Y: {formatPercent(m.irr_yield || 0)}</span>
+                        <span className="break-item g">A: {formatPercent(m.irr_capital_growth || 0)}</span>
+                    </div>
+                </div>
               </div>
               <div className="kpi-item">
                 <span className="lab">Occupancy</span>
@@ -153,7 +162,9 @@ const RealEstateCard: React.FC<RealEstateCardProps> = ({ portfolio }) => {
 
           <div className="cash-flow-yoy">
             <span className="reg-lab">Annual CF</span>
-            <span className="cf-val">{formatCurrency(cfCurrent)}</span>
+            <span className="cf-val" style={{ color: cfCurrent >= 0 ? '#10b981' : '#ef4444' }}>
+              {formatCurrency(cfCurrent)}
+            </span>
             {!isInitialYear && (
               <div className={`yoy-indicator ${cfChange >= 0 ? 'yoy-up' : 'yoy-down'}`}>
                 {cfChange >= 0 ? '▲' : '▼'} {Math.abs(cfChange).toFixed(1)}%

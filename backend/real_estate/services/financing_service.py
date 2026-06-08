@@ -21,13 +21,18 @@ class FinancingService:
         if hasattr(property_obj, 'financing'):
             raise ValidationError(f"A financing entry already exists for property {property_obj.name}.")
 
+        from django.utils.dateparse import parse_date
+        loan_start_date = data.get('loan_start_date')
+        if isinstance(loan_start_date, str):
+            loan_start_date = parse_date(loan_start_date)
+
         entry = FinancingEntry.objects.create(
             property=property_obj,
             loan_amount=loan_amount,
             base_interest_rate=Decimal(str(data.get('base_interest_rate'))),
             tenor=int(data.get('tenor')),
             payments_per_year=int(data.get('payments_per_year', 12)),
-            loan_start_date=data.get('loan_start_date')
+            loan_start_date=loan_start_date
         )
         
         # Bookkeeping Integration
@@ -65,7 +70,9 @@ class FinancingService:
             entry.payments_per_year = int(data.get('payments_per_year'))
             
         if 'loan_start_date' in data:
-            entry.loan_start_date = data.get('loan_start_date')
+            from django.utils.dateparse import parse_date
+            lsd = data.get('loan_start_date')
+            entry.loan_start_date = parse_date(lsd) if isinstance(lsd, str) else lsd
 
         entry.save()
         return entry

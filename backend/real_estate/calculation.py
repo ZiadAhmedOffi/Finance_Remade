@@ -98,6 +98,10 @@ class PropertyDataCalc:
             return Decimal('0.00')
         return (purchase_price / size).quantize(Decimal('0.01'))
 
+    @staticmethod
+    def portfolio_occupancy(avg_vacancy_rate: Decimal) -> Decimal:
+        return (Decimal('100') - avg_vacancy_rate).quantize(Decimal('0.01'))
+
     # Usufruct Calculations
     @staticmethod
     def usufruct_annual_rent(inflow_monthly_rent: Decimal, appreciation_rate: Decimal, years_held: Decimal, is_first_year: bool = False) -> Decimal:

@@ -15,7 +15,7 @@ class RealEstateInvestorService:
     def create_investor_action(actor, data):
         portfolio = data["portfolio"]
         action_type = data["type"]
-        year = data["year"]
+        year = int(data["year"])
         amount = Decimal(str(data.get("amount", 0.0) or 0.0))
         investor = data["investor"]
 
