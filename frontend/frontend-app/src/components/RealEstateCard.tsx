@@ -79,12 +79,12 @@ const RealEstateCard: React.FC<RealEstateCardProps> = ({ portfolio }) => {
           <header className="top-header">
             <span className="portfolio-tag-badge">Real Estate</span>
             <div className="unit-price-badge">
-              ${m.price_per_unit?.toFixed(2)} <small style={{opacity: 0.7, fontSize: '0.6rem'}}>UPU</small>
+              ${m.price_per_unit?.toFixed(2)} <small style={{opacity: 0.7, fontSize: '0.6rem'}}>Unit Price</small>
             </div>
           </header>
 
           <div className="nav-main-display">
-            <div className="nav-label-small">Total NAV</div>
+            <div className="nav-label-small">AUM</div>
             <div className="nav-value-large">{formatCurrency(m.nav || 0)}</div>
           </div>
 
