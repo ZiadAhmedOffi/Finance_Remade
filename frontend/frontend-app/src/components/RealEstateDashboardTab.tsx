@@ -407,7 +407,7 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
               <div className="metric-value" style={{ color: '#10b981' }}>{formatCurrency(metrics.unrealized_gains)}</div>
             </div>
             <div className="metric-card">
-              <div className="metric-label">Realized Gains (Sales)</div>
+              <div className="metric-label">Capital Gains (Sales)</div>
               <div className="metric-value" style={{ color: '#059669' }}>{formatCurrency(metrics.realized_gains)}</div>
             </div>
           </div>
