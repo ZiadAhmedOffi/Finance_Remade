@@ -27,6 +27,9 @@ const RealEstatePublicReportPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [investmentAmount, setInvestmentAmount] = useState<number>(100000);
 
+  const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=2070&auto=format&fit=crop";
+  const [imgSrc, setImgSrc] = useState(FALLBACK_IMAGE);
+
   useEffect(() => {
     const fetchReportData = async () => {
       if (!slug) return;
@@ -34,6 +37,9 @@ const RealEstatePublicReportPage: React.FC = () => {
         setLoading(true);
         const response = await realEstateApi.getPublicReport(slug);
         setReport(response.data);
+        if (response.data.performance_data?.portfolio_textual_info?.cover_image) {
+          setImgSrc(response.data.performance_data.portfolio_textual_info.cover_image);
+        }
       } catch (err: any) {
         setError(err.response?.data?.error || "Report not found or inactive.");
       } finally {
@@ -97,17 +103,6 @@ const RealEstatePublicReportPage: React.FC = () => {
     return { ...rawConfig, sections };
   }, [report]);
 
-  const headerStyle = useMemo(() => {
-    const imageUrl = textualInfo?.cover_image || "";
-    if (!imageUrl) return {};
-    return {
-      backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.8), rgba(15, 23, 42, 0.8)), url("${imageUrl}")`,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-      backgroundRepeat: 'no-repeat'
-    };
-  }, [textualInfo?.cover_image]);
-
   if (loading) return (
     <div className="re-report-loading">
       <div className="re-spinner"></div>
@@ -126,8 +121,15 @@ const RealEstatePublicReportPage: React.FC = () => {
 
   return (
     <div className="re-public-report-layout">
-      <header className={`re-report-header ${textualInfo?.cover_image ? 're-header-immersive' : ''}`} style={headerStyle}>
-        <div className="re-container">
+      <header className="re-report-header re-header-immersive">
+        <img 
+          src={imgSrc} 
+          alt={report.name} 
+          className="re-header-bg-image" 
+          onError={() => setImgSrc(FALLBACK_IMAGE)}
+        />
+        <div className="re-header-overlay"></div>
+        <div className="re-container re-header-relative">
           <div className="re-brand">Real Estate Intelligence | Institutional Reporting</div>
           <div className="re-header-content">
             <div className="re-title-group">
@@ -135,7 +137,9 @@ const RealEstatePublicReportPage: React.FC = () => {
                 <div className="re-header-tags">
                   <span className="re-portfolio-tag">{report.portfolio_name}</span>
                   {textualInfo?.developer && (
-                    <span className="re-developer-tag">Developed by {textualInfo.developer}</span>
+                    <span className="re-developer-tag">
+                      <span className="re-dev-by">Developed by</span> {textualInfo.developer}
+                    </span>
                   )}
                 </div>
             </div>
