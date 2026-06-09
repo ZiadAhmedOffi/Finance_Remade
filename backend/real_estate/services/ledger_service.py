@@ -16,11 +16,20 @@ class LedgerAccountService:
         ("Property Assets", "ASSET"),
         ("Mortgage Payable", "LIABILITY"),
         ("Installment Payable", "LIABILITY"),
+        ("Off-plan Payable", "LIABILITY"),
         ("Paid-in Capital", "EQUITY"),
         ("Retained Earnings", "EQUITY"),
         ("Rental Income", "REVENUE"),
+        ("Other Operating Income", "REVENUE"),
         ("Operational Expenses", "EXPENSE"),
+        ("Management Fees", "EXPENSE"),
+        ("Maintenance Expenses", "EXPENSE"),
+        ("Utility Expenses", "EXPENSE"),
+        ("Insurance Expenses", "EXPENSE"),
+        ("G&A Expenses", "EXPENSE"),
         ("Financing Expenses", "EXPENSE"),
+        ("Depreciation Expense", "EXPENSE"),
+        ("Tax Expense", "EXPENSE"),
     ]
 
     @staticmethod
@@ -120,12 +129,12 @@ class LedgerYearService:
         """
         Ensures a LedgerYear exists and system accounts are initialized.
         """
-        ledger_year, created = LedgerYear.objects.get_or_create(
+        ledger_year, _ = LedgerYear.objects.get_or_create(
             portfolio=portfolio,
             year=year
         )
-        if created:
-            LedgerAccountService.initialize_system_accounts(portfolio)
+        # Always call to ensure any newly added system accounts are initialized
+        LedgerAccountService.initialize_system_accounts(portfolio)
         return ledger_year
 
     @staticmethod

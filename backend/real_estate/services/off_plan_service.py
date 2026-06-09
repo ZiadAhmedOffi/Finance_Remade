@@ -55,6 +55,10 @@ class OffPlanService:
                 date=date,
                 percentage_of_price=pct
             )
+        
+        # Sync with Ledger
+        from .ledger_sync_service import LedgerSyncService
+        LedgerSyncService.sync_off_plan_creation(property_obj)
 
     @staticmethod
     @transaction.atomic
@@ -79,6 +83,11 @@ class OffPlanService:
             details.sale_at_completion = data["sale_at_completion"]
             
         details.save()
+
+        # Sync with Ledger
+        from .ledger_sync_service import LedgerSyncService
+        LedgerSyncService.sync_off_plan_creation(property_obj)
+        
         return details
 
     @staticmethod
@@ -92,12 +101,18 @@ class OffPlanService:
         if isinstance(m_date, str):
             m_date = parse_date(m_date)
 
-        return OffPlanMilestone.objects.create(
+        milestone = OffPlanMilestone.objects.create(
             property=property_obj,
             milestone_name=data.get('milestone_name', 'New Milestone'),
             date=m_date,
             percentage_of_price=Decimal(str(data.get('percentage_of_price', '0.00')))
         )
+
+        # Sync with Ledger
+        from .ledger_sync_service import LedgerSyncService
+        LedgerSyncService.sync_off_plan_creation(property_obj)
+
+        return milestone
 
     @staticmethod
     @transaction.atomic
@@ -116,6 +131,11 @@ class OffPlanService:
             milestone.milestone_name = data["milestone_name"]
             
         milestone.save()
+
+        # Sync with Ledger
+        from .ledger_sync_service import LedgerSyncService
+        LedgerSyncService.sync_off_plan_creation(milestone.property)
+
         return milestone
 
     @staticmethod
@@ -124,4 +144,11 @@ class OffPlanService:
         """
         Deletes a milestone.
         """
-        OffPlanMilestone.objects.filter(id=milestone_id).delete()
+        milestone = OffPlanMilestone.objects.filter(id=milestone_id).first()
+        if milestone:
+            property_obj = milestone.property
+            milestone.delete()
+            # Sync with Ledger
+            from .ledger_sync_service import LedgerSyncService
+            LedgerSyncService.sync_off_plan_creation(property_obj)
+

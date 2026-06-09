@@ -230,6 +230,132 @@
 
 .btn-add-entry:hover { background: #f8fafc; }
 
+.bookkeeping-header h2 {
+  margin: 0;
+}
+
+.view-toggle {
+  display: flex;
+  background: #f1f5f9;
+  padding: 0.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e2e8f0;
+}
+
+.view-toggle button {
+  padding: 0.4rem 1rem;
+  border: none;
+  background: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  border-radius: 0.35rem;
+  transition: all 0.2s;
+}
+
+.view-toggle button.active {
+  background: white;
+  color: #2563eb;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* P&L Statement Styles */
+.pl-statement-section {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.pl-card {
+  background: white;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  padding: 2rem;
+  margin-top: 1rem;
+  max-width: 900px;
+}
+
+.pl-table {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.pl-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  font-size: 0.95rem;
+  color: #334155;
+}
+
+.pl-row.indent {
+  padding-left: 1.5rem;
+  color: #64748b;
+}
+
+.pl-row.group-header {
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 0.25rem;
+}
+
+.pl-row.total {
+  font-weight: 700;
+  border-top: 1px solid #e2e8f0;
+  margin-top: 0.25rem;
+  color: #1e293b;
+}
+
+.pl-summary, .pl-final {
+  background: #f8fafc;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.pl-row.highlighted {
+  font-weight: 800;
+  color: #2563eb;
+  font-size: 1.1rem;
+}
+
+.pl-row.highlighted.secondary {
+  color: #0891b2;
+  font-size: 1rem;
+  border-top: 1px dashed #e2e8f0;
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+}
+
+.pl-row.bottom-line {
+  font-weight: 900;
+  font-size: 1.25rem;
+  color: #0f172a;
+  border-top: 2px solid #0f172a;
+  padding-top: 1rem;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media print {
+  .bookkeeping-header, .ledger-actions, .view-toggle, .btn-secondary {
+    display: none !important;
+  }
+  .pl-card {
+    border: none;
+    box-shadow: none;
+    padding: 0;
+  }
+}
+
 .btn-delete-ledger {
     background: #fff1f2;
     color: #991b1b;

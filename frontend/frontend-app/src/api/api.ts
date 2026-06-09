@@ -218,14 +218,15 @@ export const realEstateApi = {
   getLedgers: (portfolioId: string) => api.get(`/real-estate/${portfolioId}/ledgers/`),
   initializeLedger: (portfolioId: string, year: number) => api.post(`/real-estate/${portfolioId}/ledgers/initialize/`, { year }),
   getTrialBalance: (portfolioId: string, yearId: string) => api.get(`/real-estate/${portfolioId}/ledgers/${yearId}/trial-balance/`),
+  getPLStatement: (portfolioId: string, yearId: string) => api.get(`/real-estate/${portfolioId}/ledgers/${yearId}/pl-statement/`),
   getTAccount: (portfolioId: string, yearId: string, accountId: string) => 
     api.get(`/real-estate/${portfolioId}/ledgers/${yearId}/accounts/${accountId}/t-account/`),
   createManualTransaction: (portfolioId: string, yearId: string, data: any) => 
-    api.post(`/real_estate/${portfolioId}/ledgers/${yearId}/transactions/`, data),
-  getTransactionTemplates: (portfolioId: string) => api.get(`/real_estate/${portfolioId}/ledgers/templates/`),
-  syncCashFlow: (portfolioId: string, yearId: string) => api.post(`/real_estate/${portfolioId}/ledgers/${yearId}/sync-cash-flow/`),
-  closeLedger: (portfolioId: string, yearId: string) => api.post(`/real_estate/${portfolioId}/ledgers/${yearId}/close/`),
-  deleteLedger: (portfolioId: string, yearId: string) => api.delete(`/real_estate/${portfolioId}/ledgers/${yearId}/delete/`),
+    api.post(`/real-estate/${portfolioId}/ledgers/${yearId}/transactions/`, data),
+  getTransactionTemplates: (portfolioId: string) => api.get(`/real-estate/${portfolioId}/ledgers/templates/`),
+  syncCashFlow: (portfolioId: string, yearId: string) => api.post(`/real-estate/${portfolioId}/ledgers/${yearId}/sync-cash-flow/`),
+  closeLedger: (portfolioId: string, yearId: string) => api.post(`/real-estate/${portfolioId}/ledgers/${yearId}/close/`),
+  deleteLedger: (portfolioId: string, yearId: string) => api.delete(`/real-estate/${portfolioId}/ledgers/${yearId}/delete/`),
 
 
   // Jurisdictions & Tax Rules

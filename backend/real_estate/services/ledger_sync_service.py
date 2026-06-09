@@ -101,6 +101,7 @@ class LedgerSyncService:
 
             mortgage_acc = LedgerSyncService._get_account(portfolio, "Mortgage Payable")
             installment_acc = LedgerSyncService._get_account(portfolio, "Installment Payable")
+            off_plan_acc = LedgerSyncService._get_account(portfolio, "Off-plan Payable")
             
             # Recalculate granularly for the ledger entries
             # Mortgages
@@ -135,6 +136,16 @@ class LedgerSyncService:
                 remaining = max(Decimal('0.00'), total_principal - total_paid)
                 if remaining > 0:
                     entries.append({"account": installment_acc, "amount": remaining, "entry_type": "CREDIT"})
+
+            # Off-plan Payables
+            off_plan_properties = portfolio.properties.filter(status="OFF_PLAN", purchase_date__lte=reference_date)
+            for opp in off_plan_properties:
+                total_price = opp.purchase_price or Decimal('0.00')
+                unpaid_milestones = opp.milestones.filter(date__gt=reference_date).filter(date__gt=opp.purchase_date)
+                remaining = sum((m.percentage_of_price / Decimal('100.00')) * total_price for m in unpaid_milestones)
+                
+                if remaining > 0:
+                    entries.append({"account": off_plan_acc, "amount": remaining, "entry_type": "CREDIT"})
 
         # 5. Retained Earnings (The plug to balance the opening transaction if historical P&L isn't tracked)
         re_account = LedgerSyncService._get_account(portfolio, "Retained Earnings")
@@ -259,6 +270,14 @@ class LedgerSyncService:
         if m.get("installment_payoff", 0) > 0:
             entries.append({"account": LedgerSyncService._get_account(portfolio, "Installment Payable"), "amount": m["installment_payoff"], "entry_type": "DEBIT"})
 
+        # 3.5 Off-plan Payable (Off-plan Payoff)
+        if sale.property.status == "OFF_PLAN":
+             total_price = sale.property.purchase_price or Decimal('0.00')
+             unpaid_milestones = sale.property.milestones.filter(date__gt=sale.sale_date).filter(date__gt=sale.property.purchase_date)
+             off_plan_payoff = sum((m.percentage_of_price / Decimal('100.00')) * total_price for m in unpaid_milestones)
+             if off_plan_payoff > 0:
+                 entries.append({"account": LedgerSyncService._get_account(portfolio, "Off-plan Payable"), "amount": off_plan_payoff, "entry_type": "DEBIT"})
+
         # 4. Property Assets (Cost Basis)
         if m["cost_basis"] > 0:
             entries.append({"account": LedgerSyncService._get_account(portfolio, "Property Assets"), "amount": m["cost_basis"], "entry_type": "CREDIT"})
@@ -316,61 +335,151 @@ class LedgerSyncService:
     @transaction.atomic
     def sync_projected_cash_flow(portfolio: RealEstatePortfolio, year: int):
         """
-        Pull projected Rent, Opex, and Taxes from CashFlowSelectors into the ledger.
+        Pull projected Rent, Opex, Taxes, and Financing (Interest/Principal) from selectors into the ledger.
+        Creates separate transactions for better clarity in the T-balance.
         """
         from ..selectors.cash_flow_selectors import CashFlowSelectors
-        cf_data = CashFlowSelectors.get_portfolio_cash_flow(portfolio, start_year=year, end_year=year)
+        from ..selectors.financing_selectors import FinancingSelectors
+        from ..selectors.installment_selectors import InstallmentSelectors
+        import logging
+        logger = logging.getLogger(__name__)
         
+        cf_data = CashFlowSelectors.get_portfolio_cash_flow(portfolio, start_year=year, end_year=year)
         ledger_year = LedgerYearService.get_or_create_ledger_year(portfolio, year)
         
-        # Check if already synced for this year to avoid duplicates
-        if LedgerTransaction.objects.filter(ledger_year=ledger_year, source_type="CASH_FLOW_SYNC").exists():
-            raise ValueError(f"Projected cash flow for {year} has already been synced.")
+        # Delete existing sync to allow refresh/re-sync
+        LedgerTransaction.objects.filter(ledger_year=ledger_year, source_type="CASH_FLOW_SYNC").delete()
 
-        # Aggregate totals for the year
-        total_rent = cf_data["portfolio_noi"][year] # NOI is effective rent - opex
-        # Wait, NOI includes opex. Let's get more granular if possible or just use the totals.
-        
-        # Actually, let's sum up from individual properties for better accuracy
+        # 1. Rental Income
         total_effective_rent = Decimal('0.00')
-        total_opex = Decimal('0.00')
-        total_taxes = cf_data["portfolio_taxes"][year]
-        
         for prop_id, prop_data in cf_data["properties"].items():
             meta = prop_data["metadata"].get(year)
             if meta:
                 total_effective_rent += meta["effective_rent"]
-                total_opex += meta["opex"]
 
-        entries = []
-        # 1. Rental Income
         if total_effective_rent > 0:
-            entries.append({"account": LedgerSyncService._get_account(portfolio, "Cash"), "amount": total_effective_rent, "entry_type": "DEBIT"})
-            entries.append({"account": LedgerSyncService._get_account(portfolio, "Rental Income"), "amount": total_effective_rent, "entry_type": "CREDIT"})
-
-        # 2. Operational Expenses
-        if total_opex > 0:
-            entries.append({"account": LedgerSyncService._get_account(portfolio, "Operational Expenses"), "amount": total_opex, "entry_type": "DEBIT"})
-            entries.append({"account": LedgerSyncService._get_account(portfolio, "Cash"), "amount": total_opex, "entry_type": "CREDIT"})
-
-        # 3. Taxes (Assume they come out of Cash and go to an Expense account - let's use Operational Expenses for now or create a Tax account)
-        if total_taxes > 0:
-             # We should probably have a "Tax Expense" account. Let's use "Operational Expenses" if "Tax Expense" doesn't exist.
-             tax_acc, _ = LedgerAccount.objects.get_or_create(
-                 portfolio=portfolio, 
-                 name="Tax Expense", 
-                 defaults={"type": "EXPENSE", "is_system_account": True}
-             )
-             entries.append({"account": tax_acc, "amount": total_taxes, "entry_type": "DEBIT"})
-             entries.append({"account": LedgerSyncService._get_account(portfolio, "Cash"), "amount": total_taxes, "entry_type": "CREDIT"})
-
-        if entries:
             LedgerTransactionService.create_transaction(
                 portfolio=portfolio,
                 ledger_year=ledger_year,
-                description=f"Projected Cash Flow Sync for {year}",
+                description=f"Projected Rental Income for {year}",
+                date=date(year, 12, 31),
+                entries=[
+                    {"account": LedgerSyncService._get_account(portfolio, "Cash"), "amount": total_effective_rent, "entry_type": "DEBIT"},
+                    {"account": LedgerSyncService._get_account(portfolio, "Rental Income"), "amount": total_effective_rent, "entry_type": "CREDIT"}
+                ],
+                source_type="CASH_FLOW_SYNC"
+            )
+
+        # 2. Operating Expenses
+        total_opex = Decimal('0.00')
+        for prop_id, prop_data in cf_data["properties"].items():
+            meta = prop_data["metadata"].get(year)
+            if meta:
+                total_opex += meta["opex"]
+
+        if total_opex > 0:
+            LedgerTransactionService.create_transaction(
+                portfolio=portfolio,
+                ledger_year=ledger_year,
+                description=f"Projected Operating Expenses for {year}",
+                date=date(year, 12, 31),
+                entries=[
+                    {"account": LedgerSyncService._get_account(portfolio, "Operational Expenses"), "amount": total_opex, "entry_type": "DEBIT"},
+                    {"account": LedgerSyncService._get_account(portfolio, "Cash"), "amount": total_opex, "entry_type": "CREDIT"}
+                ],
+                source_type="CASH_FLOW_SYNC"
+            )
+
+        # 3. Financing (Mortgages)
+        total_interest = Decimal('0.00')
+        total_principal = Decimal('0.00')
+        
+        mortgage_entries = FinancingEntry.objects.filter(property__portfolio=portfolio)
+        for me in mortgage_entries:
+            schedule = FinancingSelectors.get_amortization_schedule(me)
+            months_per_period = 12 // me.payments_per_year
+            for item in schedule:
+                total_months_offset = months_per_period * (item['period'] - 1)
+                payment_date = date(me.loan_start_date.year + (me.loan_start_date.month + total_months_offset - 1) // 12, 
+                                    (me.loan_start_date.month + total_months_offset - 1) % 12 + 1, 1)
+                if payment_date.year == year:
+                    total_interest += item['interest_payment']
+                    total_principal += item['principal_payment']
+
+        if total_interest > 0 or total_principal > 0:
+            entries = []
+            if total_interest > 0:
+                entries.append({"account": LedgerSyncService._get_account(portfolio, "Financing Expenses"), "amount": total_interest, "entry_type": "DEBIT"})
+            if total_principal > 0:
+                entries.append({"account": LedgerSyncService._get_account(portfolio, "Mortgage Payable"), "amount": total_principal, "entry_type": "DEBIT"})
+            
+            entries.append({"account": LedgerSyncService._get_account(portfolio, "Cash"), "amount": total_interest + total_principal, "entry_type": "CREDIT"})
+
+            LedgerTransactionService.create_transaction(
+                portfolio=portfolio,
+                ledger_year=ledger_year,
+                description=f"Projected Mortgage Payment for {year}",
                 date=date(year, 12, 31),
                 entries=entries,
+                source_type="CASH_FLOW_SYNC"
+            )
+
+        # 4. Installments
+        total_inst_pmt = Decimal('0.00')
+        installment_entries = InstallmentEntry.objects.filter(property__portfolio=portfolio)
+        for ie in installment_entries:
+            schedule = InstallmentSelectors.get_installment_schedule(ie)
+            for item in schedule:
+                y = int(item['date'].split('-')[0])
+                if y == year:
+                    total_inst_pmt += Decimal(str(item['payment']))
+
+        if total_inst_pmt > 0:
+            LedgerTransactionService.create_transaction(
+                portfolio=portfolio,
+                ledger_year=ledger_year,
+                description=f"Projected Installment Payment for {year}",
+                date=date(year, 12, 31),
+                entries=[
+                    {"account": LedgerSyncService._get_account(portfolio, "Installment Payable"), "amount": total_inst_pmt, "entry_type": "DEBIT"},
+                    {"account": LedgerSyncService._get_account(portfolio, "Cash"), "amount": total_inst_pmt, "entry_type": "CREDIT"}
+                ],
+                source_type="CASH_FLOW_SYNC"
+            )
+
+        # 5. Off-plan Milestones
+        total_milestone_pmt = Decimal('0.00')
+        off_plan_properties = portfolio.properties.filter(status="OFF_PLAN")
+        for opp in off_plan_properties:
+            for m in opp.milestones.filter(date__year=year):
+                if m.date > opp.purchase_date:
+                    total_milestone_pmt += (m.percentage_of_price / Decimal('100.00')) * (opp.purchase_price or Decimal('0.00'))
+
+        if total_milestone_pmt > 0:
+            LedgerTransactionService.create_transaction(
+                portfolio=portfolio,
+                ledger_year=ledger_year,
+                description=f"Projected Milestone Payment for {year}",
+                date=date(year, 12, 31),
+                entries=[
+                    {"account": LedgerSyncService._get_account(portfolio, "Off-plan Payable"), "amount": total_milestone_pmt, "entry_type": "DEBIT"},
+                    {"account": LedgerSyncService._get_account(portfolio, "Cash"), "amount": total_milestone_pmt, "entry_type": "CREDIT"}
+                ],
+                source_type="CASH_FLOW_SYNC"
+            )
+
+        # 6. Taxes
+        total_taxes = cf_data["portfolio_taxes"].get(year, Decimal('0.00'))
+        if total_taxes > 0:
+            LedgerTransactionService.create_transaction(
+                portfolio=portfolio,
+                ledger_year=ledger_year,
+                description=f"Projected Tax Expense for {year}",
+                date=date(year, 12, 31),
+                entries=[
+                    {"account": LedgerSyncService._get_account(portfolio, "Tax Expense"), "amount": total_taxes, "entry_type": "DEBIT"},
+                    {"account": LedgerSyncService._get_account(portfolio, "Cash"), "amount": total_taxes, "entry_type": "CREDIT"}
+                ],
                 source_type="CASH_FLOW_SYNC"
             )
 
@@ -379,13 +488,81 @@ class LedgerSyncService:
     def sync_installment_entry(entry: InstallmentEntry):
         """
         Hook for installment plan creation.
-        The Property Asset is already debited in sync_property_acquisition.
-        Here we track the liability and the cash impact if any (though typically down payment is part of property cost).
-        Actually, sync_property_acquisition credits CASH for the full purchase price.
-        If it's an installment plan, it should credit INSTALLMENT PAYABLE for the remaining balance 
-        and only credit CASH for the down payment.
-        
-        Wait, I need to adjust sync_property_acquisition to handle installments/mortgages 
-        to avoid double-crediting cash.
+        Debit: Cash (Refund of the financed portion from the initial asset acquisition)
+        Credit: Installment Payable
         """
-        pass # To be refined based on how we handle the split between upfront and financed
+        portfolio = entry.property.portfolio
+        ledger_year = LedgerYearService.get_or_create_ledger_year(portfolio, entry.start_date.year)
+        
+        # The amount to be financed
+        financed_amount = entry.property.purchase_price - entry.down_payment
+        if financed_amount <= 0:
+            return
+
+        entries = [
+            {"account": LedgerSyncService._get_account(portfolio, "Cash"), "amount": financed_amount, "entry_type": "DEBIT"},
+            {"account": LedgerSyncService._get_account(portfolio, "Installment Payable"), "amount": financed_amount, "entry_type": "CREDIT"}
+        ]
+
+        LedgerTransactionService.create_transaction(
+            portfolio=portfolio,
+            ledger_year=ledger_year,
+            description=f"Installment Plan for {entry.property.name}",
+            date=entry.start_date,
+            entries=entries,
+            source_type="FINANCING_CREATION",
+            source_id=entry.id
+        )
+
+    @staticmethod
+    @transaction.atomic
+    def sync_off_plan_creation(property_obj: Property):
+        """
+        Hook for off-plan property creation/milestone update.
+        Debit: Cash (Refund of the portion to be paid via milestones)
+        Credit: Off-plan Payable
+        """
+        portfolio = property_obj.portfolio
+        if property_obj.status != "OFF_PLAN":
+            # Delete if status changed from OFF_PLAN
+            LedgerTransactionService.delete_transaction_by_source(
+                source_type="OFF_PLAN_PAYABLE_CREATION",
+                source_id=property_obj.id
+            )
+            return
+
+        # Delete existing to allow update
+        LedgerTransactionService.delete_transaction_by_source(
+            source_type="OFF_PLAN_PAYABLE_CREATION",
+            source_id=property_obj.id
+        )
+
+        total_price = property_obj.purchase_price or Decimal('0.00')
+        if total_price == 0:
+            return
+
+        # Payable is the sum of milestones AFTER purchase_date
+        payable_amount = Decimal('0.00')
+        for m in property_obj.milestones.all():
+            if m.date > property_obj.purchase_date:
+                payable_amount += (m.percentage_of_price / Decimal('100.00')) * total_price
+
+        if payable_amount <= 0:
+            return
+
+        ledger_year = LedgerYearService.get_or_create_ledger_year(portfolio, property_obj.purchase_date.year)
+        
+        entries = [
+            {"account": LedgerSyncService._get_account(portfolio, "Cash"), "amount": payable_amount, "entry_type": "DEBIT"},
+            {"account": LedgerSyncService._get_account(portfolio, "Off-plan Payable"), "amount": payable_amount, "entry_type": "CREDIT"}
+        ]
+
+        LedgerTransactionService.create_transaction(
+            portfolio=portfolio,
+            ledger_year=ledger_year,
+            description=f"Off-plan Payable Recognition for {property_obj.name}",
+            date=property_obj.purchase_date,
+            entries=entries,
+            source_type="OFF_PLAN_PAYABLE_CREATION",
+            source_id=property_obj.id
+        )

@@ -108,3 +108,90 @@ class LedgerSelectors:
             "total_debit": sum(e["amount"] for e in debits),
             "total_credit": sum(e["amount"] for e in credits)
         }
+
+    @staticmethod
+    def get_pl_statement(ledger_year: LedgerYear):
+        """
+        Generates a structured P&L statement from the ledger data.
+        """
+        tb = LedgerSelectors.get_trial_balance(ledger_year)
+        
+        # Categorize accounts
+        revenue_items = []
+        opex_items = []
+        
+        income_map = {
+            "Rental Income": "Rental Income",
+            "Other Operating Income": "Other Operating Income"
+        }
+        
+        opex_map = {
+            "Management Fees": "Management Fees",
+            "Maintenance Expenses": "Maintenance Expenses",
+            "Utility Expenses": "Utility Expenses",
+            "Insurance Expenses": "Insurance Expenses",
+            "G&A Expenses": "G&A Expenses",
+            "Operational Expenses": "Other Operational Expenses"
+        }
+
+        total_revenue = Decimal('0.00')
+        total_opex = Decimal('0.00')
+        
+        interest_expense = Decimal('0.00')
+        depreciation_expense = Decimal('0.00')
+        tax_expense = Decimal('0.00')
+
+        for acc in tb["accounts"]:
+            name = acc["account_name"]
+            balance = acc["net_balance"]
+            
+            if name in income_map:
+                revenue_items.append({"name": income_map[name], "amount": balance})
+                total_revenue += balance
+            elif name in opex_map:
+                opex_items.append({"name": opex_map[name], "amount": balance})
+                total_opex += balance
+            elif name == "Financing Expenses":
+                interest_expense = balance
+            elif name == "Depreciation Expense":
+                depreciation_expense = balance
+            elif name == "Tax Expense":
+                tax_expense = balance
+
+        noi = total_revenue - total_opex
+        ebitda = noi # In our current model they are identical unless we add non-op income
+        
+        # Financing & Principal (Informational for Cash Flow in P&L)
+        mortgage_principal = Decimal('0.00')
+        installment_principal = Decimal('0.00')
+        
+        for acc in tb["accounts"]:
+            if acc["account_name"] == "Mortgage Payable":
+                # Principal payments are DEBITS to the liability account in our sync logic
+                mortgage_principal = acc["debit"]
+            elif acc["account_name"] == "Installment Payable":
+                installment_principal = acc["debit"]
+
+        ebt = ebitda - interest_expense - depreciation_expense
+        net_income = ebt - tax_expense
+
+        return {
+            "year": ledger_year.year,
+            "revenue": {
+                "items": revenue_items,
+                "total": total_revenue
+            },
+            "operating_expenses": {
+                "items": opex_items,
+                "total": total_opex
+            },
+            "noi": noi,
+            "ebitda": ebitda,
+            "interest_expense": interest_expense,
+            "mortgage_principal": mortgage_principal,
+            "installment_principal": installment_principal,
+            "depreciation_expense": depreciation_expense,
+            "ebt": ebt,
+            "tax_expense": tax_expense,
+            "net_income": net_income
+        }

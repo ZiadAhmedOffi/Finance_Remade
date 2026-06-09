@@ -34,6 +34,10 @@ class InstallmentService:
             start_date=start_date
         )
         
+        # Bookkeeping Integration
+        from .ledger_sync_service import LedgerSyncService
+        LedgerSyncService.sync_installment_entry(entry)
+        
         return entry
 
     @staticmethod

@@ -93,6 +93,8 @@ class PropertyService:
         # Bookkeeping Integration
         from .ledger_sync_service import LedgerSyncService
         LedgerSyncService.sync_property_acquisition(property_obj)
+        if status_val == "OFF_PLAN":
+            LedgerSyncService.sync_off_plan_creation(property_obj)
         
         return property_obj
 

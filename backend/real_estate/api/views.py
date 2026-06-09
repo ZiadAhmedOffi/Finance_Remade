@@ -812,6 +812,22 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=True, methods=['get'], url_path='ledgers/(?P<year_id>[0-9a-f-]+)/pl-statement')
+    def pl_statement(self, request, pk=None, year_id=None):
+        portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
+        if not PermissionService.can_view_ledger(request.user, portfolio):
+            raise PermissionDenied("Access denied.")
+        
+        try:
+            ledger_year = LedgerSelectors.get_ledger_year_by_id(year_id)
+            if ledger_year.portfolio != portfolio:
+                return Response({"error": "Ledger year not found for this portfolio."}, status=status.HTTP_404_NOT_FOUND)
+            
+            data = LedgerSelectors.get_pl_statement(ledger_year)
+            return Response(data)
+        except LedgerYear.DoesNotExist:
+            return Response({"error": "Ledger year not found."}, status=status.HTTP_404_NOT_FOUND)
+
     @action(detail=True, methods=['get'], url_path='ledgers/templates')
     def transaction_templates(self, request, pk=None):
         portfolio = PortfolioSelectors.get_portfolio_by_id(pk)
@@ -827,6 +843,27 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
                 "entries": [
                     {"account_id": get_acc_id("Cash"), "entry_type": "CREDIT", "amount": 0},
                     {"account_id": None, "entry_type": "DEBIT", "amount": 0}
+                ]
+            },
+            {
+                "name": "Mortgage Interest Payment",
+                "entries": [
+                    {"account_id": get_acc_id("Financing Expenses"), "entry_type": "DEBIT", "amount": 0},
+                    {"account_id": get_acc_id("Cash"), "entry_type": "CREDIT", "amount": 0}
+                ]
+            },
+            {
+                "name": "Mortgage Principal Payment",
+                "entries": [
+                    {"account_id": get_acc_id("Mortgage Payable"), "entry_type": "DEBIT", "amount": 0},
+                    {"account_id": get_acc_id("Cash"), "entry_type": "CREDIT", "amount": 0}
+                ]
+            },
+            {
+                "name": "Depreciation Entry",
+                "entries": [
+                    {"account_id": get_acc_id("Depreciation Expense"), "entry_type": "DEBIT", "amount": 0},
+                    {"account_id": get_acc_id("Retained Earnings"), "entry_type": "CREDIT", "amount": 0}
                 ]
             },
             {

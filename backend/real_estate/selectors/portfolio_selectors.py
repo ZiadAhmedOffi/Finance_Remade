@@ -128,6 +128,15 @@ class PortfolioSelectors:
                 cash_change_breakdown.append({"name": f"Acquisition: {p.name}", "amount": float(down_payment), "type": "OUTFLOW"})
                 assets_change_breakdown.append({"name": f"Added Asset: {p.name}", "amount": float(p.purchase_price or 0), "type": "ADDITION"})
 
+        # Add Off-plan Milestones to Cash Change Breakdown (Historical/Projected based on reference_date)
+        off_plan_props = portfolio.properties.filter(status="OFF_PLAN")
+        for opp in off_plan_props:
+            for m in opp.milestones.filter(date__year=ref_year):
+                if m.date <= reference_date:
+                    amount = (m.percentage_of_price / Decimal('100.00')) * (opp.purchase_price or Decimal('0.00'))
+                    if amount > 0:
+                        cash_change_breakdown.append({"name": f"Milestone: {m.milestone_name} ({opp.name})", "amount": float(amount), "type": "OUTFLOW"})
+
         if total_sales_inflow > 0:
             cash_change_breakdown.append({"name": f"Sales Proceeds ({ref_year})", "amount": float(total_sales_inflow), "type": "INFLOW"})
 
@@ -149,7 +158,7 @@ class PortfolioSelectors:
         if yearly_taxes > 0:
             cash_change_breakdown.append({"name": f"Taxes ({ref_year})", "amount": float(yearly_taxes), "type": "OUTFLOW"})
 
-        # 4. Liabilities Calculation (Mortgages & Installments)
+        # 4. Liabilities Calculation (Mortgages, Installments & Off-plan)
         total_liabilities = Decimal('0.00')
         from .financing_selectors import FinancingSelectors
         from .installment_selectors import InstallmentSelectors
@@ -192,6 +201,13 @@ class PortfolioSelectors:
                 else:
                     break
             total_liabilities += max(Decimal('0.00'), total_principal - total_paid)
+
+        # Off-plan Payables
+        for opp in off_plan_props:
+            if opp.purchase_date <= reference_date:
+                total_price = opp.purchase_price or Decimal('0.00')
+                unpaid_milestones = opp.milestones.filter(date__gt=reference_date).filter(date__gt=opp.purchase_date)
+                total_liabilities += sum((m.percentage_of_price / Decimal('100.00')) * total_price for m in unpaid_milestones)
 
         # 5. NAV Calculation
         # True NAV = (Assets + Cash) - Liabilities

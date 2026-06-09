@@ -58,6 +58,8 @@ const BookkeepingTab: React.FC<BookkeepingTabProps> = ({ portfolioId, canEdit, i
   const [ledgerYears, setLedgerYears] = useState<LedgerYear[]>([]);
   const [selectedYear, setSelectedYear] = useState<LedgerYear | null>(null);
   const [trialBalance, setTrialBalance] = useState<TrialBalance | null>(null);
+  const [plStatement, setPLStatement] = useState<any | null>(null);
+  const [viewMode, setViewMode] = useState<'TB' | 'PL'>('TB');
   const [selectedAccount, setSelectedAccount] = useState<TAccountDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,10 +83,14 @@ const BookkeepingTab: React.FC<BookkeepingTabProps> = ({ portfolioId, canEdit, i
   const fetchTrialBalance = useCallback(async (yearId: string) => {
     try {
       setLoading(true);
-      const response = await realEstateApi.getTrialBalance(portfolioId, yearId);
-      setTrialBalance(response.data);
+      const [tbRes, plRes] = await Promise.all([
+        realEstateApi.getTrialBalance(portfolioId, yearId),
+        realEstateApi.getPLStatement(portfolioId, yearId)
+      ]);
+      setTrialBalance(tbRes.data);
+      setPLStatement(plRes.data);
     } catch (err) {
-      setError("Failed to fetch trial balance.");
+      setError("Failed to fetch bookkeeping data.");
     } finally {
       setLoading(false);
     }
@@ -159,7 +165,23 @@ const BookkeepingTab: React.FC<BookkeepingTabProps> = ({ portfolioId, canEdit, i
   return (
     <div className="bookkeeping-container">
       <div className="bookkeeping-header">
-        <h2>Bookkeeping & T-Balance</h2>
+        <div className="flex items-center gap-6">
+          <h2 className="m-0">Portfolio Bookkeeping</h2>
+          <div className="view-toggle">
+            <button 
+              className={viewMode === 'TB' ? 'active' : ''} 
+              onClick={() => setViewMode('TB')}
+            >
+              Trial Balance
+            </button>
+            <button 
+              className={viewMode === 'PL' ? 'active' : ''} 
+              onClick={() => setViewMode('PL')}
+            >
+              P&L Statement
+            </button>
+          </div>
+        </div>
         <div className="ledger-actions">
           <select 
             value={selectedYear?.id || ""} 
@@ -184,75 +206,191 @@ const BookkeepingTab: React.FC<BookkeepingTabProps> = ({ portfolioId, canEdit, i
 
       {error && <div className="error-message">{error}</div>}
 
-      {trialBalance ? (
-        <div className="trial-balance-section">
-          <div className="section-header">
-            <h3>Trial Balance - {trialBalance.year}</h3>
-            {!trialBalance.is_closed && canEdit && (
-              <div className="action-buttons">
-                <button className="btn-secondary" onClick={async () => {
-                  if (window.confirm("Sync projected Rent, Opex, and Taxes for this year?")) {
-                    try {
-                      setLoading(true);
-                      await realEstateApi.syncCashFlow(portfolioId, selectedYear!.id);
-                      fetchTrialBalance(selectedYear!.id);
-                    } catch (err: any) {
-                      alert(err.response?.data?.error || "Failed to sync cash flow.");
-                    } finally {
-                      setLoading(false);
-                    }
-                  }
-                }}>
-                  🔄 Sync Cash Flow
-                </button>
-                <button className="btn-primary" onClick={() => setShowAddTransaction(true)}>
-                  + Add Transaction
-                </button>
-                <button className="btn-danger" onClick={handleCloseYear}>
-                  🔒 Close Year
-                </button>
+      {selectedYear ? (
+        <>
+          {viewMode === 'TB' && trialBalance && (
+            <div className="trial-balance-section">
+              <div className="section-header">
+                <h3>Trial Balance - {trialBalance.year}</h3>
+                {!trialBalance.is_closed && canEdit && (
+                  <div className="action-buttons">
+                    <button className="btn-secondary" onClick={async () => {
+                      if (window.confirm("Sync projected Rent, Opex, and Taxes for this year?")) {
+                        try {
+                          setLoading(true);
+                          await realEstateApi.syncCashFlow(portfolioId, selectedYear!.id);
+                          fetchTrialBalance(selectedYear!.id);
+                        } catch (err: any) {
+                          alert(err.response?.data?.error || "Failed to sync cash flow.");
+                        } finally {
+                          setLoading(false);
+                        }
+                      }
+                    }}>
+                      🔄 Sync Cash Flow
+                    </button>
+                    <button className="btn-primary" onClick={() => setShowAddTransaction(true)}>
+                      + Add Transaction
+                    </button>
+                    <button className="btn-danger" onClick={handleCloseYear}>
+                      🔒 Close Year
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          <table className="data-table tb-table">
-            <thead>
-              <tr>
-                <th>Account</th>
-                <th>Type</th>
-                <th>Debit</th>
-                <th>Credit</th>
-                <th>Net Balance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {trialBalance.accounts.map(acc => (
-                <tr key={acc.account_id} onClick={() => handleAccountClick(acc.account_id)} className="clickable-row">
-                  <td>{acc.account_name}</td>
-                  <td><span className={`type-badge ${acc.account_type.toLowerCase()}`}>{acc.account_type}</span></td>
-                  <td className="amount">{acc.debit !== "0.00" ? `$${parseFloat(acc.debit).toLocaleString()}` : "-"}</td>
-                  <td className="amount">{acc.credit !== "0.00" ? `$${parseFloat(acc.credit).toLocaleString()}` : "-"}</td>
-                  <td className="amount bold">
-                    ${parseFloat(acc.net_balance).toLocaleString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className={trialBalance.is_balanced ? "balanced-row" : "unbalanced-row"}>
-                <td colSpan={2}>Total</td>
-                <td className="amount bold">${trialBalance.total_debit.toLocaleString()}</td>
-                <td className="amount bold">${trialBalance.total_credit.toLocaleString()}</td>
-                <td>
-                  {trialBalance.is_balanced ? 
-                    <span className="status-ok">✅ Balanced</span> : 
-                    <span className="status-error">⚠️ Unbalanced</span>
-                  }
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+              <table className="data-table tb-table">
+                <thead>
+                  <tr>
+                    <th>Account</th>
+                    <th>Type</th>
+                    <th>Debit</th>
+                    <th>Credit</th>
+                    <th>Net Balance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trialBalance.accounts.map(acc => (
+                    <tr key={acc.account_id} onClick={() => handleAccountClick(acc.account_id)} className="clickable-row">
+                      <td>{acc.account_name}</td>
+                      <td><span className={`type-badge ${acc.account_type.toLowerCase()}`}>{acc.account_type}</span></td>
+                      <td className="amount">{acc.debit !== "0.00" ? `$${parseFloat(acc.debit).toLocaleString()}` : "-"}</td>
+                      <td className="amount">{acc.credit !== "0.00" ? `$${parseFloat(acc.credit).toLocaleString()}` : "-"}</td>
+                      <td className="amount bold">
+                        ${parseFloat(acc.net_balance).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className={trialBalance.is_balanced ? "balanced-row" : "unbalanced-row"}>
+                    <td colSpan={2}>Total</td>
+                    <td className="amount bold">${trialBalance.total_debit.toLocaleString()}</td>
+                    <td className="amount bold">${trialBalance.total_credit.toLocaleString()}</td>
+                    <td>
+                      {trialBalance.is_balanced ? 
+                        <span className="status-ok">✅ Balanced</span> : 
+                        <span className="status-error">⚠️ Unbalanced</span>
+                      }
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+
+          {viewMode === 'PL' && plStatement && (
+            <div className="pl-statement-section">
+              <div className="section-header">
+                <h3>Profit & Loss Statement - {plStatement.year}</h3>
+                <div className="action-buttons">
+                   <button className="btn-secondary" onClick={() => window.print()}>
+                     🖨️ Export PDF
+                   </button>
+                </div>
+              </div>
+              
+              <div className="pl-card">
+                <div className="pl-table">
+                  {/* Revenue */}
+                  <div className="pl-group">
+                    <div className="pl-row group-header">
+                      <span>Operating Income</span>
+                      <span>Amount ($)</span>
+                    </div>
+                    {plStatement.revenue.items.map((item: any, i: number) => (
+                      <div key={i} className="pl-row indent">
+                        <span>{item.name}</span>
+                        <span>{formatCurrency(parseFloat(item.amount))}</span>
+                      </div>
+                    ))}
+                    <div className="pl-row total">
+                      <span>Total Operating Income</span>
+                      <span>{formatCurrency(parseFloat(plStatement.revenue.total))}</span>
+                    </div>
+                  </div>
+
+                  {/* Expenses */}
+                  <div className="pl-group">
+                    <div className="pl-row group-header">
+                      <span>Operating Expenses</span>
+                      <span></span>
+                    </div>
+                    {plStatement.operating_expenses.items.map((item: any, i: number) => (
+                      <div key={i} className="pl-row indent">
+                        <span>{item.name}</span>
+                        <span>({formatCurrency(parseFloat(item.amount))})</span>
+                      </div>
+                    ))}
+                    <div className="pl-row total">
+                      <span>Total Operating Expenses</span>
+                      <span>({formatCurrency(parseFloat(plStatement.operating_expenses.total))})</span>
+                    </div>
+                  </div>
+
+                  {/* Performance Metrics */}
+                  <div className="pl-summary">
+                    <div className="pl-row highlighted">
+                      <span>NET OPERATING INCOME (NOI)</span>
+                      <span>{formatCurrency(parseFloat(plStatement.noi))}</span>
+                    </div>
+                    <div className="pl-row highlighted secondary">
+                      <span>EBITDA</span>
+                      <span>{formatCurrency(parseFloat(plStatement.ebitda))}</span>
+                    </div>
+                  </div>
+
+                  {/* Non-Operating */}
+                  <div className="pl-group">
+                    <div className="pl-row group-header">
+                      <span>Non-Operating Items</span>
+                      <span></span>
+                    </div>
+                    <div className="pl-row indent">
+                      <span>Interest Expense</span>
+                      <span>({formatCurrency(parseFloat(plStatement.interest_expense))})</span>
+                    </div>
+                    {parseFloat(plStatement.mortgage_principal) > 0 && (
+                      <div className="pl-row indent">
+                        <span>Mortgage Principal Payment</span>
+                        <span>({formatCurrency(parseFloat(plStatement.mortgage_principal))})</span>
+                      </div>
+                    )}
+                    {parseFloat(plStatement.installment_principal) > 0 && (
+                      <div className="pl-row indent">
+                        <span>Installment Principal Payment</span>
+                        <span>({formatCurrency(parseFloat(plStatement.installment_principal))})</span>
+                      </div>
+                    )}
+                    <div className="pl-row indent">
+                      <span>Depreciation & Amortization</span>
+                      <span>({formatCurrency(parseFloat(plStatement.depreciation_expense))})</span>
+                    </div>
+                    <div className="pl-row total">
+                      <span>Earnings Before Tax (EBT)</span>
+                      <span>{formatCurrency(parseFloat(plStatement.ebt))}</span>
+                    </div>
+                  </div>
+
+                  {/* Bottom Line */}
+                  <div className="pl-group">
+                    <div className="pl-row indent">
+                      <span>Income Tax Expense</span>
+                      <span>({formatCurrency(parseFloat(plStatement.tax_expense))})</span>
+                    </div>
+                  </div>
+
+                  <div className="pl-final">
+                    <div className="pl-row bottom-line">
+                      <span>NET INCOME / (LOSS)</span>
+                      <span>{formatCurrency(parseFloat(plStatement.net_income))}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       ) : (
         <div className="empty-state">
           <p>No ledger initialized for this portfolio yet.</p>
