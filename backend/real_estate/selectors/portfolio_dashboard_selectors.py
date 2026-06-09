@@ -126,6 +126,30 @@ class PortfolioDashboardSelector:
         total_noi = sum(m['metrics'].get('noi') or Decimal('0.00') for m in active_properties_metrics)
         total_debt_service = sum(m['metrics'].get('annual_debt_service') or Decimal('0.00') for m in active_properties_metrics)
         
+        # New: Current Year Operational Expenses
+        total_opex = sum(m['metrics'].get('total_operational_expenses') or Decimal('0.00') for m in active_properties_metrics)
+
+        # New: FFO Calculation
+        # FFO = Net Income + Depreciation - Gains on Sale
+        # Simplified for Dashboard: NOI - Interest + Depreciation
+        total_interest = Decimal('0.00')
+        total_depreciation = Decimal('0.00')
+        depreciation_rate = Decimal(str(assumptions.default_depreciation_rate)) / Decimal('100')
+
+        for m in active_properties_metrics:
+            prop_id = m['id']
+            prop_cf = cf_data['properties'].get(prop_id)
+            if prop_cf:
+                meta = prop_cf['metadata'].get(reference_date.year, {})
+                total_interest += meta.get('interest_expense', Decimal('0.00'))
+            
+            # Depreciation calculation
+            prop_purchase_price = m['property'].purchase_price or Decimal('0.00')
+            total_depreciation += (prop_purchase_price * depreciation_rate)
+
+        # FFO = (NOI - Interest) + Depreciation
+        total_ffo = (total_noi - total_interest) + total_depreciation
+
         # New: Portfolio vacancy rate as average across all active properties
         active_props_for_vacancy = [m for m in active_properties_metrics if m['status'] != "OFF_PLAN"]
         portfolio_vacancy_rate = Decimal('0.00')
@@ -193,7 +217,8 @@ class PortfolioDashboardSelector:
             # This represents how much cash the investor got (or has in the pot) relative to what they put in.
             flows_yield.append((reference_date, total_investments + cumulative_cf))
             
-            portfolio_irr = xirr(flows_total)
+            
+            portfolio_irr = float(portfolio_net_yield + (sum(Decimal(str(m['property'].appreciation_rate_percentage)) for m in active_properties_metrics) / len(active_properties_metrics) if active_properties_metrics else Decimal('0.00')))
             irr_yield = xirr(flows_yield)
             irr_capital_growth = portfolio_irr - irr_yield
 
@@ -205,6 +230,8 @@ class PortfolioDashboardSelector:
             "realized_gains": total_realized_gains,
             "total_annual_rent": total_annual_rent,
             "total_noi": total_noi,
+            "total_opex": total_opex,
+            "total_ffo": total_ffo,
             "total_annual_debt_service": total_debt_service,
             "net_cash_flow_y1": y1_net_cf,
             "portfolio_gross_yield": portfolio_gross_yield,
@@ -212,7 +239,7 @@ class PortfolioDashboardSelector:
             "portfolio_roi": portfolio_roi,
             "portfolio_vacancy_rate": portfolio_vacancy_rate,
             "portfolio_avg_appreciation": sum(Decimal(str(m['property'].appreciation_rate_percentage)) for m in active_properties_metrics) / len(active_properties_metrics) if active_properties_metrics else Decimal('0.00'),
-            "portfolio_simple_irr": portfolio_net_yield + (sum(Decimal(str(m['property'].appreciation_rate_percentage)) for m in active_properties_metrics) / len(active_properties_metrics) if active_properties_metrics else Decimal('0.00')),
+            "portfolio_simple_irr": portfolio_irr,
             "portfolio_irr": Decimal(str(portfolio_irr * 100)).quantize(Decimal('0.01')),
             "irr_yield": Decimal(str(irr_yield * 100)).quantize(Decimal('0.01')),
             "irr_capital_growth": Decimal(str(irr_capital_growth * 100)).quantize(Decimal('0.01'))

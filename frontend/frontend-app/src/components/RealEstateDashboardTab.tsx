@@ -18,11 +18,17 @@ interface DashboardData {
     realized_gains: number;
     total_annual_rent: number;
     total_noi: number;
+    total_opex: number;
+    total_ffo: number;
     total_annual_debt_service: number;
     net_cash_flow_y1: number;
     portfolio_gross_yield: number;
     portfolio_net_yield: number;
     portfolio_roi: number;
+    portfolio_vacancy_rate: number;
+    portfolio_irr: number;
+    irr_yield: number;
+    irr_capital_growth: number;
   };
   distribution: {
     by_type: { type: string; value: number; percentage: number }[];
@@ -251,25 +257,52 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
       <style>{`
         .metrics-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
           gap: 1rem;
-          margin-bottom: 2rem;
+        }
+        .metrics-container {
+          background: #ffffff;
+          border-radius: 12px;
+          border: 1px solid #e2e8f0;
+          padding: 1.25rem;
+          margin-bottom: 1.5rem;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .metrics-container-header {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          margin-bottom: 1rem;
+          padding-bottom: 0.75rem;
+          border-bottom: 1px solid #f1f5f9;
+        }
+        .metrics-container-title {
+          font-size: 0.9rem;
+          font-weight: 700;
+          color: #475569;
+          text-transform: uppercase;
+          letter-spacing: 0.025em;
         }
         .metric-card {
-          padding: 1.25rem;
-          background: #f1f5f9;
-          border-radius: 10px;
+          padding: 1rem;
+          background: #f8fafc;
+          border-radius: 8px;
           border: 1px solid #e2e8f0;
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .metric-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
         }
         .metric-label {
-          font-size: 0.75rem;
+          font-size: 0.65rem;
           color: #64748b;
           font-weight: 600;
           text-transform: uppercase;
-          margin-bottom: 0.5rem;
+          margin-bottom: 0.35rem;
         }
         .metric-value {
-          font-size: 1.25rem;
+          font-size: 1.1rem;
           font-weight: 700;
           color: #0f172a;
         }
@@ -329,73 +362,118 @@ const RealEstateDashboardTab: React.FC<{ portfolioId: string }> = ({ portfolioId
 
       {/* Section 1: Metrics & Distribution */}
       <DashboardSection title="Portfolio Overview & Capital Distribution" id="overview">
-        <div className="metrics-grid">
-          {ledgerStatus && (
-            <div className="metric-card" style={{ 
-              background: ledgerStatus.balanced ? '#f0fdf4' : '#fef2f2', 
-              border: ledgerStatus.balanced ? '1px solid #bbf7d0' : '1px solid #fecaca' 
+        {ledgerStatus && (
+          <div style={{ 
+            background: ledgerStatus.balanced ? '#f0fdf4' : '#fef2f2', 
+            border: ledgerStatus.balanced ? '1px solid #bbf7d0' : '1px solid #fecaca',
+            padding: '0.6rem 1rem',
+            borderRadius: '8px',
+            marginBottom: '1.25rem',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.6rem'
+          }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>Ledger Status ({ledgerStatus.year}):</span>
+            <span style={{ 
+              color: ledgerStatus.balanced ? '#166534' : '#991b1b', 
+              fontWeight: 700,
+              fontSize: '0.8rem'
             }}>
-              <div className="metric-label">Ledger Status ({ledgerStatus.year})</div>
-              <div className="metric-value" style={{ 
-                color: ledgerStatus.balanced ? '#166534' : '#991b1b', 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '0.5rem',
-                fontSize: '1.1rem'
-              }}>
-                {ledgerStatus.balanced ? '✅ Balanced' : '⚠️ Unbalanced'}
+              {ledgerStatus.balanced ? '✅ Balanced' : '⚠️ Unbalanced'}
+            </span>
+          </div>
+        )}
+
+        <div className="metrics-container">
+          <div className="metrics-container-header">
+            <span style={{fontSize: '1.1rem'}}>🏢</span>
+            <div className="metrics-container-title">Asset Value & Equity</div>
+          </div>
+          <div className="metrics-grid">
+            <div className="metric-card">
+              <div className="metric-label">Active Properties</div>
+              <div className="metric-value">{metrics.property_count_active}</div>
+            </div>
+            <div className="metric-card">
+              <div className="metric-label">Market Value</div>
+              <div className="metric-value">{formatCurrency(metrics.portfolio_market_value)}</div>
+            </div>
+            <div className="metric-card">
+              <div className="metric-label">Invested Capital</div>
+              <div className="metric-value">{formatCurrency(metrics.total_invested_capital)}</div>
+            </div>
+            <div className="metric-card">
+              <div className="metric-label">Unrealized Gains</div>
+              <div className="metric-value" style={{ color: '#10b981' }}>{formatCurrency(metrics.unrealized_gains)}</div>
+            </div>
+            <div className="metric-card">
+              <div className="metric-label">Realized Gains (Sales)</div>
+              <div className="metric-value" style={{ color: '#059669' }}>{formatCurrency(metrics.realized_gains)}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="metrics-container">
+          <div className="metrics-container-header">
+            <span style={{fontSize: '1.1rem'}}>💸</span>
+            <div className="metrics-container-title">Income & Operations ({currentYear})</div>
+          </div>
+          <div className="metrics-grid">
+            <div className="metric-card">
+              <div className="metric-label">Annual Rent (Gross)</div>
+              <div className="metric-value">{formatCurrency(metrics.total_annual_rent)}</div>
+            </div>
+            <div className="metric-card">
+              <div className="metric-label">Total NOI</div>
+              <div className="metric-value">{formatCurrency(metrics.total_noi)}</div>
+            </div>
+            <div className="metric-card" style={{ borderLeft: '4px solid #f43f5e' }}>
+              <div className="metric-label">Operating Expenses</div>
+              <div className="metric-value" style={{ color: '#e11d48' }}>{formatCurrency(metrics.total_opex)}</div>
+            </div>
+            <div className="metric-card" style={{ borderLeft: '4px solid #3b82f6' }}>
+              <div className="metric-label">FFO (Funds From Ops)</div>
+              <div className="metric-value" style={{ color: '#2563eb' }}>{formatCurrency(metrics.total_ffo)}</div>
+            </div>
+            <div className="metric-card">
+              <div className="metric-label">Debt Service</div>
+              <div className="metric-value">{formatCurrency(metrics.total_annual_debt_service)}</div>
+            </div>
+            <div className="metric-card">
+              <div className="metric-label">Net Cash Flow (Y1)</div>
+              <div className="metric-value" style={{ color: metrics.net_cash_flow_y1 >= 0 ? '#10b981' : '#ef4444' }}>
+                {formatCurrency(metrics.net_cash_flow_y1)}
               </div>
             </div>
-          )}
-          <div className="metric-card">
-            <div className="metric-label">Active Properties</div>
-            <div className="metric-value">{metrics.property_count_active}</div>
           </div>
-          <div className="metric-card">
-            <div className="metric-label">Market Value</div>
-            <div className="metric-value">{formatCurrency(metrics.portfolio_market_value)}</div>
+        </div>
+
+        <div className="metrics-container">
+          <div className="metrics-container-header">
+            <span style={{fontSize: '1.1rem'}}>📈</span>
+            <div className="metrics-container-title">Performance & Returns</div>
           </div>
-          <div className="metric-card">
-            <div className="metric-label">Invested Capital</div>
-            <div className="metric-value">{formatCurrency(metrics.total_invested_capital)}</div>
-          </div>
-          <div className="metric-card">
-            <div className="metric-label">Unrealized Gains</div>
-            <div className="metric-value" style={{ color: '#10b981' }}>{formatCurrency(metrics.unrealized_gains)}</div>
-          </div>
-          <div className="metric-card">
-            <div className="metric-label">Realized Gains</div>
-            <div className="metric-value" style={{ color: '#059669' }}>{formatCurrency(metrics.realized_gains)}</div>
-          </div>
-          <div className="metric-card">
-            <div className="metric-label">Annual Rent (Gross)</div>
-            <div className="metric-value">{formatCurrency(metrics.total_annual_rent)}</div>
-          </div>
-          <div className="metric-card">
-            <div className="metric-label">Total NOI</div>
-            <div className="metric-value">{formatCurrency(metrics.total_noi)}</div>
-          </div>
-          <div className="metric-card">
-            <div className="metric-label">Installments</div>
-            <div className="metric-value">{formatCurrency(metrics.total_annual_debt_service)}</div>
-          </div>
-          <div className="metric-card">
-            <div className="metric-label">Net Cash Flow (Y1)</div>
-            <div className="metric-value" style={{ color: metrics.net_cash_flow_y1 >= 0 ? '#10b981' : '#ef4444' }}>
-              {formatCurrency(metrics.net_cash_flow_y1)}
+          <div className="metrics-grid">
+            <div className="metric-card">
+              <div className="metric-label">Gross Yield</div>
+              <div className="metric-value">{formatPercent(metrics.portfolio_gross_yield)}</div>
             </div>
-          </div>
-          <div className="metric-card">
-            <div className="metric-label">Gross Yield</div>
-            <div className="metric-value">{formatPercent(metrics.portfolio_gross_yield)}</div>
-          </div>
-          <div className="metric-card">
-            <div className="metric-label">Net Yield</div>
-            <div className="metric-value">{formatPercent(metrics.portfolio_net_yield)}</div>
-          </div>
-          <div className="metric-card" style={{ background: '#e0f2fe' }}>
-            <div className="metric-label">Portfolio ROI</div>
-            <div className="metric-value" style={{ color: '#0369a1' }}>{formatPercent(metrics.portfolio_roi)}</div>
+            <div className="metric-card">
+              <div className="metric-label">Net Yield</div>
+              <div className="metric-value">{formatPercent(metrics.portfolio_net_yield)}</div>
+            </div>
+            <div className="metric-card" style={{ background: '#e0f2fe' }}>
+              <div className="metric-label">Portfolio ROI</div>
+              <div className="metric-value" style={{ color: '#0369a1' }}>{formatPercent(metrics.portfolio_roi)}</div>
+            </div>
+            <div className="metric-card">
+              <div className="metric-label">Equity IRR</div>
+              <div className="metric-value" style={{ color: '#7c3aed' }}>{formatPercent(metrics.portfolio_irr / 100)}</div>
+            </div>
+            <div className="metric-card">
+              <div className="metric-label">Vacancy Rate</div>
+              <div className="metric-value">{formatPercent(metrics.portfolio_vacancy_rate)}</div>
+            </div>
           </div>
         </div>
 
