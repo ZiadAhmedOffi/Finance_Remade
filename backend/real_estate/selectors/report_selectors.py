@@ -69,7 +69,22 @@ class RealEstateReportSelector:
         if dashboard_data['metrics']['portfolio_market_value'] > 0:
             ltv = (total_debt / dashboard_data['metrics']['portfolio_market_value']) * Decimal('100')
 
-        # 3. Add to response
+        # 3. Unit Distribution
+        total_units = portfolio.total_units
+        unit_distribution = []
+        if total_units > 0 and dashboard_data['metrics']['total_invested_capital'] > 0:
+            for prop_m in dashboard_data['value_gain_table']:
+                # Distribute units based on cost_basis proportion
+                prop_proportion = prop_m['cost_basis'] / dashboard_data['metrics']['total_invested_capital']
+                prop_units = (total_units * prop_proportion).quantize(Decimal('0.0001'))
+                unit_distribution.append({
+                    "id": prop_m['id'],
+                    "name": prop_m['name'],
+                    "units": prop_units,
+                    "percentage": (prop_proportion * Decimal('100')).quantize(Decimal('0.01'))
+                })
+
+        # 4. Add to response
         performance_data = {
             **dashboard_data,
             "institutional_metrics": {
@@ -85,7 +100,11 @@ class RealEstateReportSelector:
                 "structure": portfolio.structure,
                 "portfolio_lifecycle": portfolio.portfolio_lifecycle,
                 "reasons_to_invest": portfolio.reasons_to_invest,
+                "developer": portfolio.assumptions.developer if hasattr(portfolio, 'assumptions') else "",
+                "cover_image": portfolio.cover_image,
+                "total_units": total_units,
             },
+            "unit_distribution": unit_distribution,
             "reference_date": reference_date.isoformat(),
         }
         

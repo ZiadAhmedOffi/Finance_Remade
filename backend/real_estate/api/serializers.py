@@ -75,7 +75,7 @@ class RealEstatePortfolioSerializer(serializers.ModelSerializer):
         model = RealEstatePortfolio
         fields = [
             'id', 'name', 'description', 'region', 'cover_image', 'jurisdiction', 'jurisdiction_name',
-            'status', 'created_by_email', 'created_at',
+            'status', 'created_by_email', 'created_at', 'total_units',
             'assumptions', 'report_config',
             'overview', 'strategy', 'structure', 'portfolio_lifecycle', 'reasons_to_invest'
         ]

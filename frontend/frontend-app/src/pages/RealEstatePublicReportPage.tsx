@@ -25,6 +25,7 @@ const RealEstatePublicReportPage: React.FC = () => {
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [investmentAmount, setInvestmentAmount] = useState<number>(100000);
 
   useEffect(() => {
     const fetchReportData = async () => {
@@ -49,8 +50,24 @@ const RealEstatePublicReportPage: React.FC = () => {
   const textualInfo = performanceData?.portfolio_textual_info;
   const typeDistribution = performanceData?.distribution?.by_type || [];
   const countryDistribution = performanceData?.distribution?.by_country || [];
+  const unitDistribution = performanceData?.unit_distribution || [];
   const valueExpansion = performanceData?.value_expansion_ladder || [];
   const properties = performanceData?.value_gain_table || [];
+
+  const calculatorData = useMemo(() => {
+    if (!metrics?.portfolio_avg_appreciation) return [];
+    const appreciationRate = metrics.portfolio_avg_appreciation / 100;
+    const data = [];
+    for (let year = 0; year <= 10; year++) {
+      const value = investmentAmount * Math.pow(1 + appreciationRate, year);
+      data.push({
+        year: `Year ${year}`,
+        value: Math.round(value),
+        appreciation: Math.round(value - investmentAmount),
+      });
+    }
+    return data;
+  }, [investmentAmount, metrics?.portfolio_avg_appreciation]);
 
   const config = useMemo(() => {
     const rawConfig = report?.config_json?.report_config;
@@ -58,6 +75,8 @@ const RealEstatePublicReportPage: React.FC = () => {
         return {
             sections: [
                 { id: "overview", title: "Portfolio Overview", enabled: true },
+                { id: "units", title: "Digital Units & Asset Backing", enabled: true },
+                { id: "calculator", title: "Investment Appreciation Calculator", enabled: true },
                 { id: "allocation", title: "Strategic Allocation", enabled: true },
                 { id: "growth", title: "Capital Appreciation", enabled: true },
                 { id: "financing", title: "Debt & Financing", enabled: true },
@@ -65,8 +84,29 @@ const RealEstatePublicReportPage: React.FC = () => {
             ]
         };
     }
-    return rawConfig;
+    
+    // Inject new sections if not present in saved config
+    const sections = [...rawConfig.sections];
+    if (!sections.find(s => s.id === 'units')) {
+      sections.splice(1, 0, { id: "units", title: "Digital Units & Asset Backing", enabled: true });
+    }
+    if (!sections.find(s => s.id === 'calculator')) {
+      sections.splice(2, 0, { id: "calculator", title: "Investment Appreciation Calculator", enabled: true });
+    }
+    
+    return { ...rawConfig, sections };
   }, [report]);
+
+  const headerStyle = useMemo(() => {
+    const imageUrl = textualInfo?.cover_image || "";
+    if (!imageUrl) return {};
+    return {
+      backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.8), rgba(15, 23, 42, 0.8)), url("${imageUrl}")`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat'
+    };
+  }, [textualInfo?.cover_image]);
 
   if (loading) return (
     <div className="re-report-loading">
@@ -86,13 +126,18 @@ const RealEstatePublicReportPage: React.FC = () => {
 
   return (
     <div className="re-public-report-layout">
-      <header className="re-report-header">
+      <header className={`re-report-header ${textualInfo?.cover_image ? 're-header-immersive' : ''}`} style={headerStyle}>
         <div className="re-container">
           <div className="re-brand">Real Estate Intelligence | Institutional Reporting</div>
           <div className="re-header-content">
             <div className="re-title-group">
                 <h1>{report.name}</h1>
-                <span className="re-portfolio-tag">{report.portfolio_name}</span>
+                <div className="re-header-tags">
+                  <span className="re-portfolio-tag">{report.portfolio_name}</span>
+                  {textualInfo?.developer && (
+                    <span className="re-developer-tag">Developed by {textualInfo.developer}</span>
+                  )}
+                </div>
             </div>
             <div className="re-header-metrics">
                 <div className="re-h-metric">
@@ -100,7 +145,7 @@ const RealEstatePublicReportPage: React.FC = () => {
                     <span className="re-h-value">{formatCurrency(metrics?.portfolio_market_value, { notation: "compact" })}</span>
                 </div>
                 <div className="re-h-metric">
-                    <span className="re-h-label">LTV</span>
+                    <span className="re-h-label">Loan-to-Value</span>
                     <span className="re-h-value">{formatPercent(instMetrics?.ltv_percentage)}</span>
                 </div>
             </div>
@@ -158,6 +203,108 @@ const RealEstatePublicReportPage: React.FC = () => {
                         <span className="re-kpi-label">Portfolio ROI</span>
                         <span className="re-kpi-value">{formatPercent(metrics?.portfolio_roi)}</span>
                         <span className="re-kpi-sub">Total Return</span>
+                    </div>
+                  </div>
+                </section>
+              );
+
+            case 'units':
+              return (
+                <section key={section.id} className="re-section">
+                  <div className="re-section-header"><h2>{section.title || "Digital Units & Asset Backing"}</h2></div>
+                  <div className="re-prose">
+                    <p>The portfolio is divided into {formatNumber(Math.floor(textualInfo?.total_units || 0), { maximumFractionDigits: 0 })} digital units. Each unit represents a fractional interest in the underlying real estate assets, providing direct exposure to rental income and capital appreciation.</p>
+                  </div>
+                  <div className="re-units-container">
+                    <div className="re-units-visuals">
+                      <div className="re-total-units-card">
+                        <span className="re-u-label">Total Portfolio Units</span>
+                        <span className="re-u-value">{formatNumber(Math.floor(textualInfo?.total_units || 0), { maximumFractionDigits: 0 })}</span>
+                      </div>
+                      <div className="re-units-chart">
+                        <ResponsiveContainer width="100%" height={250}>
+                          <PieChart>
+                            <Pie 
+                              data={unitDistribution} 
+                              cx="50%" cy="50%" 
+                              innerRadius={60}
+                              outerRadius={80} 
+                              dataKey="units" 
+                              nameKey="name"
+                              paddingAngle={5}
+                            >
+                              {unitDistribution.map((_: any, index: number) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                            </Pie>
+                            <Tooltip formatter={(v: any) => formatNumber(Math.floor(v), { maximumFractionDigits: 0 })} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="re-chart-caption">Unit Distribution Map</div>
+                      </div>
+                    </div>
+                    <div className="re-units-table-wrapper">
+                      <table className="re-units-table">
+                        <thead>
+                          <tr>
+                            <th>Asset Name</th>
+                            <th>Units</th>
+                            <th>%</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {unitDistribution.map((u: any) => (
+                            <tr key={u.id}>
+                              <td>{u.name}</td>
+                              <td className="re-fw-bold">{formatNumber(Math.floor(u.units), { maximumFractionDigits: 0 })}</td>
+                              <td>{formatPercent(u.percentage)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </section>
+              );
+
+            case 'calculator':
+              return (
+                <section key={section.id} className="re-section re-calculator-section">
+                  <div className="re-section-header"><h2>{section.title || "Investment Appreciation Calculator"}</h2></div>
+                  <div className="re-calculator-layout">
+                    <div className="re-calc-inputs">
+                      <div className="re-calc-field">
+                        <label>Investment Amount</label>
+                        <div className="re-input-with-symbol">
+                          <span className="re-symbol">$</span>
+                          <input 
+                            type="number" 
+                            value={investmentAmount} 
+                            onChange={(e) => setInvestmentAmount(Number(e.target.value))}
+                            step="1000"
+                          />
+                        </div>
+                        <p className="re-hint">Adjust the amount to see projected appreciation based on the portfolio's average growth rate of {formatPercent(metrics?.portfolio_avg_appreciation)}.</p>
+                      </div>
+                      <div className="re-calc-summary">
+                        <div className="re-cs-item">
+                          <span className="re-cs-label">Value in 5 Years</span>
+                          <span className="re-cs-value">{formatCurrency(calculatorData[5]?.value)}</span>
+                        </div>
+                        <div className="re-cs-item">
+                          <span className="re-cs-label">Value in 10 Years</span>
+                          <span className="re-cs-value">{formatCurrency(calculatorData[10]?.value)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="re-calc-chart">
+                      <ResponsiveContainer width="100%" height={300}>
+                        <ComposedChart data={calculatorData}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis dataKey="year" />
+                          <YAxis tickFormatter={(v) => formatCurrency(v, { notation: "compact" })} />
+                          <Tooltip formatter={(v: any) => formatCurrency(v)} />
+                          <Bar dataKey="value" name="Projected Value" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                        </ComposedChart>
+                      </ResponsiveContainer>
                     </div>
                   </div>
                 </section>
@@ -243,10 +390,6 @@ const RealEstatePublicReportPage: React.FC = () => {
                         <div className="re-debt-card">
                             <span className="re-debt-label">Loan-to-Value (LTV)</span>
                             <span className="re-debt-value">{formatPercent(instMetrics?.ltv_percentage)}</span>
-                        </div>
-                        <div className="re-debt-card">
-                            <span className="re-debt-label">Interest Coverage Ratio</span>
-                            <span className="re-debt-value">{formatNumber(instMetrics?.interest_coverage_ratio, { maximumFractionDigits: 2 })}x</span>
                         </div>
                     </div>
                   </section>

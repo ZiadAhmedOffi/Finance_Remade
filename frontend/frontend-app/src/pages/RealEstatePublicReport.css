@@ -13,10 +13,13 @@
 }
 
 .re-report-header {
-    background: #1e293b;
+    background-color: #1e293b;
     color: white;
     padding: 3rem 0;
     border-bottom: 4px solid #3b82f6;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
 }
 
 .re-brand {
@@ -44,13 +47,220 @@
 
 .re-portfolio-tag {
     display: inline-block;
-    margin-top: 0.75rem;
     padding: 0.25rem 0.75rem;
     background: #334155;
     border-radius: 9999px;
     font-size: 0.875rem;
     font-weight: 600;
     color: #3b82f6;
+}
+
+.re-header-tags {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    align-items: center;
+}
+
+.re-developer-tag {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #94a3b8;
+}
+
+.re-header-immersive .re-developer-tag {
+    color: #cbd5e1;
+}
+
+.re-header-immersive {
+    padding: 6rem 0;
+    position: relative;
+    border-bottom: none;
+}
+
+.re-header-immersive::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #3b82f6, #7c3aed);
+}
+
+/* Units Section */
+.re-units-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-top: 1rem;
+    align-items: start;
+}
+
+.re-units-visuals {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.re-total-units-card {
+    background: #f1f5f9;
+    padding: 2rem;
+    border-radius: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    border: 1px solid #e2e8f0;
+}
+
+.re-u-label {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+}
+
+.re-u-value {
+    font-size: 3rem;
+    font-weight: 900;
+    color: #1e293b;
+    line-height: 1;
+}
+
+.re-units-chart {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.re-chart-caption {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    margin-top: 0.5rem;
+}
+
+.re-units-table-wrapper {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    overflow: hidden;
+}
+
+.re-units-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.re-units-table th {
+    background: #f8fafc;
+    padding: 1rem;
+    text-align: left;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: #64748b;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.re-units-table td {
+    padding: 1rem;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.875rem;
+}
+
+.re-fw-bold { font-weight: 700; }
+
+/* Calculator Section */
+.re-calculator-layout {
+    display: grid;
+    grid-template-columns: 400px 1fr;
+    gap: 3rem;
+}
+
+.re-calc-field label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #334155;
+    margin-bottom: 0.5rem;
+}
+
+.re-input-with-symbol {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.re-symbol {
+    position: absolute;
+    left: 1rem;
+    font-weight: 700;
+    color: #64748b;
+}
+
+.re-input-with-symbol input {
+    width: 100%;
+    padding: 0.75rem 1rem 0.75rem 2.25rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 0.5rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1e293b;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.re-input-with-symbol input:focus {
+    border-color: #3b82f6;
+}
+
+.re-hint {
+    margin-top: 0.75rem;
+    font-size: 0.875rem;
+    color: #64748b;
+}
+
+.re-calc-summary {
+    margin-top: 2rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.re-cs-item {
+    background: #f8fafc;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    border: 1px solid #e2e8f0;
+}
+
+.re-cs-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    margin-bottom: 0.25rem;
+}
+
+.re-cs-value {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #1e293b;
+}
+
+@media (max-width: 900px) {
+    .re-calculator-layout, .re-units-container {
+        grid-template-columns: 1fr;
+    }
 }
 
 .re-header-metrics {
@@ -171,7 +381,7 @@
 /* Debt Grid */
 .re-debt-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 2rem;
 }
 
