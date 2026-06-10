@@ -478,9 +478,13 @@ const REInvestorLogTab: React.FC<REInvestorLogTabProps> = ({ portfolioId, canEdi
                   <div className="text-[10px] text-gray-400 uppercase font-bold mb-1">Total Sources</div>
                   <div className="text-sm font-mono font-bold text-emerald-600">{formatCurrency(selectedYearData.sources)}</div>
                 </div>
-                <div className="col-span-2 bg-emerald-50 text-emerald-700 px-4 py-3 rounded-lg text-sm font-bold flex justify-between items-center border border-emerald-100">
-                  <span>{selectedYearData.uses > selectedYearData.sources ? 'Net Capital Call' : 'Cash Surplus'}</span>
-                  <span className="font-mono text-lg">{formatCurrency(selectedYearData.yearly_required)}</span>
+                <div className={`col-span-2 px-4 py-3 rounded-lg text-sm font-bold flex justify-between items-center border ${
+                  selectedYearData.uses > selectedYearData.sources 
+                    ? 'bg-red-50 text-red-700 border-red-100' 
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                }`}>
+                  <span>Net Capital Call</span>
+                  <span className="font-mono text-lg">{formatCurrency(selectedYearData.uses > selectedYearData.sources ? selectedYearData.yearly_required : 0)}</span>
                 </div>
               </div>
             )}
