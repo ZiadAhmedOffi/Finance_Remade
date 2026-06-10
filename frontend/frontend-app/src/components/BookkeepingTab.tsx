@@ -334,10 +334,6 @@ const BookkeepingTab: React.FC<BookkeepingTabProps> = ({ portfolioId, canEdit, i
                       <span>NET OPERATING INCOME (NOI)</span>
                       <span>{formatCurrency(parseFloat(plStatement.noi))}</span>
                     </div>
-                    <div className="pl-row highlighted secondary">
-                      <span>EBITDA</span>
-                      <span>{formatCurrency(parseFloat(plStatement.ebitda))}</span>
-                    </div>
                   </div>
 
                   {/* Non-Operating */}

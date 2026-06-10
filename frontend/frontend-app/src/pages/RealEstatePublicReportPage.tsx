@@ -83,7 +83,7 @@ const RealEstatePublicReportPage: React.FC = () => {
                 { id: "overview", title: "Portfolio Overview", enabled: true },
                 { id: "units", title: "Digital Units & Asset Backing", enabled: true },
                 { id: "calculator", title: "Investment Appreciation Calculator", enabled: true },
-                { id: "allocation", title: "Strategic Allocation", enabled: true },
+                { id: "allocation", title: "Capital Allocation", enabled: true },
                 { id: "growth", title: "Capital Appreciation", enabled: true },
                 { id: "financing", title: "Debt & Financing", enabled: true },
                 { id: "assets", title: "Asset Performance", enabled: true },
