@@ -24,11 +24,11 @@ from funds.services.report_service import ReportService
 from funds.utils import calculators
 from funds.utils.liquidityUtils import calculateLiquidityIndex
 from users.services.permission_service import PermissionService
-from funds.models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, InvestorAction, RiskAssessment, CurrentInvestorStats, PossibleCapitalSource, Report, InvestorRequest
+from funds.models import Fund, FundLog, ModelInput, InvestmentDeal, CurrentDeal, InvestmentRound, InvestorAction, RiskAssessment, CurrentInvestorStats, PossibleCapitalSource, Report, InvestorRequest, Distribution
 from funds.api.serializers import (
-    FundSerializer, 
-    FundLogSerializer, 
-    ModelInputSerializer, 
+    FundSerializer,
+    FundLogSerializer,
+    ModelInputSerializer,
     InvestmentDealSerializer,
     CurrentDealSerializer,
     InvestmentRoundSerializer,
@@ -36,8 +36,10 @@ from funds.api.serializers import (
     RiskAssessmentSerializer,
     PossibleCapitalSourceSerializer,
     ReportSerializer,
-    InvestorRequestSerializer
+    InvestorRequestSerializer,
+    DistributionSerializer
 )
+
 import math # Import math module
 from django.contrib.auth import get_user_model
 from funds.interfaces.user_service_adapter import UserServiceAdapter
@@ -921,6 +923,12 @@ class InvestorLogView(APIView):
         
         # 1. Investor Table Data
         investor_actions = InvestorAction.objects.filter(fund=fund).select_related('investor')
+        
+        # Get all role assignments for this fund to extract preferences
+        from users.models import UserRoleAssignment
+        assignments = UserRoleAssignment.objects.filter(fund=fund).select_related('user')
+        assignment_map = {str(a.user.id): {"id": str(a.id), "dividend_treatment": a.dividend_treatment} for a in assignments}
+        
         investor_data = {}
 
         total_fund_units = float(fund.total_units)
@@ -939,13 +947,18 @@ class InvestorLogView(APIView):
                 investor_data[investor_id]["units"] += float(action.units)
             elif action.type == "SECONDARY_EXIT":
                 investor_data[investor_id]["units"] -= float(action.units)
+            elif action.type == "DIVIDEND_REINVESTMENT":
+                investor_data[investor_id]["units"] += float(action.units)
 
         investors_list = []
         for inv_id, data in investor_data.items():
+            assignment_info = assignment_map.get(inv_id, {"id": None, "dividend_treatment": "DEFAULT"})
             ownership_pct = (data["units"] / total_fund_units * 100.0) if total_fund_units > 0 else 0.0
             investors_list.append({
                 **data,
-                "ownership_percentage": ownership_pct
+                "ownership_percentage": ownership_pct,
+                "assignment_id": assignment_info["id"],
+                "dividend_treatment": assignment_info["dividend_treatment"]
             })
 
         # 2. Graph Data
@@ -1110,6 +1123,27 @@ class DistributionDetailView(APIView):
         from funds.services.distribution_service import DistributionService
         DistributionService.delete_distribution(actor=request.user, distribution=distribution)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+class DistributionAllocateView(APIView):
+    """
+    Trigger allocation of a fund distribution to individual investors.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, distribution_id):
+        distribution = get_object_or_404(Distribution, id=distribution_id)
+        if not (PermissionService.is_super_admin(request.user) or PermissionService.is_sc_member(request.user, distribution.fund)):
+             return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        from funds.services.distribution_service import DistributionService
+        actions = DistributionService.distribute_to_investors(
+            actor=request.user,
+            distribution=distribution
+        )
+        return Response({
+            "message": f"Successfully allocated to {len(actions)} investors.",
+            "investor_count": len(actions)
+        }, status=status.HTTP_200_OK)
 
 class ReportListView(APIView):
     """

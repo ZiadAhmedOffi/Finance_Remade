@@ -42,6 +42,8 @@ interface InvestorLogData {
     email: string;
     units: number;
     ownership_percentage: number;
+    assignment_id: string | null;
+    dividend_treatment: "CASH" | "REINVEST" | "DEFAULT";
   }[];
   graph_data: {
     year: number;
@@ -130,6 +132,15 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId, canEdit }) => {
       setInvestors(response.data);
     } catch (err) {
       console.error("Error fetching investors:", err);
+    }
+  };
+
+  const handleUpdateDividendTreatment = async (assignmentId: string, treatment: string) => {
+    try {
+      await fundsApi.updateDividendTreatment(assignmentId, treatment);
+      fetchInvestorLog();
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Failed to update dividend treatment.");
     }
   };
 
@@ -497,6 +508,7 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId, canEdit }) => {
                 <th className="px-6 py-4 font-semibold">Email</th>
                 <th className="px-6 py-4 font-semibold text-right">Units Owned</th>
                 <th className="px-6 py-4 font-semibold text-right">Ownership %</th>
+                {canEdit && <th className="px-6 py-4 font-semibold">Div. Treatment</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -511,6 +523,23 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId, canEdit }) => {
                   <td className="px-6 py-4 text-sm text-right font-mono text-emerald-600 font-semibold">
                     {investor.ownership_percentage.toFixed(2)}%
                   </td>
+                  {canEdit && (
+                    <td className="px-6 py-4 text-sm">
+                      {investor.assignment_id ? (
+                        <select 
+                          value={investor.dividend_treatment}
+                          onChange={(e) => handleUpdateDividendTreatment(investor.assignment_id!, e.target.value)}
+                          className="bg-white border border-gray-300 rounded-lg px-2 py-1 text-gray-900 outline-none focus:border-emerald-500 text-xs"
+                        >
+                          <option value="DEFAULT">Default</option>
+                          <option value="CASH">Cash</option>
+                          <option value="REINVEST">Reinvest</option>
+                        </select>
+                      ) : (
+                        <span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase bg-gray-100 text-gray-500">No Role</span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

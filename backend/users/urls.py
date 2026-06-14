@@ -15,6 +15,7 @@ from users.api.views import (
     AuditLogView,
     ListRolesView,
     UserDetailView,
+    UpdateDividendTreatmentView,
 )
 
 urlpatterns = [
@@ -34,6 +35,7 @@ urlpatterns = [
     path("remove-role/<uuid:user_id>/", RemoveRoleView.as_view(), name="remove-role"),
     path("logs/", AuditLogView.as_view(), name="audit-logs"),
     path("roles/", ListRolesView.as_view(), name="list-roles"),
+    path("roles/<uuid:assignment_id>/dividend-treatment/", UpdateDividendTreatmentView.as_view(), name="update-dividend-treatment"),
 
     # --- User Profile ---
     path("me/", CurrentUserView.as_view(), name="current-user"),

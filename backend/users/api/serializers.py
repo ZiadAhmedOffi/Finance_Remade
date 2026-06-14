@@ -95,7 +95,7 @@ class UserRoleAssignmentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UserRoleAssignment
-        fields = ["id", "role", "fund", "fund_name", "real_estate_portfolio", "portfolio_name"]
+        fields = ["id", "role", "fund", "fund_name", "real_estate_portfolio", "portfolio_name", "dividend_treatment"]
 
 
 # -----------------------------

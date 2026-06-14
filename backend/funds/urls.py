@@ -29,7 +29,8 @@ from funds.api.views import (
     InvestorRequestListView,
     InvestorHoldingsView,
     DistributionListView,
-    DistributionDetailView
+    DistributionDetailView,
+    DistributionAllocateView
 )
 
 urlpatterns = [
@@ -51,6 +52,7 @@ urlpatterns = [
     
     path("<uuid:fund_id>/distributions/", DistributionListView.as_view(), name="distribution-list"),
     path("distributions/<uuid:distribution_id>/", DistributionDetailView.as_view(), name="distribution-detail"),
+    path("distributions/<uuid:distribution_id>/allocate/", DistributionAllocateView.as_view(), name="distribution-allocate"),
 
     path("<uuid:fund_id>/investment-rounds/", InvestmentRoundListView.as_view(), name="fund-investment-rounds"),
     path("<uuid:fund_id>/investment-rounds/<uuid:round_id>/", InvestmentRoundDetailView.as_view(), name="fund-investment-round-detail"),

@@ -373,6 +373,31 @@ class AuditLogView(APIView):
         serializer = AuditLogSerializer(result_page, many=True)
         return paginator.get_paginated_response(serializer.data)
 
+from users.models import User, Role, UserRoleAssignment
+...
+class UpdateDividendTreatmentView(APIView):
+    """
+    API view to update dividend treatment for a specific role assignment.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, assignment_id):
+        assignment = get_object_or_404(UserRoleAssignment, id=assignment_id)
+        
+        # Check permissions: Super Admin or SC Member of the fund
+        if not (PermissionService.is_super_admin(request.user) or 
+                PermissionService.is_sc_member(request.user, assignment.fund)):
+            return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        treatment = request.data.get("dividend_treatment")
+        if treatment not in ["CASH", "REINVEST", "DEFAULT"]:
+            return Response({"error": "Invalid treatment."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        assignment.dividend_treatment = treatment
+        assignment.save()
+        
+        return Response({"message": "Dividend treatment updated successfully."})
+
 # -----------------------------
 # Metadata Lists
 # -----------------------------

@@ -129,17 +129,16 @@ def calculate_investor_yield_history(investor, fund_data, re_data):
         # 1. Equity Funds Yield (Dividends)
         for fund_id, data in fund_data.items():
             fund = data["fund"]
-            investor_units = calculate_investor_units(investor, fund, yr)
-            total_fund_units = fund_selectors.get_total_units_at_year(fund, yr)
-            ownership_pct = (investor_units / total_fund_units) if total_fund_units > 0 else 0.0
             
-            fund_divs = Distribution.objects.filter(
-                fund=fund, 
-                type="DIVIDEND", 
-                date__year=yr
+            # Use actual InvestorAction records for robustness
+            fund_divs = InvestorAction.objects.filter(
+                investor=investor,
+                fund=fund,
+                type__in=["DIVIDEND_PAYOUT", "DIVIDEND_REINVESTMENT"],
+                year=yr
             ).aggregate(total=Sum('amount'))['total'] or 0.0
             
-            investor_share = float(fund_divs) * ownership_pct
+            investor_share = float(fund_divs)
             year_entry[fund.name] = investor_share
             total_yr_yield += investor_share
             

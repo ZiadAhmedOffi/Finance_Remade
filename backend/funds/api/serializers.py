@@ -93,6 +93,7 @@ class InvestmentRoundSerializer(serializers.ModelSerializer):
 
 class DistributionSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(source="deal.company_name", read_only=True, allow_null=True)
+    allocated = serializers.SerializerMethodField()
     
     class Meta:
         model = Distribution
@@ -104,10 +105,14 @@ class DistributionSerializer(serializers.ModelSerializer):
             "amount",
             "date",
             "type",
+            "allocated",
             "created_at",
             "updated_at",
         ]
         read_only_fields = ["id", "fund", "created_at", "updated_at"]
+
+    def get_allocated(self, obj):
+        return obj.investor_actions.exists()
 
 class InvestmentDealSerializer(serializers.ModelSerializer):
     """

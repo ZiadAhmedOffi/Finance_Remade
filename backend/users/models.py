@@ -164,6 +164,16 @@ class UserRoleAssignment(models.Model):
 
     assigned_at = models.DateTimeField(auto_now_add=True)
 
+    dividend_treatment = models.CharField(
+        max_length=20,
+        choices=[
+            ("CASH", "Cash Payout"),
+            ("REINVEST", "Reinvestment (DRIP)"),
+            ("DEFAULT", "Follow Fund Default"),
+        ],
+        default="DEFAULT"
+    )
+
     class Meta:
         unique_together = ("user", "role", "fund", "real_estate_portfolio")
         indexes = [

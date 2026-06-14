@@ -11,6 +11,7 @@ import AdminFeeTab from "../components/AdminFeeTab";
 import RiskAssessmentTab from "../components/RiskAssessmentTab";
 import InvestorLogTab from "../components/InvestorLogTab";
 import ReportsTab from "../components/ReportsTab";
+import DistributionsTab from "../components/DistributionsTab";
 
 interface ReasonToInvest {
   title: string;
@@ -54,6 +55,8 @@ interface Fund {
   report_config: any;
   steering_committee: string[];
   status: "ESTABLISHED" | "FUTURE" | "DEACTIVATED";
+  dividend_frequency: "QUARTERLY" | "BI_ANNUAL" | "ANNUAL";
+  default_dividend_treatment: "CASH" | "REINVEST";
 }
 
 interface FundLog {
@@ -69,7 +72,7 @@ const FundDashboard: React.FC = () => {
   const { fundId } = useParams<{ fundId: string }>();
   const navigate = useNavigate();
   
-  const [activeTab, setActiveTab] = useState<"model-inputs" | "deals" | "dashboard" | "aggregated-exits" | "risk" | "admin-fee" | "basic-info" | "logs" | "investor-log" | "reports">("dashboard");
+  const [activeTab, setActiveTab] = useState<"model-inputs" | "deals" | "dashboard" | "aggregated-exits" | "risk" | "admin-fee" | "basic-info" | "logs" | "investor-log" | "reports" | "distributions">("dashboard");
   const [fund, setFund] = useState<Fund | null>(null);
   const [logs, setLogs] = useState<FundLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,6 +104,9 @@ const FundDashboard: React.FC = () => {
   const [investmentComposition, setInvestmentComposition] = useState<CompositionEntry[]>([]);
   const [riskMeasures, setRiskMeasures] = useState<RiskMeasure[]>([]);
   
+  const [dividendFrequency, setDividendFrequency] = useState<"QUARTERLY" | "BI_ANNUAL" | "ANNUAL">("ANNUAL");
+  const [defaultDividendTreatment, setDefaultDividendTreatment] = useState<"CASH" | "REINVEST">("CASH");
+
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isSCMember, setIsSCMember] = useState(false);
 
@@ -143,6 +149,8 @@ const FundDashboard: React.FC = () => {
       setTargetAllocation(response.data.target_capital_allocation || []);
       setInvestmentComposition(response.data.investment_composition || []);
       setRiskMeasures(response.data.risk_measures || []);
+      setDividendFrequency(response.data.dividend_frequency || "ANNUAL");
+      setDefaultDividendTreatment(response.data.default_dividend_treatment || "CASH");
       checkPermissions(response.data);
       setError(null);
     } catch (err: any) {
@@ -209,6 +217,8 @@ const handleUpdateInfo = async (e: React.FormEvent) => {
       target_capital_allocation: targetAllocation,
       investment_composition: investmentComposition,
       risk_measures: riskMeasures,
+      dividend_frequency: dividendFrequency,
+      default_dividend_treatment: defaultDividendTreatment,
     });
     setMessage("Fund information updated successfully!");
     fetchFundData();
@@ -237,7 +247,10 @@ const handleUpdateInfo = async (e: React.FormEvent) => {
     { id: "model-inputs", label: "Model Inputs", icon: "⚙️" },
     { id: "aggregated-exits", label: "Aggregated Exits", icon: "📈" },
     { id: "risk", label: "Stability and Risk", icon: "⚖️" },
-    ...(canEdit ? [{ id: "investor-log", label: "Investor Log", icon: "📋" }] : []),
+    ...(canEdit ? [
+      { id: "investor-log", label: "Investor Log", icon: "📋" },
+      { id: "distributions", label: "Distributions", icon: "💸" }
+    ] : []),
     { id: "reports", label: "Reports", icon: "📄" },
     { id: "admin-fee", label: "Admin Fee", icon: "💰" },
     { id: "basic-info", label: "Basic Info", icon: "ℹ️" },
@@ -338,6 +351,10 @@ const handleUpdateInfo = async (e: React.FormEvent) => {
             <InvestorLogTab fundId={fundId} canEdit={canEdit} />
           )}
 
+          {activeTab === "distributions" && canEdit && fundId && (
+            <DistributionsTab fundId={fundId} canEdit={canEdit} />
+          )}
+
           {activeTab === "reports" && fundId && (
             <ReportsTab fundId={fundId} isAdmin={canEdit} />
           )}
@@ -410,6 +427,38 @@ const handleUpdateInfo = async (e: React.FormEvent) => {
                         />
                         <label htmlFor="sharia-compliant" style={{ marginBottom: 0 }}>Sharia Compliant</label>
                       </div>
+                    </div>
+
+                    <div className="content-card" style={{ marginTop: '2.5rem', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                      <h4 style={{ margin: '0 0 1.5rem 0' }}>Global Dividend Policy</h4>
+                      <div className="info-grid-edit" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                        <div className="form-group">
+                          <label>Dividend Frequency</label>
+                          <select 
+                            value={dividendFrequency} 
+                            onChange={(e) => setDividendFrequency(e.target.value as any)}
+                            className="form-input"
+                          >
+                            <option value="ANNUAL">Annual</option>
+                            <option value="BI_ANNUAL">Bi-Annual</option>
+                            <option value="QUARTERLY">Quarterly</option>
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label>Default Treatment (For 'DEFAULT' Investors)</label>
+                          <select 
+                            value={defaultDividendTreatment} 
+                            onChange={(e) => setDefaultDividendTreatment(e.target.value as any)}
+                            className="form-input"
+                          >
+                            <option value="CASH">Cash Payout</option>
+                            <option value="REINVEST">Reinvestment (DRIP)</option>
+                          </select>
+                        </div>
+                      </div>
+                      <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '1rem' }}>
+                        Changing these settings will update how future distributions are processed for all investors who haven't set a manual override.
+                      </p>
                     </div>
 
                     <div className="form-group" style={{ marginTop: '1.5rem' }}>

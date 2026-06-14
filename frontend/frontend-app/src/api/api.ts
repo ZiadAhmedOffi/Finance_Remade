@@ -114,6 +114,15 @@ export const fundsApi = {
     return api.get("/funds/investor-dashboard/", { params });
   },
 
+  // Distributions
+  getDistributions: (fundId: string) => api.get(`/funds/${fundId}/distributions/`),
+  createDistribution: (fundId: string, data: any) => api.post(`/funds/${fundId}/distributions/`, data),
+  updateDistribution: (distributionId: string, data: any) => api.patch(`/funds/distributions/${distributionId}/`, data),
+  deleteDistribution: (distributionId: string) => api.delete(`/funds/distributions/${distributionId}/`),
+  allocateDistribution: (distributionId: string) => api.post(`/funds/distributions/${distributionId}/allocate/`),
+  updateDividendTreatment: (assignmentId: string, treatment: string) => 
+    api.patch(`/users/roles/${assignmentId}/dividend-treatment/`, { dividend_treatment: treatment }),
+
   // Reports
   getReports: () => api.get("/funds/reports/"),
   createReport: (data: any) => api.post("/funds/reports/", data),

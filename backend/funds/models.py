@@ -28,6 +28,17 @@ class Fund(models.Model):
         ("YIELD", "Yield Focused"),
     ]
 
+    DIVIDEND_FREQUENCY_CHOICES = [
+        ("QUARTERLY", "Quarterly"),
+        ("BI_ANNUAL", "Bi-Annual"),
+        ("ANNUAL", "Annual"),
+    ]
+
+    DIVIDEND_TREATMENT_CHOICES = [
+        ("CASH", "Cash Payout"),
+        ("REINVEST", "REINVESTMENT (DRIP)"),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255, unique=True, db_index=True)
     description = models.TextField(blank=True)
@@ -46,6 +57,17 @@ class Fund(models.Model):
         choices=FOCUS_CHOICES, 
         blank=True,
         null=True
+    )
+
+    dividend_frequency = models.CharField(
+        max_length=20,
+        choices=DIVIDEND_FREQUENCY_CHOICES,
+        default="ANNUAL"
+    )
+    default_dividend_treatment = models.CharField(
+        max_length=20,
+        choices=DIVIDEND_TREATMENT_CHOICES,
+        default="CASH"
     )
     
     overview = models.TextField(blank=True)
@@ -447,6 +469,8 @@ class InvestorAction(models.Model):
         ("PRIMARY_INVESTMENT", "Primary Investment"),
         ("SECONDARY_INVESTMENT", "Secondary Investment"),
         ("SECONDARY_EXIT", "Secondary Exit"),
+        ("DIVIDEND_PAYOUT", "Dividend Payout (Cash)"),
+        ("DIVIDEND_REINVESTMENT", "Dividend Reinvestment"),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -462,7 +486,16 @@ class InvestorAction(models.Model):
     )
     type = models.CharField(max_length=30, choices=TYPE_CHOICES)
     year = models.PositiveIntegerField()
+    date = models.DateField(null=True, blank=True)
     
+    distribution = models.ForeignKey(
+        "Distribution",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="investor_actions"
+    )
+
     # Amount for Primary/Secondary Investment or Price Sold At for Secondary Exit
     amount = models.DecimalField(max_digits=30, decimal_places=2, null=True, blank=True)
     
@@ -549,6 +582,13 @@ class CurrentInvestorStats(models.Model):
                 relation.amount_invested = float(relation.amount_invested) * (1 - (float(action.units) / float(relation.units)))
                 relation.units = float(relation.units) - float(action.units)
                 relation.realized_gain = float(relation.realized_gain) + float(action.amount) - (float(relation.amount_invested) / float(relation.units) * float(action.units))
+            elif action.type == "DIVIDEND_PAYOUT":
+                relation.realized_gain = float(relation.realized_gain) + float(action.amount)
+            elif action.type == "DIVIDEND_REINVESTMENT":
+                relation.realized_gain = float(relation.realized_gain) + float(action.amount)
+                relation.amount_invested = float(relation.amount_invested) + float(action.amount)
+                relation.capital_deployed = float(relation.capital_deployed) + float(action.amount)
+                relation.units = float(relation.units) + float(action.units)
             else: 
                 relation.amount_invested = float(relation.amount_invested) + float(action.amount)
                 relation.capital_deployed = float(relation.capital_deployed) + float(action.amount)
@@ -558,6 +598,13 @@ class CurrentInvestorStats(models.Model):
                 relation.amount_invested = float(relation.amount_invested) / (1 - (float(action.units) / float(relation.units)))
                 relation.units = float(relation.units) -  float(action.units)
                 relation.realized_gain = float(relation.realized_gain) - float(action.amount) + (float(relation.amount_invested) / float(relation.units) * float(action.units))
+            elif action.type == "DIVIDEND_PAYOUT":
+                relation.realized_gain = float(relation.realized_gain) - float(action.amount)
+            elif action.type == "DIVIDEND_REINVESTMENT":
+                relation.realized_gain = float(relation.realized_gain) - float(action.amount)
+                relation.amount_invested = float(relation.amount_invested) - float(action.amount)
+                relation.capital_deployed = float(relation.capital_deployed) - float(action.amount)
+                relation.units = float(relation.units) - float(action.units)
             else:
                 relation.amount_invested = float(relation.amount_invested) - float(action.amount)
                 relation.units = float(relation.units) - float(action.units)
