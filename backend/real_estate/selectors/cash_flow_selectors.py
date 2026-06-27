@@ -330,7 +330,7 @@ class CashFlowSelectors:
                             "debt_service": debt_service.quantize(Decimal('0.01')),
                             "interest_expense": interest_expense.quantize(Decimal('0.01')),
                             "installments": installments.quantize(Decimal('0.01')),
-                            "purchase_price": (prop.purchase_price or Decimal('0')) if year == purchase_year and not is_off_plan_initial and prop.financing_type not in ["MORTGAGED", "PRIMARY_INSTALLMENTS"] else Decimal("0.00"),
+                            "purchase_price": (u_details.prep_cost if is_usufruct and u_details else (prop.purchase_price or Decimal('0'))) if year == purchase_year and not is_off_plan_initial and prop.financing_type not in ["MORTGAGED", "PRIMARY_INSTALLMENTS"] else Decimal("0.00"),
                             "down_payment": (installment_down_payment if prop.financing_type == "PRIMARY_INSTALLMENTS" else ((prop.purchase_price or Decimal('0')) - prop.financing.loan_amount if prop.financing_type == "MORTGAGED" and hasattr(prop, "financing") else Decimal("0.00"))) if year == purchase_year else Decimal("0.00"),
                             "construction_costs": construction_cost.quantize(Decimal('0.01')),
                             "sale_proceeds": net_sale_inflow.quantize(Decimal('0.01')),

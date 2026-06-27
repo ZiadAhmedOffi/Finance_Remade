@@ -34,14 +34,6 @@ class InvestorService:
             
             validated_data["units"] = units
             action = InvestorAction.objects.create(**validated_data)
-            
-            fund.total_units = float(fund.total_units) + units
-            fund.save(update_fields=["total_units"])
-
-            stats, _ = CurrentInvestorStats.objects.get_or_create(investor=investor, fund=fund)
-            stats.amount_invested = float(stats.amount_invested) + amount
-            stats.units = float(stats.units) + units
-            stats.save()
 
         elif action_type == "SECONDARY_EXIT":
             seller = validated_data["investor"] # investor field in SECONDARY_EXIT is the seller
@@ -64,13 +56,6 @@ class InvestorService:
             action = InvestorAction.objects.create(**validated_data)
             price = float(action.amount)
             
-            # Update seller stats
-            seller_stats, _ = CurrentInvestorStats.objects.get_or_create(investor=seller, fund=fund)
-            seller_stats.units = float(seller_stats.units) - units_transferred
-            # amount_invested reduction logic might depend on cost basis, but current views don't seem to reduce it here.
-            # However, realized_gain should probably be updated.
-            seller_stats.save()
-
             if buyer:
                 # Create a SECONDARY_INVESTMENT for the buyer
                 InvestorAction.objects.create(
@@ -84,11 +69,6 @@ class InvestorService:
                     investor_selling=seller,
                     units=units_transferred
                 )
-                # Update buyer stats
-                buyer_stats, _ = CurrentInvestorStats.objects.get_or_create(investor=buyer, fund=fund)
-                buyer_stats.amount_invested = float(buyer_stats.amount_invested) + price
-                buyer_stats.units = float(buyer_stats.units) + units_transferred
-                buyer_stats.save()
         
         else:
             action = InvestorAction.objects.create(**validated_data)
@@ -151,16 +131,6 @@ class InvestorService:
         target_user = action.investor
         units = float(action.units)
         
-        if action.type == "PRIMARY_INVESTMENT":
-            fund.total_units = float(fund.total_units) - units
-            fund.save(update_fields=["total_units"])
-            
-            stats = CurrentInvestorStats.objects.filter(investor=target_user, fund=fund).first()
-            if stats:
-                stats.amount_invested = float(stats.amount_invested) - float(action.amount or 0)
-                stats.units = float(stats.units) - units
-                stats.save()
-
         action.delete()
         
         FundLog.objects.create(

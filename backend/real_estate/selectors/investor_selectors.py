@@ -55,7 +55,7 @@ class RealEstateInvestorSelector:
         return {yr: {"total": float(data["net_required"]), "breakdown": data["breakdown"]} for yr, data in pipeline.items()}
 
     @staticmethod
-    def get_unified_capital_pipeline(portfolio: RealEstatePortfolio):
+    def get_unified_capital_pipeline(portfolio: RealEstatePortfolio, cf_data=None):
         """
         Unified pipeline blending Ledger actuals (for closed years) and 
         Cash Flow projections (for open/future years).
@@ -80,7 +80,8 @@ class RealEstateInvestorSelector:
         end_year = inception_year + assumptions.forecast_horizon - 1
         
         # 1. Get Projected Data (Base Scenario)
-        cf_data = CashFlowSelectors.get_portfolio_cash_flow(portfolio, force_base_scenario=True)
+        if cf_data is None:
+            cf_data = CashFlowSelectors.get_portfolio_cash_flow(portfolio, force_base_scenario=True)
         
         # 2. Get Closed Ledger Years
         closed_years = LedgerYear.objects.filter(portfolio=portfolio, is_closed=True).values_list('year', flat=True)

@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import date
 from django.utils import timezone
 from collections import defaultdict
 from ..models import RealEstatePortfolio, Property, PropertySale, RealEstateInvestorAction
@@ -14,17 +15,19 @@ class PortfolioDashboardSelector:
     """
 
     @staticmethod
-    def get_dashboard_data(portfolio: RealEstatePortfolio, reference_date=None) -> dict:
+    def get_dashboard_data(portfolio: RealEstatePortfolio, reference_date=None, properties=None, cf_data=None, sales_metrics=None, investments_list=None) -> dict:
         if reference_date is None:
             reference_date = timezone.now().date()
         
         # Prefetch related data for efficiency
-        properties = portfolio.properties.all().select_related(
-            'portfolio__assumptions', 
-            'financing', 
-            'off_plan_details',
-            'sale'
-        ).prefetch_related('milestones')
+        if properties is None:
+            properties = portfolio.properties.all().select_related(
+                'portfolio__assumptions', 
+                'financing', 
+                'off_plan_details',
+                'sale',
+                'usufruct_details'
+            ).prefetch_related('milestones')
         
         assumptions = portfolio.assumptions
         
@@ -77,7 +80,7 @@ class PortfolioDashboardSelector:
                 
                 # Debt Service for Yield Analysis
                 debt_service = Decimal('0.00')
-                if hasattr(prop, 'financing'):
+                if hasattr(prop, 'financing') and prop.financing is not None:
                     schedule = FinancingSelectors.get_amortization_schedule(prop.financing)
                     # Use current year debt service
                     current_year = reference_date.year
@@ -93,7 +96,8 @@ class PortfolioDashboardSelector:
 
         # 2. Aggregated Metrics (Section 1)
         # Cash Flow for Y1 Net Cash Flow and Realized Gains from operations
-        cf_data = CashFlowSelectors.get_portfolio_cash_flow(portfolio)
+        if cf_data is None:
+            cf_data = CashFlowSelectors.get_portfolio_cash_flow(portfolio)
         y1_net_cf = cf_data['portfolio_totals'].get(reference_date.year, Decimal('0.00'))
 
         # Calculate total realized gains from sales alone first
@@ -176,9 +180,20 @@ class PortfolioDashboardSelector:
         # 1. Total Return IRR: Flows = [-Injections, +Current Equity NAV]
         # 2. Yield IRR: Flows = [-Injections, +(Total Investments + Cumulative Operational Cash Flow)]
         
-        injections = RealEstateInvestorAction.objects.filter(portfolio=portfolio, type="PRIMARY_INVESTMENT").order_by('created_at')
+        if investments_list is not None:
+            injections = [inv for inv in investments_list if inv.type == "PRIMARY_INVESTMENT"]
+            injections.sort(key=lambda x: x.created_at)
+        else:
+            injections = list(RealEstateInvestorAction.objects.filter(portfolio=portfolio, type="PRIMARY_INVESTMENT").order_by('created_at'))
         from .portfolio_selectors import PortfolioSelectors
-        nav_metrics = PortfolioSelectors.get_portfolio_nav_metrics(portfolio, reference_date=reference_date)
+        nav_metrics = PortfolioSelectors.get_portfolio_nav_metrics(
+            portfolio, 
+            reference_date=reference_date,
+            properties=properties,
+            cf_data=cf_data,
+            sales_metrics=sales_metrics,
+            investments_list=investments_list
+        )
         
         # Correct Equity NAV: (Assets + Cash) - Liabilities
         equity_nav = float(nav_metrics["nav"])
@@ -523,4 +538,116 @@ class PortfolioDashboardSelector:
             },
             "off_plan_stages": off_plan_table,
             "yield_analysis": yield_analysis_table
+        }
+
+    @staticmethod
+    def get_card_summary(portfolio: RealEstatePortfolio) -> dict:
+        """
+        Lightweight summary payload for dashboard cards so the frontend does not
+        need to call the much heavier investor-log endpoint per portfolio.
+        """
+        from .portfolio_selectors import PortfolioSelectors
+        from .property_sale_selectors import PropertySaleSelector
+        from .cash_flow_selectors import CashFlowSelectors
+
+        reference_date = timezone.now().date()
+        assumptions = getattr(portfolio, "assumptions", None)
+        if not assumptions:
+            return {
+                "graph_data": [],
+                "nav_metrics": {
+                    "price_per_unit": 0.0,
+                    "nav": 0.0,
+                    "developer": "",
+                    "property_count_active": 0,
+                    "portfolio_irr": 0.0,
+                    "irr_yield": 0.0,
+                    "irr_capital_growth": 0.0,
+                    "weighted_occupancy": 0.0,
+                    "liquidation_index": 0,
+                    "annual_cash_flow_current": 0.0,
+                    "annual_cash_flow_prev": 0.0,
+                },
+            }
+
+        properties = list(portfolio.properties.all().select_related(
+            'portfolio__assumptions',
+            'financing',
+            'off_plan_details',
+            'sale',
+            'usufruct_details',
+            'installment',
+        ).prefetch_related('milestones'))
+        investments_list = list(portfolio.investor_actions.all())
+        current_year = reference_date.year
+        inception_year = assumptions.inception_date.year
+
+        cf_data = CashFlowSelectors.get_portfolio_cash_flow(
+            portfolio,
+            end_year=current_year,
+            force_base_scenario=True,
+        )
+        sales_metrics = PropertySaleSelector.get_sales_for_portfolio(portfolio)
+        nav_context = PortfolioSelectors.get_portfolio_nav_context(
+            portfolio,
+            start_year=inception_year,
+            end_year=current_year,
+            properties=properties,
+            cf_data=cf_data,
+            sales_metrics=sales_metrics,
+            investments_list=investments_list,
+        )
+
+        current_nav_metrics = PortfolioSelectors.get_portfolio_nav_metrics(
+            portfolio,
+            reference_date=reference_date,
+            properties=properties,
+            cf_data=cf_data,
+            sales_metrics=sales_metrics,
+            investments_list=investments_list,
+        )
+        dashboard_data = PortfolioDashboardSelector.get_dashboard_data(
+            portfolio,
+            reference_date=reference_date,
+            properties=properties,
+            cf_data=cf_data,
+            sales_metrics=sales_metrics,
+            investments_list=investments_list,
+        )
+
+        prev_ref_date = date(current_year - 1, 12, 31)
+        prev_dashboard_data = PortfolioDashboardSelector.get_dashboard_data(
+            portfolio,
+            reference_date=prev_ref_date,
+            properties=properties,
+            cf_data=cf_data,
+            sales_metrics=sales_metrics,
+            investments_list=investments_list,
+        )
+
+        aggregated = dashboard_data.get("metrics", {})
+        graph_data = [
+            {
+                "year": year,
+                "portfolio_value": metrics["nav"],
+            }
+            for year, metrics in sorted(nav_context.get("years", {}).items())
+            if year <= current_year
+        ]
+
+        return {
+            "graph_data": graph_data,
+            "nav_metrics": {
+                "price_per_unit": float(current_nav_metrics["price_per_unit"]),
+                "nav": float(current_nav_metrics["nav"]),
+                "developer": assumptions.developer,
+                "property_count_active": aggregated.get("property_count_active", 0),
+                "portfolio_irr": float(aggregated.get("portfolio_simple_irr", 0)),
+                "irr_yield": float(aggregated.get("portfolio_net_yield", 0)),
+                "irr_capital_growth": float(aggregated.get("portfolio_avg_appreciation", 0)),
+                "weighted_occupancy": float(100.0 - float(aggregated.get("portfolio_vacancy_rate", 0))),
+                "liquidation_index": dashboard_data.get("liquidation_index", {}).get("portfolio_average", 0),
+                "annual_cash_flow_current": float(aggregated.get("net_cash_flow_y1", 0)),
+                "annual_cash_flow_prev": float(prev_dashboard_data.get("metrics", {}).get("net_cash_flow_y1", 0)),
+            },
         }

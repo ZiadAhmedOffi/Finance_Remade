@@ -24,6 +24,7 @@ coverage/
 
 # Agentic Coding
 .gemini/
+.agents/
 docs/
 GEMINI.md
 

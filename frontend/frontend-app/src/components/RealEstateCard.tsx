@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../api/api";
 import {
   AreaChart,
   ResponsiveContainer,
@@ -15,6 +14,22 @@ interface RealEstatePortfolio {
   description: string;
   region: string;
   cover_image?: string;
+  card_metrics?: {
+    graph_data?: { year: number; portfolio_value: number }[];
+    nav_metrics?: {
+      price_per_unit?: number;
+      nav?: number;
+      developer?: string;
+      property_count_active?: number;
+      portfolio_irr?: number;
+      irr_yield?: number;
+      irr_capital_growth?: number;
+      weighted_occupancy?: number;
+      liquidation_index?: number;
+      annual_cash_flow_current?: number;
+      annual_cash_flow_prev?: number;
+    };
+  };
 }
 
 interface RealEstateCardProps {
@@ -22,9 +37,6 @@ interface RealEstateCardProps {
 }
 
 const RealEstateCard: React.FC<RealEstateCardProps> = ({ portfolio }) => {
-  const [investorLog, setInvestorLog] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
   const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=2070&auto=format&fit=crop";
   const [imgSrc, setImgSrc] = useState(portfolio.cover_image || FALLBACK_IMAGE);
 
@@ -32,25 +44,9 @@ const RealEstateCard: React.FC<RealEstateCardProps> = ({ portfolio }) => {
     setImgSrc(portfolio.cover_image || FALLBACK_IMAGE);
   }, [portfolio.cover_image]);
 
-  useEffect(() => {
-    const fetchInvestorLog = async () => {
-      try {
-        const response = await api.get(`/real-estate/${portfolio.id}/investor-log/`);
-        setInvestorLog(response.data);
-      } catch (err) {
-        console.error(`Failed to fetch investor log for portfolio ${portfolio.id}`, err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchInvestorLog();
-  }, [portfolio.id]);
-
-  if (loading) return <div className="fund-card-immersive skeleton"></div>;
-
   const currentYear = new Date().getFullYear();
-  const graphData = (investorLog?.graph_data || []).filter((item: any) => item.year <= currentYear);
-  const m = investorLog?.nav_metrics || {};
+  const graphData = (portfolio.card_metrics?.graph_data || []).filter((item) => item.year <= currentYear);
+  const m = portfolio.card_metrics?.nav_metrics || {};
 
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact" }).format(val);
@@ -133,7 +129,7 @@ const RealEstateCard: React.FC<RealEstateCardProps> = ({ portfolio }) => {
               </div>
               <div className="kpi-item">
                 <span className="lab">Occupancy</span>
-                <span className="val">{formatPercent(m.weighted_occupancy)}</span>
+                <span className="val">{formatPercent(m.weighted_occupancy || 0)}</span>
               </div>
             </div>
           </div>

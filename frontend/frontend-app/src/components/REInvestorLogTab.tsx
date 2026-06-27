@@ -284,8 +284,12 @@ const REInvestorLogTab: React.FC<REInvestorLogTabProps> = ({ portfolioId, canEdi
 
   useEffect(() => {
     fetchInvestorLog();
-    fetchInvestors();
   }, [portfolioId]);
+
+  useEffect(() => {
+    if (!canEdit || !showModal || investors.length > 0) return;
+    fetchInvestors();
+  }, [canEdit, showModal, investors.length]);
 
   useEffect(() => {
     if (data?.graph_data) {
@@ -336,22 +340,19 @@ const REInvestorLogTab: React.FC<REInvestorLogTabProps> = ({ portfolioId, canEdi
         lightGreenArea: [invested, withPossible]
       };
     });
-
-    if (results.length > 0) {
-      if (!selectedYearData) {
-        const curYear = new Date().getFullYear();
-        const match = results.find(r => r.year === curYear) || results[results.length - 1];
-        setSelectedYearData(match);
-      }
-      if (!selectedCompYearData) {
-        const curYear = new Date().getFullYear();
-        const match = results.find(r => r.year === curYear) || results[results.length - 1];
-        setSelectedCompYearData(match);
-      }
-    }
     
     return results;
-  }, [data?.graph_data, selectedYearData, selectedCompYearData]);
+  }, [data?.graph_data]);
+
+  useEffect(() => {
+    if (processedGraphData.length === 0) return;
+
+    const currentYear = new Date().getFullYear();
+    const fallback = processedGraphData.find(r => r.year === currentYear) || processedGraphData[processedGraphData.length - 1];
+
+    setSelectedYearData((prev: any) => (prev ? prev : fallback));
+    setSelectedCompYearData((prev: any) => (prev ? prev : fallback));
+  }, [processedGraphData]);
 
   if (loading) return <div className="p-4 text-gray-400">Loading investor log...</div>;
   if (error) return <div className="p-4 text-red-500">{error}</div>;

@@ -143,7 +143,10 @@ export const fundsApi = {
 };
 
 export const realEstateApi = {
-  getPortfolios: () => api.get("/real-estate/"),
+  getPortfolios: (includeCardMetrics?: boolean) => {
+    const params = includeCardMetrics ? { include_card_metrics: true } : {};
+    return api.get("/real-estate/", { params });
+  },
   getPortfolio: (id: string) => api.get(`/real-estate/${id}/`),
   getDashboard: (id: string, referenceDate?: string) => {
     const params = referenceDate ? { reference_date: referenceDate } : {};

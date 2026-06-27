@@ -471,6 +471,8 @@ class InvestorAction(models.Model):
         ("SECONDARY_EXIT", "Secondary Exit"),
         ("DIVIDEND_PAYOUT", "Dividend Payout (Cash)"),
         ("DIVIDEND_REINVESTMENT", "Dividend Reinvestment"),
+        ("EXIT_PAYOUT", "Exit Payout (Cash)"),
+        ("EXIT_REINVESTMENT", "Exit Reinvestment"),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -573,43 +575,64 @@ class CurrentInvestorStats(models.Model):
         return f"{self.investor.email} - {self.fund.name} - ({self.amount_invested})"
     
     @staticmethod
-    def recalculate_investor_stats(action, investor, fund, signal):
-        """A method to be used whenever investor actions are added or deleted"""
-        relation, created = locked_get_or_create(CurrentInvestorStats,investor = investor, fund = fund)
-        print(created)
-        if signal == "save":  
-            if action.type == "SECONDARY_EXIT":
-                relation.amount_invested = float(relation.amount_invested) * (1 - (float(action.units) / float(relation.units)))
-                relation.units = float(relation.units) - float(action.units)
-                relation.realized_gain = float(relation.realized_gain) + float(action.amount) - (float(relation.amount_invested) / float(relation.units) * float(action.units))
-            elif action.type == "DIVIDEND_PAYOUT":
-                relation.realized_gain = float(relation.realized_gain) + float(action.amount)
-            elif action.type == "DIVIDEND_REINVESTMENT":
-                relation.realized_gain = float(relation.realized_gain) + float(action.amount)
-                relation.amount_invested = float(relation.amount_invested) + float(action.amount)
-                relation.capital_deployed = float(relation.capital_deployed) + float(action.amount)
-                relation.units = float(relation.units) + float(action.units)
-            else: 
-                relation.amount_invested = float(relation.amount_invested) + float(action.amount)
-                relation.capital_deployed = float(relation.capital_deployed) + float(action.amount)
-                relation.units = float(relation.units) + float(action.units)
-        elif signal == "delete":
-            if action.type == "SECONDARY_EXIT":
-                relation.amount_invested = float(relation.amount_invested) / (1 - (float(action.units) / float(relation.units)))
-                relation.units = float(relation.units) -  float(action.units)
-                relation.realized_gain = float(relation.realized_gain) - float(action.amount) + (float(relation.amount_invested) / float(relation.units) * float(action.units))
-            elif action.type == "DIVIDEND_PAYOUT":
-                relation.realized_gain = float(relation.realized_gain) - float(action.amount)
-            elif action.type == "DIVIDEND_REINVESTMENT":
-                relation.realized_gain = float(relation.realized_gain) - float(action.amount)
-                relation.amount_invested = float(relation.amount_invested) - float(action.amount)
-                relation.capital_deployed = float(relation.capital_deployed) - float(action.amount)
-                relation.units = float(relation.units) - float(action.units)
-            else:
-                relation.amount_invested = float(relation.amount_invested) - float(action.amount)
-                relation.units = float(relation.units) - float(action.units)
+    def recalculate_investor_stats(investor, fund):
+        """
+        Recalculates investor statistics and fund total units from scratch.
+        Ensures robustness against updates and duplicate signals.
+        """
+        relation, _ = locked_get_or_create(CurrentInvestorStats, investor=investor, fund=fund)
+        
+        actions = InvestorAction.objects.filter(investor=investor, fund=fund).order_by('year', 'created_at')
+        
+        total_amount_invested = 0.0
+        total_capital_deployed = 0.0
+        total_realized_gain = 0.0
+        total_units = 0.0
 
+        for action in actions:
+            amount = float(action.amount or 0.0)
+            units = float(action.units or 0.0)
+
+            if action.type == "SECONDARY_EXIT":
+                if total_units > 0:
+                    cost_basis_per_unit = total_amount_invested / total_units
+                    cost_basis_of_sale = cost_basis_per_unit * units
+                    total_realized_gain += (amount - cost_basis_of_sale)
+                    total_amount_invested -= cost_basis_of_sale
+                    total_units -= units
+                else:
+                    total_units -= units
+            elif action.type in ["DIVIDEND_PAYOUT", "EXIT_PAYOUT"]:
+                total_realized_gain += amount
+            elif action.type in ["DIVIDEND_REINVESTMENT", "EXIT_REINVESTMENT"]:
+                total_realized_gain += amount
+                total_amount_invested += amount
+                total_capital_deployed += amount
+                total_units += units
+            else: # PRIMARY_INVESTMENT, SECONDARY_INVESTMENT
+                total_amount_invested += amount
+                total_units += units
+                if action.type == "PRIMARY_INVESTMENT":
+                    total_capital_deployed += amount
+
+        relation.amount_invested = total_amount_invested
+        relation.capital_deployed = total_capital_deployed
+        relation.realized_gain = total_realized_gain
+        relation.units = total_units
         relation.save()
+
+        # Update Fund Total Units from scratch too
+        all_primary_reinvest_actions = InvestorAction.objects.filter(
+            fund=fund, 
+            type__in=["PRIMARY_INVESTMENT", "DIVIDEND_REINVESTMENT", "EXIT_REINVESTMENT"]
+        )
+        new_total_fund_units = sum(float(a.units or 0) for a in all_primary_reinvest_actions)
+        
+        # Also need to handle SECONDARY_EXIT if they reduce total fund units (buybacks)
+        # But per current logic, SECONDARY_EXIT only reduces investor's units, not fund's.
+        
+        fund.total_units = new_total_fund_units
+        fund.save(update_fields=["total_units"])
 
 class Distribution(models.Model):
     """

@@ -20,6 +20,22 @@ interface RealEstatePortfolio {
   region: string;
   status: "ACTIVE" | "DEACTIVATED";
   cover_image?: string;
+  card_metrics?: {
+    graph_data?: { year: number; portfolio_value: number }[];
+    nav_metrics?: {
+      price_per_unit?: number;
+      nav?: number;
+      developer?: string;
+      property_count_active?: number;
+      portfolio_irr?: number;
+      irr_yield?: number;
+      irr_capital_growth?: number;
+      weighted_occupancy?: number;
+      liquidation_index?: number;
+      annual_cash_flow_current?: number;
+      annual_cash_flow_prev?: number;
+    };
+  };
 }
 
 /**
@@ -71,7 +87,7 @@ const Dashboard: React.FC = () => {
         setLoading(true);
         const [fundsRes, portfoliosRes] = await Promise.all([
           api.get("/funds/"),
-          realEstateApi.getPortfolios()
+          realEstateApi.getPortfolios(true)
         ]);
         setFunds(fundsRes.data);
         setPortfolios(portfoliosRes.data);

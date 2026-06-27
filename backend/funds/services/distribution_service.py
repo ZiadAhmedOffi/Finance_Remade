@@ -53,10 +53,14 @@ class DistributionService:
             if treatment == "DEFAULT":
                 treatment = fund.default_dividend_treatment
             
-            action_type = "DIVIDEND_PAYOUT" if treatment == "CASH" else "DIVIDEND_REINVESTMENT"
+            if distribution.type == "EXIT_PROCEED":
+                action_type = "EXIT_PAYOUT" if treatment == "CASH" else "EXIT_REINVESTMENT"
+            else:
+                action_type = "DIVIDEND_PAYOUT" if treatment == "CASH" else "DIVIDEND_REINVESTMENT"
+            
             units_to_add = Decimal('0.0000')
             
-            if action_type == "DIVIDEND_REINVESTMENT":
+            if action_type in ["DIVIDEND_REINVESTMENT", "EXIT_REINVESTMENT"]:
                 if nav_metrics and nav_metrics["price_per_unit"] > 0:
                     units_to_add = investor_share / Decimal(str(nav_metrics["price_per_unit"]))
                 else:

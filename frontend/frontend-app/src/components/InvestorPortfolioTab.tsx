@@ -5,7 +5,8 @@ interface PortfolioItem {
   fund_name: string;
   ownership_pct: number;
   current_value: number;
-  net_deployed: number;
+  capital_deployed: number;
+  net_cash_flow: number;
   yield_pct: number;
   type?: "FUND" | "REAL_ESTATE";
 }
@@ -39,7 +40,8 @@ const InvestorPortfolioTab: React.FC<InvestorPortfolioTabProps> = ({ portfolio, 
                 <th>Portfolio / Fund</th>
                 <th>Type</th>
                 <th>Ownership (%)</th>
-                <th>Net Deployed Capital</th>
+                <th>Gross Capital Deployed</th>
+                <th>Net Cash Flow</th>
                 <th>Current Value</th>
                 <th>Est. Annual Yield</th>
               </tr>
@@ -61,8 +63,11 @@ const InvestorPortfolioTab: React.FC<InvestorPortfolioTabProps> = ({ portfolio, 
                     </span>
                   </td>
                   <td>{item.ownership_pct.toFixed(4)}%</td>
-                  <td>{formatCurrency(item.net_deployed)}</td>
-                  <td className="font-bold">{formatCurrency(item.current_value)}</td>
+                  <td className="font-mono">{formatCurrency(item.capital_deployed)}</td>
+                  <td className={`font-mono ${item.net_cash_flow >= 0 ? "text-green" : "text-red"}`}>
+                    {formatCurrency(item.net_cash_flow)}
+                  </td>
+                  <td className="font-bold font-mono">{formatCurrency(item.current_value)}</td>
                   <td className="text-green font-bold">{formatPercent(item.yield_pct)}</td>
                 </tr>
               ))}

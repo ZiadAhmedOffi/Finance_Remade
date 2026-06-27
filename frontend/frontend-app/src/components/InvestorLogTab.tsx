@@ -379,8 +379,12 @@ const InvestorLogTab: React.FC<InvestorLogTabProps> = ({ fundId, canEdit }) => {
 
   useEffect(() => {
     fetchInvestorLog();
-    fetchInvestors();
   }, [fundId]);
+
+  useEffect(() => {
+    if (!canEdit || !showModal || investors.length > 0) return;
+    fetchInvestors();
+  }, [canEdit, showModal, investors.length]);
 
   // Fetch portfolio value when data loads or year changes (using year - 1 for calculations)
   useEffect(() => {

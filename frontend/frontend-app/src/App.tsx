@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useRef } from "react";
-import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
+import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { api, publicApi } from "./api/api";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -102,6 +102,7 @@ function App() {
    */
   const handleUserActivity = useCallback(async () => {
     if (
+      location.pathname === "/" ||
       location.pathname === "/login" || 
       location.pathname === "/register" || 
       location.pathname.startsWith("/reports/public/")
@@ -139,7 +140,7 @@ function App() {
 
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/login" />} />
+      <Route path="/" element={<Login />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/error" element={<ErrorPage />} />

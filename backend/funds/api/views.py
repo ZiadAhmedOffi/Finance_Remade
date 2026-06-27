@@ -922,7 +922,7 @@ class InvestorLogView(APIView):
         end_year = inception_year + fund_life - 1
         
         # 1. Investor Table Data
-        investor_actions = InvestorAction.objects.filter(fund=fund).select_related('investor')
+        investor_actions = list(InvestorAction.objects.filter(fund=fund).select_related('investor'))
         
         # Get all role assignments for this fund to extract preferences
         from users.models import UserRoleAssignment
@@ -943,12 +943,10 @@ class InvestorLogView(APIView):
                     "units": 0.0
                 }
 
-            if action.type in ["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT"]:
+            if action.type in ["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT", "DIVIDEND_REINVESTMENT", "EXIT_REINVESTMENT"]:
                 investor_data[investor_id]["units"] += float(action.units)
             elif action.type == "SECONDARY_EXIT":
                 investor_data[investor_id]["units"] -= float(action.units)
-            elif action.type == "DIVIDEND_REINVESTMENT":
-                investor_data[investor_id]["units"] += float(action.units)
 
         investors_list = []
         for inv_id, data in investor_data.items():
@@ -969,16 +967,13 @@ class InvestorLogView(APIView):
         required_by_year = {}
 
         # Past Deals (CurrentDeal)
-        current_deals = fund.current_deals.all()
+        current_deals = list(fund.current_deals.all())
         for deal in current_deals:
             yr = deal.entry_year
             required_by_year[yr] = required_by_year.get(yr, 0.0) + float(deal.amount_invested)
 
         # Future Deals (InvestmentDeal)
-        future_deals = fund.deals.all()
-        # We need the serializer to get expected_pro_rata_investments
-        future_deals_serialized = InvestmentDealSerializer(future_deals, many=True).data
-        future_deals_lookup = {d["id"]: d for d in future_deals_serialized}
+        future_deals = list(fund.deals.all())
 
         for deal in future_deals:
             yr = deal.entry_year
@@ -986,13 +981,11 @@ class InvestorLogView(APIView):
 
             # Distribute future pro-rata expectations
             if deal.pro_rata_rights and deal.expected_number_of_rounds > 0:
-                d_data = future_deals_lookup.get(str(deal.id))
-                if d_data:
-                    total_pro_rata = float(d_data.get("expected_pro_rata_investments", 0))
-                    round_amt = total_pro_rata / deal.expected_number_of_rounds
-                    for i in range(1, deal.expected_number_of_rounds + 1):
-                        pro_rata_yr = deal.entry_year + i
-                        required_by_year[pro_rata_yr] = required_by_year.get(pro_rata_yr, 0.0) + round_amt
+                total_pro_rata = float(deal_selectors.calculate_investment_deal_expected_pro_rata_investments(deal))
+                round_amt = total_pro_rata / deal.expected_number_of_rounds
+                for i in range(1, deal.expected_number_of_rounds + 1):
+                    pro_rata_yr = deal.entry_year + i
+                    required_by_year[pro_rata_yr] = required_by_year.get(pro_rata_yr, 0.0) + round_amt
 
         # Pre-calculate invested capital by year (Investor Actions)
         invested_by_year = {}
@@ -1004,7 +997,7 @@ class InvestorLogView(APIView):
                 invested_by_year[yr] = invested_by_year.get(yr, 0.0) + amount
 
         # Pre-calculate possible capital sources by year
-        possible_sources = PossibleCapitalSource.objects.filter(fund=fund)
+        possible_sources = list(PossibleCapitalSource.objects.filter(fund=fund))
         possible_by_year = {}
         for source in possible_sources:
             yr = source.year
@@ -1023,14 +1016,18 @@ class InvestorLogView(APIView):
         cumulative_possible = 0.0
         cumulative_units = 0.0
 
+        portfolio_values_by_year = fund_selectors.get_fund_portfolio_values_by_year(
+            fund,
+            start_year=inception_year,
+            end_year=end_year,
+        )
+
         for yr in range(inception_year, end_year + 1):
             cumulative_invested += invested_by_year.get(yr, 0.0)
             cumulative_required += required_by_year.get(yr, 0.0)
             cumulative_possible += possible_by_year.get(yr, 0.0)
             cumulative_units += primary_units_by_year.get(yr, 0.0)
-            
-            # Get actual portfolio value for this year
-            portfolio_val = fund_selectors.get_total_fund_portfolio(fund, yr)
+            portfolio_val = portfolio_values_by_year.get(yr, 0.0)
 
             graph_data.append({
                 "year": yr,

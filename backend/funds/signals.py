@@ -57,9 +57,9 @@ def deal_deleted(sender, instance, **kwargs):
 @receiver(post_save, sender=InvestorAction)
 def investor_action_saved(sender, instance, **kwargs):
     """If any action is saved, recalcaulte investor statistics."""
-    CurrentInvestorStats.recalculate_investor_stats(instance, instance.investor, instance.fund, "save")
+    CurrentInvestorStats.recalculate_investor_stats(instance.investor, instance.fund)
 
 @receiver(post_delete, sender=InvestorAction)
 def investor_action_deleted(sender, instance, **kwargs):
     """If any action is deleted, recalcaulte investor statistics."""
-    CurrentInvestorStats.recalculate_investor_stats(instance, instance.investor, instance.fund, "delete")
+    CurrentInvestorStats.recalculate_investor_stats(instance.investor, instance.fund)

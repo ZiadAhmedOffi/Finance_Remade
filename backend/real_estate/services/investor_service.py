@@ -28,7 +28,7 @@ class RealEstateInvestorService:
             if portfolio.total_units == 0:
                 units = amount # Initial price is 1.0
             else:
-                price_per_unit = nav_metrics["price_per_unit"]
+                price_per_unit = Decimal(str(nav_metrics["price_per_unit"]))
                 units = amount / price_per_unit
             
             data["units"] = units

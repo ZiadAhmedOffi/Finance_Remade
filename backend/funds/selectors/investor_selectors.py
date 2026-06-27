@@ -32,7 +32,7 @@ def calculate_investor_units(investor, fund, year=None):
     
     units = 0.0
     for a in actions:
-        if a.type in ["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT"]:
+        if a.type in ["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT", "DIVIDEND_REINVESTMENT", "EXIT_REINVESTMENT"]:
             units += float(a.units)
         elif a.type == "SECONDARY_EXIT":
             units -= float(a.units)
@@ -62,16 +62,25 @@ def get_grouped_investor_data(investor):
                 "investments": [],
                 "exits": [],
                 "units": 0.0,
-                "net_deployed": 0.0
+                "capital_deployed": 0.0,   # Gross Injections (Paid-In)
+                "net_cash_flow": 0.0,      # Net Injections - Secondary Exits ONLY
+                "total_realized": 0.0      # Total Distributions Received
             }
-        if action.type in ["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT"]:
+        
+        amount = float(action.amount or 0)
+        if action.type in ["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT", "DIVIDEND_REINVESTMENT", "EXIT_REINVESTMENT"]:
             fund_data[fund_id]["investments"].append(action)
             fund_data[fund_id]["units"] += float(action.units)
-            fund_data[fund_id]["net_deployed"] += float(action.amount or 0)
-        elif action.type == "SECONDARY_EXIT":
+            fund_data[fund_id]["capital_deployed"] += amount
+            fund_data[fund_id]["net_cash_flow"] += amount
+        elif action.type in ["SECONDARY_EXIT", "DIVIDEND_PAYOUT", "EXIT_PAYOUT"]:
             fund_data[fund_id]["exits"].append(action)
-            fund_data[fund_id]["units"] -= float(action.units)
-            fund_data[fund_id]["net_deployed"] -= float(action.amount or 0)
+            if action.type == "SECONDARY_EXIT":
+                fund_data[fund_id]["units"] -= float(action.units)
+                fund_data[fund_id]["net_cash_flow"] -= amount # Secondary exit reduces net capital position
+            
+            # Note: DIVIDEND_PAYOUT and EXIT_PAYOUT do NOT reduce net_cash_flow per user instruction
+            fund_data[fund_id]["total_realized"] += amount
     return fund_data
 
 def get_grouped_re_investor_data(investor):
@@ -85,16 +94,22 @@ def get_grouped_re_investor_data(investor):
                 "investments": [],
                 "exits": [],
                 "units": 0.0,
-                "net_deployed": 0.0
+                "capital_deployed": 0.0,
+                "net_cash_flow": 0.0, # Gross Injections - Secondary Exits ONLY
+                "total_realized": 0.0
             }
+        
+        amount = float(action.amount or 0)
         if action.type in ["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT"]:
             re_data[portfolio_id]["investments"].append(action)
             re_data[portfolio_id]["units"] += float(action.units)
-            re_data[portfolio_id]["net_deployed"] += float(action.amount or 0)
+            re_data[portfolio_id]["capital_deployed"] += amount
+            re_data[portfolio_id]["net_cash_flow"] += amount
         elif action.type == "SECONDARY_EXIT":
             re_data[portfolio_id]["exits"].append(action)
             re_data[portfolio_id]["units"] -= float(action.units)
-            re_data[portfolio_id]["net_deployed"] -= float(action.amount or 0)
+            re_data[portfolio_id]["net_cash_flow"] -= amount
+            re_data[portfolio_id]["total_realized"] += amount
     return re_data
 
 def calculate_investor_yield_history(investor, fund_data, re_data):
@@ -134,7 +149,7 @@ def calculate_investor_yield_history(investor, fund_data, re_data):
             fund_divs = InvestorAction.objects.filter(
                 investor=investor,
                 fund=fund,
-                type__in=["DIVIDEND_PAYOUT", "DIVIDEND_REINVESTMENT"],
+                type__in=["DIVIDEND_PAYOUT", "DIVIDEND_REINVESTMENT", "EXIT_PAYOUT", "EXIT_REINVESTMENT"],
                 year=yr
             ).aggregate(total=Sum('amount'))['total'] or 0.0
             
@@ -196,7 +211,8 @@ def calculate_dashboard_metrics(investor):
             "fund_name": fund.name,
             "ownership_pct": ownership_pct,
             "current_value": current_val_in_fund,
-            "net_deployed": data["net_deployed"],
+            "capital_deployed": data["capital_deployed"],
+            "net_cash_flow": data["net_cash_flow"],
             "yield_pct": fund_yield_pct,
             "type": "FUND"
         })
@@ -231,7 +247,8 @@ def calculate_dashboard_metrics(investor):
             "fund_name": portfolio.name,
             "ownership_pct": ownership_pct,
             "current_value": current_val_in_portfolio,
-            "net_deployed": data["net_deployed"],
+            "capital_deployed": data["capital_deployed"],
+            "net_cash_flow": data["net_cash_flow"],
             "yield_pct": re_yield_pct,
             "type": "REAL_ESTATE"
         })
@@ -245,7 +262,6 @@ def calculate_dashboard_metrics(investor):
     re_stats = RealEstateInvestorStats.objects.filter(investor=investor)
     
     realized_gains = sum(float(s.realized_gain or 0) for s in stats) + sum(float(s.realized_gain or 0) for s in re_stats)
-    total_capital_deployed = sum(float(s.amount_invested or 0) for s in stats) + sum(float(s.amount_invested or 0) for s in re_stats)
     total_capital_injected = sum(float(s.capital_deployed or 0) for s in stats) + sum(float(s.capital_deployed or 0) for s in re_stats)
 
     # Weighted Aggregate Yield
@@ -253,19 +269,6 @@ def calculate_dashboard_metrics(investor):
     
     # 4. Yield History (Updated to include RE)
     yield_history = calculate_investor_yield_history(investor, fund_data, re_data)
-
-    # Multiples calculation (Updated to include RE)
-    fund_investments = InvestorAction.objects.filter(investor=investor, type__in=["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT"])
-    fund_exits = InvestorAction.objects.filter(investor=investor, type="SECONDARY_EXIT")
-    re_investments = RealEstateInvestorAction.objects.filter(investor=investor, type__in=["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT"])
-    re_exits = RealEstateInvestorAction.objects.filter(investor=investor, type="SECONDARY_EXIT")
-    
-    total_exits_amount = sum(float(a.amount or 0) for a in fund_exits) + sum(float(a.amount or 0) for a in re_exits)
-    total_invested_amount = sum(float(a.amount or 0) for a in fund_investments) + sum(float(a.amount or 0) for a in re_investments)
-    
-    realized_multiple = 0.0
-    if total_capital_deployed > 0 and total_capital_deployed != total_invested_amount:
-        realized_multiple = total_exits_amount / (total_invested_amount - total_capital_deployed)
 
     # 5. Line Graph logic
     fund_actions = get_investor_actions_by_investor(investor)
@@ -276,9 +279,17 @@ def calculate_dashboard_metrics(investor):
     if years:
         start_year = min(years)
         end_year = max(current_year, max(years))
+        
+        # Track cumulative values over years
+        cumulative_injection = 0.0
+        cumulative_secondary_exits = 0.0
+        cumulative_distribution = 0.0
+
         for yr in range(start_year, end_year + 1):
             yr_total_value = 0.0
-            yr_total_injection = 0.0
+            yr_injection_this_year = 0.0
+            yr_sec_exit_this_year = 0.0
+            yr_distribution_this_year = 0.0
             yr_breakdown = []
             
             # Funds
@@ -297,18 +308,20 @@ def calculate_dashboard_metrics(investor):
                 actions_this_yr = InvestorAction.objects.filter(investor=investor, fund=fund, year=yr)
                 for a in actions_this_yr:
                     amount = float(a.amount or 0)
-                    if a.type in ["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT"]:
-                        yr_total_injection += amount
+                    if a.type in ["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT", "DIVIDEND_REINVESTMENT", "EXIT_REINVESTMENT"]:
+                        yr_injection_this_year += amount
                         yr_breakdown.append({"name": f"{fund.name} ({a.get_type_display()})", "amount": amount})
                     elif a.type == "SECONDARY_EXIT":
-                        yr_total_injection -= amount
+                        yr_sec_exit_this_year += amount
+                        yr_breakdown.append({"name": f"{fund.name} ({a.get_type_display()})", "amount": -amount})
+                    elif a.type in ["DIVIDEND_PAYOUT", "EXIT_PAYOUT"]:
+                        yr_distribution_this_year += amount
                         yr_breakdown.append({"name": f"{fund.name} ({a.get_type_display()})", "amount": -amount})
             
             # Real Estate
             for rid, r_data in re_data.items():
                 portfolio = r_data["portfolio"]
                 r_units_at_yr = calculate_re_investor_units(investor, portfolio, yr)
-                # Use date(yr, 12, 31) for point-in-time calculation
                 ref_date = date(yr, 12, 31)
                 nav_metrics_at_yr = PortfolioSelectors.get_portfolio_nav_metrics(portfolio, reference_date=ref_date)
                 total_re_units_at_yr = float(nav_metrics_at_yr["total_units"])
@@ -320,25 +333,40 @@ def calculate_dashboard_metrics(investor):
                 for a in re_actions_this_yr:
                     amount = float(a.amount or 0)
                     if a.type in ["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT"]:
-                        yr_total_injection += amount
+                        yr_injection_this_year += amount
                         yr_breakdown.append({"name": f"{portfolio.name} ({a.get_type_display()})", "amount": amount})
                     elif a.type == "SECONDARY_EXIT":
-                        yr_total_injection -= amount
+                        yr_sec_exit_this_year += amount
                         yr_breakdown.append({"name": f"{portfolio.name} ({a.get_type_display()})", "amount": -amount})
             
+            cumulative_injection += yr_injection_this_year
+            cumulative_secondary_exits += yr_sec_exit_this_year
+            cumulative_distribution += yr_distribution_this_year
+
             prev_val = line_graph_data[-1]["value"] if line_graph_data else 0
             yoy_gain = ((yr_total_value / prev_val) - 1) * 100 if prev_val > 0 else 0.0
+            
             line_graph_data.append({
                 "year": yr,
                 "value": yr_total_value,
-                "injection": yr_total_injection,
+                "injection": cumulative_injection,
+                "distributions": cumulative_distribution,
+                "net_cash_flow": cumulative_injection - cumulative_secondary_exits, # Net position (In - Out via liquidation)
                 "injection_breakdown": yr_breakdown,
                 "yoy_gain": yoy_gain if line_graph_data else None
             })
 
     last_value = line_graph_data[-1]["value"] if line_graph_data else total_current_portfolio_value
     unrealized_gains = last_value - total_capital_injected
-    unrealized_multiple = (total_current_portfolio_value / total_capital_injected) if total_capital_injected > 0 else 0.0
+    unrealized_multiple = (total_current_portfolio_value / total_capital_injected) if total_capital_injected > 0 else 1.0
+    
+    # Calculate realized multiple correctly
+    fund_exits = InvestorAction.objects.filter(investor=investor, type__in=["SECONDARY_EXIT", "DIVIDEND_PAYOUT", "EXIT_PAYOUT"])
+    re_exits = RealEstateInvestorAction.objects.filter(investor=investor, type="SECONDARY_EXIT")
+    
+    total_exits_amount = sum(float(a.amount or 0) for a in fund_exits) + sum(float(a.amount or 0) for a in re_exits)
+    
+    realized_multiple = (total_exits_amount / total_capital_injected) if total_capital_injected > 0 else 0.0
 
     return {
         "metrics": {

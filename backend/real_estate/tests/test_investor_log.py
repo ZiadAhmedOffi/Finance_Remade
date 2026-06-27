@@ -72,6 +72,7 @@ class InvestorLogAPITests(TestCase):
             acquisition_fee_percentage=Decimal('0.00'),
             default_appreciation_rate=Decimal('0.00'),
             default_vacancy_rate=Decimal('0.00'),
+            maintenance_percentage_of_value=Decimal('0.00'),
         )
         
         UserRoleAssignment.objects.create(user=self.investor_user, role=self.investor_role, real_estate_portfolio=self.portfolio)

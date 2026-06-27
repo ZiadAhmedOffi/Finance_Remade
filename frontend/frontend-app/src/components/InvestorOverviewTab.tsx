@@ -6,7 +6,9 @@ import {
 interface LineGraphData {
   year: number;
   value: number;
-  injection: number;
+  injection: number;      // Gross Capital Injected (Cumulative)
+  distributions: number;  // Gross Distributions Received (Cumulative)
+  net_cash_flow: number;  // Net Flow
   injection_breakdown?: { name: string; amount: number }[];
   yoy_gain: number | null;
 }
@@ -67,9 +69,9 @@ const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, line
       <div className="metrics-vibrant-grid">
         <div className="vibrant-card blue">
           <div className="card-content">
-            <label>Capital Deployed</label>
+            <label>Gross Capital Deployed</label>
             <div className="value">{formatCurrency(metrics.total_capital_deployed)}</div>
-            <div className="footer">Net Investment Position</div>
+            <div className="footer">Total Capital Committed & Called</div>
           </div>
           <div className="card-icon">💰</div>
         </div>
@@ -78,7 +80,7 @@ const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, line
           <div className="card-content">
             <label>Realized Gains</label>
             <div className="value">{formatCurrency(metrics.realized_gains)}</div>
-            <div className="footer">Actual Profits Withdrawn</div>
+            <div className="footer">Actual Profits & Distributions</div>
           </div>
           <div className="card-icon">📈</div>
         </div>
@@ -125,7 +127,7 @@ const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, line
         <div className="chart-header">
           <div>
             <h3>Portfolio Growth Analysis</h3>
-            <p className="chart-subtitle">Historical aggregate value of your holdings across all funds and real estate portfolios</p>
+            <p className="chart-subtitle">Comparison of Injections, Distributions and Residual Portfolio Value</p>
           </div>
           <div className="chart-actions">
             <span className="badge year-badge">All-Time Performance</span>
@@ -133,13 +135,7 @@ const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, line
         </div>
         <div style={{ width: '100%', height: 450 }}>
           <ResponsiveContainer>
-            <AreaChart data={lineGraphData} margin={{ top: 20, right: 30, left: 20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
+            <LineChart data={lineGraphData} margin={{ top: 20, right: 30, left: 20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
               <XAxis 
                 dataKey="year" 
@@ -158,7 +154,7 @@ const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, line
                 dx={-10}
               />
               <Tooltip 
-                formatter={(val: any) => [formatCurrency(Number(val || 0)), "Portfolio Value"]}
+                formatter={(val: any, name: string) => [formatCurrency(Number(val || 0)), name]}
                 contentStyle={{ 
                   borderRadius: '16px', 
                   border: 'none', 
@@ -167,17 +163,37 @@ const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, line
                 }}
                 labelStyle={{ fontWeight: '800', marginBottom: '8px', color: '#1e293b', fontSize: '14px' }}
               />
+              <Legend verticalAlign="top" height={36}/>
               <ReferenceLine x={currentYear} stroke="#ef4444" strokeDasharray="5 5" label={{ position: 'top', value: 'Current Year', fill: '#ef4444', fontSize: 12, fontWeight: '700' }} />
-              <Area 
+              
+              <Line 
                 type="monotone" 
                 dataKey="value" 
+                name="Portfolio Value (NAV)"
                 stroke="#10b981" 
-                fillOpacity={1} 
-                fill="url(#colorValue)" 
                 strokeWidth={4}
-                activeDot={{ r: 8, strokeWidth: 0, fill: '#059669' }}
+                dot={{ r: 4 }}
+                activeDot={{ r: 8 }}
               />
-            </AreaChart>
+              <Line 
+                type="stepAfter" 
+                dataKey="injection" 
+                name="Cumulative Injected"
+                stroke="#3b82f6" 
+                strokeWidth={3}
+                strokeDasharray="5 5"
+                dot={false}
+              />
+              <Line 
+                type="stepAfter" 
+                dataKey="distributions" 
+                name="Cumulative Distributions"
+                stroke="#f59e0b" 
+                strokeWidth={3}
+                strokeDasharray="3 3"
+                dot={false}
+              />
+            </LineChart>
           </ResponsiveContainer>
         </div>
       </div>
@@ -296,6 +312,8 @@ const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, line
             <thead>
               <tr>
                 <th>Year</th>
+                <th>Capital Injected (Gross)</th>
+                <th>Distributions Received</th>
                 <th>Net Cash Flow</th>
                 <th>Portfolio Value</th>
                 <th>YoY Performance</th>
@@ -308,8 +326,14 @@ const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, line
                     <span className="year-text">{row.year}</span>
                     {row.year === currentYear && <span className="current-indicator">Current</span>}
                   </td>
+                  <td className="font-mono text-blue-600">
+                    {row.injection !== 0 ? formatCurrency(row.injection) : "—"}
+                  </td>
+                  <td className="font-mono text-orange-600">
+                    {row.distributions !== 0 ? formatCurrency(row.distributions) : "—"}
+                  </td>
                   <td 
-                    className={`font-mono cursor-pointer hover:bg-gray-100 transition-colors ${row.injection >= 0 ? "text-green" : "text-red"}`}
+                    className={`font-mono cursor-pointer hover:bg-gray-100 transition-colors ${row.net_cash_flow >= 0 ? "text-green" : "text-red"}`}
                     onClick={() => {
                       if (row.injection_breakdown && row.injection_breakdown.length > 0) {
                         setSelectedBreakdown({ year: row.year, items: row.injection_breakdown });
@@ -317,7 +341,7 @@ const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, line
                     }}
                     title="Click to see breakdown"
                   >
-                    {row.injection !== 0 ? formatCurrency(row.injection) : "—"}
+                    {row.net_cash_flow !== 0 ? formatCurrency(row.net_cash_flow) : "—"}
                   </td>
                   <td className="font-bold font-mono text-dark">
                     {formatCurrency(row.value)}
@@ -329,7 +353,7 @@ const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, line
               ))}
               {lineGraphData.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="empty-msg">No historical data available.</td>
+                  <td colSpan={6} className="empty-msg">No historical data available.</td>
                 </tr>
               )}
             </tbody>
@@ -337,12 +361,12 @@ const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, line
         </div>
       </div>
 
-      {/* Cash Flow Breakdown Modal */}
+      {/* Flow Breakdown Modal */}
       {selectedBreakdown && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-gray-200 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in duration-200">
             <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-              <h3 className="text-lg font-bold text-gray-900">Cash Flow Breakdown - {selectedBreakdown.year}</h3>
+              <h3 className="text-lg font-bold text-gray-900">Flow Breakdown - {selectedBreakdown.year}</h3>
               <button onClick={() => setSelectedBreakdown(null)} className="text-gray-500 hover:text-gray-900 text-2xl font-bold">✕</button>
             </div>
             <div className="p-6 max-h-[60vh] overflow-y-auto">
@@ -358,7 +382,7 @@ const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, line
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
-              <span className="text-sm font-bold text-gray-500 uppercase">Total Net Cash Flow</span>
+              <span className="text-sm font-bold text-gray-500 uppercase">Yearly Net Flow</span>
               <span className={`text-xl font-black font-mono ${selectedBreakdown.items.reduce((acc, i) => acc + i.amount, 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                 {formatCurrency(selectedBreakdown.items.reduce((acc, i) => acc + i.amount, 0))}
               </span>

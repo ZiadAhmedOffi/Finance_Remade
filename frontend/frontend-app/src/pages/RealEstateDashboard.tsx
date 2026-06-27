@@ -12,6 +12,22 @@ interface RealEstatePortfolio {
   status: "ACTIVE" | "DEACTIVATED";
   created_by_email: string;
   cover_image?: string;
+  card_metrics?: {
+    graph_data?: { year: number; portfolio_value: number }[];
+    nav_metrics?: {
+      price_per_unit?: number;
+      nav?: number;
+      developer?: string;
+      property_count_active?: number;
+      portfolio_irr?: number;
+      irr_yield?: number;
+      irr_capital_growth?: number;
+      weighted_occupancy?: number;
+      liquidation_index?: number;
+      annual_cash_flow_current?: number;
+      annual_cash_flow_prev?: number;
+    };
+  };
 }
 
 const RealEstateDashboard: React.FC = () => {
@@ -47,7 +63,7 @@ const RealEstateDashboard: React.FC = () => {
   const fetchPortfolios = async () => {
     try {
       setLoading(true);
-      const response = await realEstateApi.getPortfolios();
+      const response = await realEstateApi.getPortfolios(true);
       setPortfolios(response.data);
     } catch (err) {
       console.error("Failed to fetch portfolios", err);

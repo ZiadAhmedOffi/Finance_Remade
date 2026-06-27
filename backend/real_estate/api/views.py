@@ -1,5 +1,5 @@
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, date
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
@@ -123,6 +123,18 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
         )
         serializer = self.get_serializer(portfolio)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def list(self, request, *args, **kwargs):
+        queryset = list(self.filter_queryset(self.get_queryset()))
+        serializer = self.get_serializer(queryset, many=True)
+        data = list(serializer.data)
+
+        include_card_metrics = str(request.query_params.get("include_card_metrics", "")).lower() in {"1", "true", "yes"}
+        if include_card_metrics:
+            for item, portfolio in zip(data, queryset):
+                item["card_metrics"] = PortfolioDashboardSelector.get_card_summary(portfolio)
+
+        return Response(data)
 
     @action(detail=True, methods=['get', 'put', 'patch'], url_path='assumptions')
     def assumptions(self, request, pk=None):
@@ -522,20 +534,42 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
         inception_year = inception_date.year
         end_year = inception_year + assumptions.forecast_horizon - 1
         
-        # 1. Investor Table Data (Current)
+        # 1. Extreme Pre-fetching & Optimizations
+        properties = list(portfolio.properties.all().select_related(
+            'portfolio__assumptions', 
+            'financing', 
+            'off_plan_details',
+            'sale',
+            'usufruct_details'
+        ).prefetch_related('milestones'))
+        
+        cf_data = CashFlowSelectors.get_portfolio_cash_flow(portfolio, end_year=end_year, force_base_scenario=True)
+        sales_metrics = PropertySaleSelector.get_sales_for_portfolio(portfolio)
+        investments_list = list(portfolio.investor_actions.all())
+        nav_context = PortfolioSelectors.get_portfolio_nav_context(
+            portfolio,
+            start_year=inception_year,
+            end_year=end_year,
+            properties=properties,
+            cf_data=cf_data,
+            sales_metrics=sales_metrics,
+            investments_list=investments_list,
+        )
+
+        # 2. Investor Table Data (Current)
         investor_stats = RealEstateInvestorSelector.get_investor_stats(portfolio)
         investors_list = RealEstateInvestorStatsSerializer(investor_stats, many=True).data
         total_units_current = float(portfolio.total_units)
         for inv in investors_list:
             inv["ownership_percentage"] = (float(inv["units"]) / total_units_current * 100.0) if total_units_current > 0 else 0.0
 
-        # 2. Unified Capital Pipeline (Historical + Projections)
-        pipeline = RealEstateInvestorSelector.get_unified_capital_pipeline(portfolio)
+        # 3. Unified Capital Pipeline (Historical + Projections)
+        pipeline = RealEstateInvestorSelector.get_unified_capital_pipeline(portfolio, cf_data=cf_data)
         investor_actions = RealEstateInvestorSelector.get_investor_actions(portfolio)
         
         # Aggregate Invested Capital by year (Primary only)
         invested_by_year = {}
-        for action in investor_actions:
+        for action in investments_list:
             if action.type == "PRIMARY_INVESTMENT":
                 invested_by_year[action.year] = invested_by_year.get(action.year, 0.0) + float(action.amount)
 
@@ -558,9 +592,17 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
             cumulative_required += float(year_data["net_required"])
             cumulative_possible += possible_by_year.get(yr, 0.0)
             
-            # Point-in-time NAV Metrics
-            ref_date = datetime(yr, 12, 31).date()
-            nav_metrics = PortfolioSelectors.get_portfolio_nav_metrics(portfolio, reference_date=ref_date)
+            # Point-in-time NAV Metrics (Optimized)
+            ref_date = date(yr, 12, 31)
+            nav_metrics = PortfolioSelectors.get_portfolio_nav_metrics(
+                portfolio, 
+                reference_date=ref_date,
+                properties=properties,
+                cf_data=cf_data,
+                sales_metrics=sales_metrics,
+                investments_list=investments_list,
+                nav_context=nav_context,
+            )
             
             graph_data.append({
                 "year": yr,
@@ -582,16 +624,36 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
                 "assets_change_breakdown": nav_metrics.get("assets_change_breakdown", [])
             })
 
-        # 3. Final Metrics & Comparison
-        final_nav_metrics = PortfolioSelectors.get_portfolio_nav_metrics(portfolio)
+        # 4. Final Metrics & Comparison (Optimized)
+        final_nav_metrics = PortfolioSelectors.get_portfolio_nav_metrics(
+            portfolio,
+            properties=properties,
+            cf_data=cf_data,
+            sales_metrics=sales_metrics,
+            investments_list=investments_list,
+        )
         
         # Calculate NAV for the end of the previous year
         prev_year = datetime.now().year - 1
-        ref_date_prev = datetime(prev_year, 12, 31).date()
-        prev_nav_metrics = PortfolioSelectors.get_portfolio_nav_metrics(portfolio, reference_date=ref_date_prev)
+        ref_date_prev = date(prev_year, 12, 31)
+        prev_nav_metrics = PortfolioSelectors.get_portfolio_nav_metrics(
+            portfolio, 
+            reference_date=ref_date_prev,
+            properties=properties,
+            cf_data=cf_data,
+            sales_metrics=sales_metrics,
+            investments_list=investments_list,
+            nav_context=nav_context,
+        )
 
-        # Dashboard-level metrics for the card view
-        dashboard_data = PortfolioDashboardSelector.get_dashboard_data(portfolio)
+        # Dashboard-level metrics for the card view (Optimized)
+        dashboard_data = PortfolioDashboardSelector.get_dashboard_data(
+            portfolio,
+            properties=properties,
+            cf_data=cf_data,
+            sales_metrics=sales_metrics,
+            investments_list=investments_list
+        )
         aggregated = dashboard_data.get("metrics", {})
 
         return Response({
@@ -623,8 +685,15 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
                 "weighted_occupancy": float(100.0 - float(aggregated.get("portfolio_vacancy_rate", 0))),
                 "property_count_active": aggregated.get("property_count_active", 0),
                 "annual_cash_flow_current": float(aggregated.get("net_cash_flow_y1", 0)),
-                # Calculate prev year cash flow for YOY comparison
-                "annual_cash_flow_prev": float(PortfolioDashboardSelector.get_dashboard_data(portfolio, reference_date=ref_date_prev).get("metrics", {}).get("net_cash_flow_y1", 0))
+                # Calculate prev year cash flow for YOY comparison (Optimized)
+                "annual_cash_flow_prev": float(PortfolioDashboardSelector.get_dashboard_data(
+                    portfolio, 
+                    reference_date=ref_date_prev,
+                    properties=properties,
+                    cf_data=cf_data,
+                    sales_metrics=sales_metrics,
+                    investments_list=investments_list
+                ).get("metrics", {}).get("net_cash_flow_y1", 0))
             }
         })
 

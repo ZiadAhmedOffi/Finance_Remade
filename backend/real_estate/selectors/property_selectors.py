@@ -10,24 +10,27 @@ class PropertySelector:
     """
 
     @staticmethod
-    def get_properties_for_portfolio(portfolio: RealEstatePortfolio, reference_date=None) -> list:
+    def get_properties_for_portfolio(portfolio: RealEstatePortfolio, reference_date=None, properties=None) -> list:
         """
         Retrieves all properties for a portfolio that were active at the reference_date.
         """
         if reference_date is None:
             reference_date = timezone.now().date()
         
-        # Include all properties purchased before or on the reference date
-        properties = portfolio.properties.filter(purchase_date__lte=reference_date).select_related(
-            'portfolio__assumptions', 
-            'sale',
-            'usufruct_details'
-        )
+        if properties is None:
+            # Include all properties purchased before or on the reference date
+            properties = portfolio.properties.filter(purchase_date__lte=reference_date).select_related(
+                'portfolio__assumptions', 
+                'sale',
+                'usufruct_details'
+            )
         
         results = []
         for prop in properties:
+            if prop.purchase_date > reference_date:
+                continue
             # Exclude if it was sold before the reference date
-            if hasattr(prop, 'sale') and prop.sale.sale_date < reference_date:
+            if hasattr(prop, 'sale') and prop.sale and prop.sale.sale_date < reference_date:
                 continue
                 
             results.append(PropertySelector.calculate_metrics(prop, reference_date))

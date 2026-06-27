@@ -7,6 +7,64 @@ from django.db.models import Sum
 from decimal import Decimal
 from django.utils import timezone
 
+
+def get_fund_portfolio_values_by_year(fund, start_year=None, end_year=None):
+    """
+    Calculates the total fund portfolio value for each year in the requested range.
+    """
+    model_inputs = get_fund_model_input(fund)
+    if not model_inputs:
+        return {}
+
+    inception_year = int(model_inputs.inception_year)
+    current_year = datetime.now().year
+    fund_life = int(model_inputs.fund_life)
+    fund_end_year = inception_year + fund_life
+
+    deals = list(deal_selectors.get_deals_for_fund(fund))
+    current_deals = list(deal_selectors.get_current_deals_for_fund(fund))
+
+    p_injections_by_year = deal_selectors.get_prognosis_injections(fund)
+    c_injections_by_year = deal_selectors.get_current_injections(fund)
+
+    gross_exit_value_future = sum(
+        float(deal_selectors.calculate_investment_deal_exit_value(deal))
+        for deal in deals
+        if deal.entry_year >= current_year
+    )
+    p_injections_future = {yr: amt for yr, amt in p_injections_by_year.items() if yr >= current_year}
+    p_solver_injections = p_injections_future if p_injections_future else p_injections_by_year
+    irr = calculators.solve_implied_return_rate(p_solver_injections, fund_end_year, gross_exit_value_future)
+
+    c_gross_exit_value = sum(
+        deal_selectors.calculate_current_deal_final_exit_amount(deal)
+        for deal in current_deals
+    )
+    historical_target_year = current_year - 1
+    c_irr = calculators.solve_implied_return_rate(c_injections_by_year, historical_target_year, c_gross_exit_value)
+
+    safe_c_irr = c_irr if c_irr and c_irr > -1 else 0.0
+    safe_p_irr = irr if irr and irr > -1 else 0.0
+
+    all_entry_years = [d.entry_year for d in deals] + [d.entry_year for d in current_deals]
+    actual_start_year = min(inception_year, min(all_entry_years)) if all_entry_years else inception_year
+    actual_end_year = fund_end_year if end_year is None else end_year
+    if start_year is not None:
+        actual_start_year = min(actual_start_year, start_year)
+
+    trajectory = calculators.calculate_nav_trajectory(
+        actual_start_year,
+        actual_end_year,
+        current_year,
+        fund_end_year,
+        c_injections_by_year,
+        p_injections_by_year,
+        safe_c_irr,
+        safe_p_irr,
+    )
+
+    return {point["year"]: point["c_pv"] + point["p_pv"] for point in trajectory}
+
 def get_all_funds():
     return Fund.objects.all().order_by("-created_at")
 
@@ -86,50 +144,7 @@ def get_total_fund_portfolio(fund, year):
     """
     Calculates the total fund portfolio value at the end of a given year.
     """
-    model_inputs = get_fund_model_input(fund)
-    if not model_inputs:
-        return 0.0
-
-    inception_year = int(model_inputs.inception_year)
-    current_year = datetime.now().year
-    fund_life = int(model_inputs.fund_life)
-    fund_end_year = inception_year + fund_life
-
-    # 1. Deal Prognosis Metrics
-    deals = deal_selectors.get_deals_for_fund(fund)
-    p_injections_by_year = deal_selectors.get_prognosis_injections(fund)
-    
-    gross_exit_value_future = sum(float(deal_selectors.calculate_investment_deal_exit_value(d)) for d in deals if d.entry_year >= current_year)
-    p_injections_future = {yr: amt for yr, amt in p_injections_by_year.items() if yr >= current_year}
-    p_solver_injections = p_injections_future if p_injections_future else p_injections_by_year
-    irr = calculators.solve_implied_return_rate(p_solver_injections, fund_end_year, gross_exit_value_future)
-
-    # 2. Current Deals Metrics
-    current_deals = deal_selectors.get_current_deals_for_fund(fund)
-    c_injections_by_year = deal_selectors.get_current_injections(fund)
-    
-    c_gross_exit_value = sum(deal_selectors.calculate_current_deal_final_exit_amount(d) for d in current_deals)
-    historical_target_year = current_year - 1
-    c_irr = calculators.solve_implied_return_rate(c_injections_by_year, historical_target_year, c_gross_exit_value)
-
-    # 3. Calculate NAV parts
-    safe_c_irr = c_irr if c_irr and c_irr > -1 else 0.0
-    safe_p_irr = irr if irr and irr > -1 else 0.0
-
-    all_entry_years = [d.entry_year for d in deals] + [d.entry_year for d in current_deals]
-    start_year = min(inception_year, min(all_entry_years)) if all_entry_years else inception_year
-    
-    trajectory = calculators.calculate_nav_trajectory(
-        start_year, year, current_year, fund_end_year,
-        c_injections_by_year, p_injections_by_year,
-        safe_c_irr, safe_p_irr
-    )
-    
-    if not trajectory:
-        return 0.0
-        
-    final_point = trajectory[-1]
-    return final_point["c_pv"] + final_point["p_pv"]
+    return get_fund_portfolio_values_by_year(fund, end_year=year).get(year, 0.0)
 
 def get_total_units_at_year(fund, year):
     """
