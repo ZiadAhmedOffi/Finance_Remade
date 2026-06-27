@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { 
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine, LineChart, Line, Legend
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LineChart, Line, Legend
 } from "recharts";
 
 interface LineGraphData {
@@ -154,7 +154,7 @@ const InvestorOverviewTab: React.FC<InvestorOverviewTabProps> = ({ metrics, line
                 dx={-10}
               />
               <Tooltip 
-                formatter={(val: any, name: string) => [formatCurrency(Number(val || 0)), name]}
+                formatter={(value, name) => [formatCurrency(Number(value ?? 0)), String(name)] as const}
                 contentStyle={{ 
                   borderRadius: '16px', 
                   border: 'none', 
