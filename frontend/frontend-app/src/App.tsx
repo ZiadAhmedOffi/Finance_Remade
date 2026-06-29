@@ -1,6 +1,8 @@
 import { useEffect, useCallback, useRef } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { api, publicApi } from "./api/api";
+import { createDPoPProof } from "./utils/dpopUtils";
+import { clearAuthTokens, getAccessToken, getRefreshToken, setAuthTokens } from "./utils/auth";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
@@ -52,18 +54,21 @@ function App() {
    * Refreshes the access token using the refresh token.
    */
   const refreshToken = useCallback(async () => {
-    const refresh = localStorage.getItem("refresh_token");
+    const refresh = getRefreshToken();
     if (!refresh) return false;
 
     // Prevent multiple refreshes in a short period (e.g., 30 seconds)
     if (Date.now() - lastRefreshTime.current < 30000) return true;
 
     try {
-      const response = await api.post("/users/token/refresh/", { refresh });
-      localStorage.setItem("access_token", response.data.access);
-      if (response.data.refresh) {
-        localStorage.setItem("refresh_token", response.data.refresh);
-      }
+      const refreshUrl = api.defaults.baseURL ? `${api.defaults.baseURL}/users/token/refresh/` : "/api/users/token/refresh/";
+      const proof = await createDPoPProof("POST", refreshUrl);
+      const response = await publicApi.post(
+        "/users/token/refresh/",
+        { refresh },
+        { headers: { DPoP: proof } }
+      );
+      setAuthTokens(response.data.access, response.data.refresh || refresh);
       lastRefreshTime.current = Date.now();
       return true;
     } catch (e) {
@@ -76,7 +81,7 @@ function App() {
    * Helper function to check if the current JWT token is expired by decoding its payload.
    */
   const isTokenExpired = useCallback(() => {
-    const token = localStorage.getItem("access_token");
+    const token = getAccessToken();
     if (!token) return { expired: true, almostExpired: false };
 
     try {
@@ -115,8 +120,7 @@ function App() {
     if (expired) {
       const success = await refreshToken();
       if (!success) {
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
+        clearAuthTokens();
         navigate("/login");
       }
     } else if (almostExpired) {
@@ -124,6 +128,10 @@ function App() {
       await refreshToken();
     }
   }, [isTokenExpired, refreshToken, navigate, location.pathname]);
+
+  useEffect(() => {
+    handleUserActivity();
+  }, [handleUserActivity]);
 
   useEffect(() => {
     const events = ["mousedown", "keydown", "scroll", "touchstart", "click"];

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/api";
+import { clearAuthTokens } from "../utils/auth";
 import "./AdminDashboard.css";
 import NotFound from "./NotFound";
 
@@ -194,8 +195,7 @@ const AdminDashboard: React.FC = () => {
   }, [fetchPendingUsers, fetchActiveUsers, fetchAuditLogs, fetchFunds, fetchPortfolios, fetchRolesOnly]);
 
   const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+    clearAuthTokens();
     navigate("/login");
   };
 

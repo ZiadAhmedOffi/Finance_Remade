@@ -1,27 +1,29 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status, serializers
+from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+from rest_framework_simplejwt.views import TokenRefreshView
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.exceptions import ValidationError
+from django.contrib.auth import authenticate
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.utils import timezone
 
 from users.models import User, Role, UserRoleAssignment
 from funds.models import Fund
-from users.api.serializers import (
-    LoginSerializer,
-    ApplyAccessSerializer,
-    UserSerializer,
-    RoleSerializer,
-    AuditLogSerializer,
-)
+from users.api.serializers import ApplyAccessSerializer, UserSerializer, RoleSerializer, AuditLogSerializer
 from users.permissions import IsAccessManager, IsSuperAdmin
 from users.services.permission_service import PermissionService
 from users.services.audit_service import AuditService
 from users.models import AuditLog
 from users.services.user_service import UserService
 from users.interfaces.fund_service_adapter import FundServiceAdapter
+from users.dpop import validate_dpop_proof
+from users.throttles import LoginRateThrottle, TokenRefreshRateThrottle, ApplyAccessRateThrottle
 
 fund_adapter = FundServiceAdapter()
 user_service = UserService(fund_adapter)
@@ -29,11 +31,6 @@ user_service = UserService(fund_adapter)
 # -----------------------------
 # JWT Custom Token Serializer
 # -----------------------------
-import jwt
-import json
-import base64
-import hashlib
-
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     """
     Custom JWT Token Serializer that adds extra claims to the token
@@ -59,8 +56,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
-        # Handle both 'email' and 'username' as fallbacks
-        email = attrs.get("email") or attrs.get("username")
+        email = (attrs.get("email") or attrs.get("username") or "").strip().lower()
         password = attrs.get("password")
         request = self.context.get("request")
         ip = request.META.get("REMOTE_ADDR") if request else None
@@ -68,78 +64,48 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         if not email or not password:
             raise ValidationError("Email and password are required.")
 
-        try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist:
-            print(f"DEBUG: User not found for email: {email}")
+        dpop_data = validate_dpop_proof(request, request.headers.get("DPoP") if request else None)
+
+        user = User.objects.filter(email__iexact=email).first()
+        authenticated_user = authenticate(request=request, email=email, password=password)
+
+        if authenticated_user is None:
+            if user:
+                user.failed_login_attempts += 1
+                user.save(update_fields=["failed_login_attempts"])
             AuditService.log_event(
-                actor=None,
+                actor=user,
                 action="LOGIN_FAILED",
                 description=f"Failed login attempt for email: {email}",
                 ip_address=ip
             )
             raise ValidationError("Invalid credentials.")
 
-        if not user.check_password(password):
-            print(f"DEBUG: Invalid password for user: {email}")
+        if authenticated_user.status != "ACTIVE" or authenticated_user.is_deleted:
             AuditService.log_event(
-                actor=user,
+                actor=authenticated_user,
                 action="LOGIN_FAILED",
-                description=f"Failed login attempt (invalid password) for user: {email}",
+                description=f"Failed login attempt for inactive or deleted account: {email}",
                 ip_address=ip
             )
             raise ValidationError("Invalid credentials.")
 
-        if not user.is_active:
-            print(f"DEBUG: User is inactive: {email}")
-            AuditService.log_event(
-                actor=user,
-                action="LOGIN_FAILED",
-                description=f"Failed login attempt (inactive account) for user: {email}",
-                ip_address=ip
-            )
-            raise ValidationError("User account is not active.")
+        if authenticated_user.failed_login_attempts:
+            authenticated_user.failed_login_attempts = 0
+        authenticated_user.last_login = timezone.now()
+        if request:
+            authenticated_user.last_login_ip = ip
+        authenticated_user.save(update_fields=["failed_login_attempts", "last_login", "last_login_ip"])
 
-        # Log success
-        print(f"DEBUG: Login success for user: {email}")
         AuditService.log_event(
-            actor=user,
+            actor=authenticated_user,
             action="LOGIN_SUCCESS",
             description=f"User {email} logged in successfully.",
             ip_address=ip
         )
 
-        # Update the last_login_ip field
-        if request:
-            user.last_login_ip = ip
-            user.save(update_fields=["last_login_ip"])
-
-        # Manually create the token
-        refresh = self.get_token(user)
-
-        # DPoP binding for access token
-        if request:
-            dpop_proof = request.headers.get("DPoP")
-            if dpop_proof:
-                try:
-                    header = jwt.get_unverified_header(dpop_proof)
-                    jwk = header.get("jwk")
-                    if jwk:
-                        # RFC 7638 thumbprint
-                        required_fields = {
-                            "crv": jwk.get("crv"),
-                            "kty": jwk.get("kty"),
-                            "x": jwk.get("x"),
-                            "y": jwk.get("y"),
-                        }
-                        json_jwk = json.dumps(required_fields, separators=(",", ":"), sort_keys=True)
-                        hash_digest = hashlib.sha256(json_jwk.encode("utf-8")).digest()
-                        jkt = base64.urlsafe_b64encode(hash_digest).decode("utf-8").replace("=", "")
-                        refresh["cnf"] = {"jkt": jkt}
-                        print(f"DEBUG: Bound token to JKT: {jkt}")
-                except Exception as e:
-                    print(f"DEBUG: Failed to bind token to DPoP: {str(e)}")
-                    pass
+        refresh = self.get_token(authenticated_user)
+        refresh["cnf"] = {"jkt": dpop_data["jkt"]}
 
         data = {}
         data["refresh"] = str(refresh)
@@ -153,6 +119,34 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     after validating user credentials and logging the event.
     """
     serializer_class = CustomTokenObtainPairSerializer
+    permission_classes = [AllowAny]
+    throttle_classes = [LoginRateThrottle]
+
+
+class CustomTokenRefreshSerializer(TokenRefreshSerializer):
+    def validate(self, attrs):
+        request = self.context.get("request")
+        if request is None:
+            raise ValidationError("Request context is required.")
+
+        refresh = RefreshToken(attrs["refresh"])
+        cnf = refresh.get("cnf") or {}
+        expected_jkt = cnf.get("jkt")
+        if not expected_jkt:
+            raise ValidationError("DPoP-bound refresh token is required.")
+
+        validate_dpop_proof(
+            request,
+            request.headers.get("DPoP"),
+            expected_jkt=expected_jkt,
+        )
+        return super().validate(attrs)
+
+
+class CustomTokenRefreshView(TokenRefreshView):
+    serializer_class = CustomTokenRefreshSerializer
+    permission_classes = [AllowAny]
+    throttle_classes = [TokenRefreshRateThrottle]
 
 from users.selectors import user_selectors, audit_selectors
 
@@ -198,6 +192,7 @@ class ApplyForAccessView(APIView):
     Public API view for new users to submit an application for access.
     """
     permission_classes = [AllowAny]
+    throttle_classes = [ApplyAccessRateThrottle]
 
     def post(self, request):
         serializer = ApplyAccessSerializer(data=request.data)
@@ -292,6 +287,8 @@ class ResetPasswordView(APIView):
                 ip_address=request.META.get("REMOTE_ADDR")
             )
             return Response({"message": f"Password for user reset successfully."})
+        except DjangoValidationError as e:
+            return Response({"error": e.messages}, status=status.HTTP_400_BAD_REQUEST)
         except ValueError as e:
             return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
 

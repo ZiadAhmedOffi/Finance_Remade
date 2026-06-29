@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { realEstateApi } from "../api/api";
+import { clearAuthTokens, getTokenPayload } from "../utils/auth";
 import RealEstateAssumptionsTab from "../components/RealEstateAssumptionsTab";
 import PropertyDataTab from "../components/PropertyDataTab";
 import FinancingModelTab from "../components/FinancingModelTab";
@@ -35,24 +36,11 @@ const RealEstatePortfolioDashboard: React.FC = () => {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split(".")[1]));
-        const roles = payload.roles || [];
-        
-        const isSuperAdmin = roles.some((r: any) => r.role === "SUPER_ADMIN");
-        setIsAdmin(isSuperAdmin);
-
-        const hasEditPrivilege = roles.some((r: any) => 
-          r.role === "SUPER_ADMIN" || 
-          (r.role === "PORTFOLIO_MANAGER" && r.portfolio_id === portfolioId)
-        );
-        setCanEdit(hasEditPrivilege);
-      } catch (e) {
-        console.error("Error decoding token", e);
-      }
-    }
+    const roles = getTokenPayload()?.roles || [];
+    setIsAdmin(roles.some((r) => r.role === "SUPER_ADMIN"));
+    setCanEdit(
+      roles.some((r) => r.role === "SUPER_ADMIN" || (r.role === "PORTFOLIO_MANAGER" && r.portfolio_id === portfolioId))
+    );
   }, [portfolioId]);
 
   const fetchPortfolioData = useCallback(async () => {
@@ -75,8 +63,7 @@ const RealEstatePortfolioDashboard: React.FC = () => {
   }, [fetchPortfolioData]);
 
   const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+    clearAuthTokens();
     navigate("/login");
   };
 

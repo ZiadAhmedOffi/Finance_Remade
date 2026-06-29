@@ -1,5 +1,6 @@
 import axios from "axios";
 import { createDPoPProof } from "../utils/dpopUtils";
+import { clearAuthTokens, getAccessToken } from "../utils/auth";
 
 // Priority: Environment Variable (Vercel/Production), then local default
 // Using a relative path if possible, or protocol-relative to avoid mixed content
@@ -18,7 +19,7 @@ const publicApi = axios.create({
 // Interceptor for private api...
 api.interceptors.request.use(
   async (config) => {
-    const token = localStorage.getItem("access_token");
+    const token = getAccessToken();
     if (token) {
       config.headers["Authorization"] = `DPoP ${token}`;
     }
@@ -26,7 +27,7 @@ api.interceptors.request.use(
     // Attach DPoP Proof
     try {
       const fullUrl = config.baseURL ? `${config.baseURL}${config.url}` : config.url || "";
-      const proof = await createDPoPProof(config.method || "GET", fullUrl);
+      const proof = await createDPoPProof(config.method || "GET", fullUrl, token || undefined);
       config.headers["DPoP"] = proof;
     } catch (e) {
       console.error("Failed to generate DPoP proof", e);
@@ -47,6 +48,9 @@ api.interceptors.response.use(
       if (status === 401 || status === 403) {
         // Only redirect if not already on login or error page
         if (!window.location.pathname.includes("/login") && !window.location.pathname.includes("/error")) {
+          if (status === 401) {
+            clearAuthTokens();
+          }
           window.location.href = `/error?code=${status}&message=${encodeURIComponent(error.response.data.error || "Access Denied")}`;
         }
       }

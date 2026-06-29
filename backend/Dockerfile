@@ -21,10 +21,10 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 # Copy project
 COPY . /app/
+RUN chmod +x /app/start.sh
 
 # Expose the port
 EXPOSE 8080
 
-# Command to run the application
-# We use the PORT environment variable which Koyeb/Render/etc will provide
-CMD gunicorn --bind 0.0.0.0:$PORT backend_app.wsgi:application
+# Run migrations before starting the application
+CMD ["/app/start.sh"]

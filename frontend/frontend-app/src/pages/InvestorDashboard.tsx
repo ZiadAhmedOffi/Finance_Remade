@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { fundsApi } from "../api/api";
+import { clearAuthTokens } from "../utils/auth";
 import "./FundDashboard.css"; // Reuse dashboard styles
 import InvestorOverviewTab from "../components/InvestorOverviewTab";
 import InvestorPortfolioTab from "../components/InvestorPortfolioTab";
@@ -31,8 +32,7 @@ const InvestorDashboard: React.FC = () => {
   }, [fetchData]);
 
   const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+    clearAuthTokens();
     navigate("/login");
   };
 

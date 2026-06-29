@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/api";
+import { clearAuthTokens } from "../utils/auth";
 import "./Profile.css";
 
 interface RoleAssignment {
@@ -49,8 +50,7 @@ const Profile: React.FC = () => {
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+    clearAuthTokens();
     navigate("/login");
   };
 

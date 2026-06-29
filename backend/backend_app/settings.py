@@ -14,6 +14,7 @@ from pathlib import Path
 from datetime import timedelta
 import os
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -29,12 +30,17 @@ if not os.getenv('RENDER'):
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-fallback-key-for-build-purposes-only')
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*').split(',')
+if not SECRET_KEY:
+    if os.getenv("RENDER") or os.getenv("VERCEL"):
+        raise ImproperlyConfigured("SECRET_KEY must be set in deployed environments.")
+    SECRET_KEY = "django-insecure-local-development-only"
+
+ALLOWED_HOSTS = [host.strip() for host in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver').split(',') if host.strip()]
 
 
 # Application definition
@@ -48,6 +54,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
+    'rest_framework_simplejwt.token_blacklist',
 
     'users',
     'funds',
@@ -62,6 +69,14 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
     ),
+    "DEFAULT_THROTTLE_CLASSES": (
+        "rest_framework.throttling.ScopedRateThrottle",
+    ),
+    "DEFAULT_THROTTLE_RATES": {
+        "login": "5/minute",
+        "token_refresh": "20/hour",
+        "apply_access": "3/hour",
+    },
 }
 
 SIMPLE_JWT = {
@@ -72,6 +87,8 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("DPoP",),
     "LEEWAY": 30,
 }
+
+DPOP_PROOF_MAX_AGE_SECONDS = int(os.getenv("DPOP_PROOF_MAX_AGE_SECONDS", "300"))
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
@@ -156,6 +173,8 @@ elif DATABASE_URL:
         'default': dj_database_url.config(default=DATABASE_URL, conn_max_age=600)
     }
 else:
+    if os.getenv("RENDER") or os.getenv("VERCEL"):
+        raise ImproperlyConfigured("Database configuration must be set in deployed environments.")
     print("No cloud database variables found. Falling back to local defaults...")
     DATABASES = {
         'default': {

@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.contrib.auth.password_validation import validate_password
 from users.models import User, Role, UserRoleAssignment
 from users.services.audit_service import AuditService
 from users.services.permission_service import PermissionService
@@ -75,6 +76,7 @@ class UserService:
         except User.DoesNotExist:
             raise ValueError("User not found")
 
+        validate_password(new_password, user=user)
         user.set_password(new_password)
         user.save()
 

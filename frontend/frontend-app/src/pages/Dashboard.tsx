@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, realEstateApi } from "../api/api";
+import { clearAuthTokens, getTokenPayload } from "../utils/auth";
 import "./Dashboard.css";
 import FundCard from "../components/FundCard";
 import RealEstateCard from "../components/RealEstateCard";
@@ -60,27 +61,9 @@ const Dashboard: React.FC = () => {
    * 2. Fetches both funds and real estate portfolios.
    */
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      try {
-        const payloadBase64 = token.split(".")[1];
-        const decodedJson = atob(payloadBase64);
-        const decoded = JSON.parse(decodedJson);
-        const roles = decoded.roles || [];
-        
-        const hasAdminPrivilege = roles.some((r: any) => 
-          r.role === "SUPER_ADMIN" || r.role === "ACCESS_MANAGER"
-        );
-        setIsAdmin(hasAdminPrivilege);
-
-        const hasInvestorRole = roles.some((r: any) => r.role === "INVESTOR");
-        setIsInvestor(hasInvestorRole);
-      } catch (e) {
-        console.error("Error decoding token", e);
-        setIsAdmin(false);
-        setIsInvestor(false);
-      }
-    }
+    const roles = getTokenPayload()?.roles || [];
+    setIsAdmin(roles.some((r) => r.role === "SUPER_ADMIN" || r.role === "ACCESS_MANAGER"));
+    setIsInvestor(roles.some((r) => r.role === "INVESTOR"));
 
     const fetchData = async () => {
       try {
@@ -104,8 +87,7 @@ const Dashboard: React.FC = () => {
    * Clears session and redirects to login.
    */
   const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+    clearAuthTokens();
     navigate("/login");
   };
 

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { api } from "../api/api";
+import { clearAuthTokens, setAuthTokens } from "../utils/auth";
 import { createDPoPProof } from "../utils/dpopUtils";
 
 const LoginPage: React.FC = () => {
@@ -10,8 +11,7 @@ const LoginPage: React.FC = () => {
   const [error, setError] = useState("");
 
   React.useEffect(() => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+    clearAuthTokens();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,8 +33,7 @@ const LoginPage: React.FC = () => {
       });
 
       const { access, refresh } = response.data;
-      localStorage.setItem("access_token", access);
-      localStorage.setItem("refresh_token", refresh);
+      setAuthTokens(access, refresh);
 
       navigate("/dashboard");
     } catch (err: any) {

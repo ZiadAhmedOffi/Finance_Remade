@@ -1,13 +1,13 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { api } from "../api/api";
+import { clearAuthTokens } from "../utils/auth";
 
 const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
 
   React.useEffect(() => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+    clearAuthTokens();
   }, []);
 
   const [formData, setFormData] = useState({

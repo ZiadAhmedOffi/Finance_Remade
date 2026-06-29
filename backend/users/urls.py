@@ -1,7 +1,7 @@
 from django.urls import path
-from rest_framework_simplejwt.views import TokenRefreshView
 from users.api.views import (
     CustomTokenObtainPairView,
+    CustomTokenRefreshView,
     ApplyForAccessView,
     CurrentUserView,
     PendingUsersView,
@@ -21,7 +21,7 @@ from users.api.views import (
 urlpatterns = [
     # --- Authentication ---
     path("token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("token/refresh/", CustomTokenRefreshView.as_view(), name="token_refresh"),
     path("apply/", ApplyForAccessView.as_view(), name="apply-for-access"),
 
     # --- User Management (Admin/Manager) ---

@@ -8,6 +8,15 @@ const KEY_ALGO = {
   namedCurve: "P-256",
 };
 
+const toBase64Url = (input: string | Uint8Array): string => {
+  const bytes = typeof input === "string" ? new TextEncoder().encode(input) : input;
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+};
+
 /**
  * Generates or retrieves a persistent DPoP key pair.
  * In a real application, this should be stored in IndexedDB.
@@ -37,7 +46,12 @@ export const exportJWK = async (key: CryptoKey): Promise<JsonWebKey> => {
 /**
  * Generates a DPoP proof (JWT).
  */
-export const createDPoPProof = async (method: string, url: string): Promise<string> => {
+const createAccessTokenHash = async (accessToken: string): Promise<string> => {
+  const digest = await window.crypto.subtle.digest("SHA-256", new TextEncoder().encode(accessToken));
+  return toBase64Url(new Uint8Array(digest));
+};
+
+export const createDPoPProof = async (method: string, url: string, accessToken?: string): Promise<string> => {
   const keyPair = await getDPoPKeyPair();
   const publicJwk = await exportJWK(keyPair.publicKey);
   
@@ -54,10 +68,11 @@ export const createDPoPProof = async (method: string, url: string): Promise<stri
     htm: method.toUpperCase(),
     htu: url.includes('://') ? url.split('?')[0] : `${window.location.origin}${url.split('?')[0]}`,
     iat: Math.floor(Date.now() / 1000),
+    ...(accessToken ? { ath: await createAccessTokenHash(accessToken) } : {}),
   };
   
-  const encodedHeader = btoa(JSON.stringify(header)).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
-  const encodedPayload = btoa(JSON.stringify(payload)).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+  const encodedHeader = toBase64Url(JSON.stringify(header));
+  const encodedPayload = toBase64Url(JSON.stringify(payload));
   
   const dataToSign = new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`);
   const signature = await window.crypto.subtle.sign(
@@ -66,10 +81,7 @@ export const createDPoPProof = async (method: string, url: string): Promise<stri
     dataToSign
   );
   
-  const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature)))
-    .replace(/=/g, "")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_");
+  const encodedSignature = toBase64Url(new Uint8Array(signature));
     
   return `${encodedHeader}.${encodedPayload}.${encodedSignature}`;
 };
@@ -92,9 +104,6 @@ export const getJWKThumbprint = async (jwk: JsonWebKey): Promise<string> => {
   // which is already sorted: c, k, x, y.
   const json = JSON.stringify(required);
   const hash = await window.crypto.subtle.digest("SHA-256", new TextEncoder().encode(json));
-  
-  return btoa(String.fromCharCode(...new Uint8Array(hash)))
-    .replace(/=/g, "")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_");
+
+  return toBase64Url(new Uint8Array(hash));
 };

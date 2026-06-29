@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { realEstateApi } from "../api/api";
+import { clearAuthTokens, getTokenPayload } from "../utils/auth";
 import RealEstateCard from "../components/RealEstateCard";
 import "./Dashboard.css"; // Reuse dashboard styles for consistency
 
@@ -43,19 +44,8 @@ const RealEstateDashboard: React.FC = () => {
   const [newRegion, setNewRegion] = useState("");
 
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split(".")[1]));
-        const roles = payload.roles || [];
-        const hasAdminPrivilege = roles.some((r: any) => 
-          r.role === "SUPER_ADMIN" || r.role === "ACCESS_MANAGER"
-        );
-        setIsAdmin(hasAdminPrivilege);
-      } catch (e) {
-        console.error("Error decoding token", e);
-      }
-    }
+    const roles = getTokenPayload()?.roles || [];
+    setIsAdmin(roles.some((r) => r.role === "SUPER_ADMIN" || r.role === "ACCESS_MANAGER"));
 
     fetchPortfolios();
   }, []);
@@ -92,8 +82,7 @@ const RealEstateDashboard: React.FC = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+    clearAuthTokens();
     navigate("/login");
   };
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/api";
+import { clearAuthTokens, getTokenPayload } from "../utils/auth";
 import "./FundDashboard.css";
 import ModelInputsTab from "../components/ModelInputsTab";
 import CurrentDealsTab from "../components/CurrentDealsTab";
@@ -111,21 +112,11 @@ const FundDashboard: React.FC = () => {
   const [isSCMember, setIsSCMember] = useState(false);
 
   const checkPermissions = useCallback((fundData: Fund) => {
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split(".")[1]));
-        const roles = payload.roles || [];
-        
-        const superAdmin = roles.some((r: any) => r.role === "SUPER_ADMIN");
-        const scMember = roles.some((r: any) => r.role === "STEERING_COMMITTEE" && r.fund === fundData.id);
-        
-        setIsSuperAdmin(superAdmin);
-        setIsSCMember(scMember);
-      } catch (e) {
-        console.error("Error decoding token", e);
-      }
-    }
+    const roles = getTokenPayload()?.roles || [];
+    const superAdmin = roles.some((r) => r.role === "SUPER_ADMIN");
+    const scMember = roles.some((r) => r.role === "STEERING_COMMITTEE" && r.fund_id === fundData.id);
+    setIsSuperAdmin(superAdmin);
+    setIsSCMember(scMember);
   }, []);
 
   const fetchFundData = useCallback(async () => {
@@ -230,8 +221,7 @@ const handleUpdateInfo = async (e: React.FormEvent) => {
 
 
   const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+    clearAuthTokens();
     navigate("/login");
   };
 

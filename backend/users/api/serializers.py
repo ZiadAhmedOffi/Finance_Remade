@@ -1,4 +1,5 @@
-from django.contrib.auth import authenticate
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 from users.models import User, Role, UserRoleAssignment, AuditLog
 
@@ -15,11 +16,11 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate(self, data):
-        email = data.get("email")
+        email = (data.get("email") or "").strip()
         password = data.get("password")
 
         try:
-            user = User.objects.get(email=email)
+            user = User.objects.get(email__iexact=email)
         except User.DoesNotExist:
             raise serializers.ValidationError("Invalid credentials.")
 
@@ -58,22 +59,32 @@ class ApplyAccessSerializer(serializers.ModelSerializer):
             "phone_number",
         ]
 
+    def validate_email(self, value):
+        normalized_email = value.strip().lower()
+        if User.objects.filter(email__iexact=normalized_email).exists():
+            raise serializers.ValidationError("An account with this email already exists.")
+        return normalized_email
+
+    def validate(self, attrs):
+        candidate_user = User(
+            email=attrs.get("email", ""),
+            first_name=attrs.get("first_name", ""),
+            last_name=attrs.get("last_name", ""),
+        )
+        try:
+            validate_password(attrs["password"], user=candidate_user)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"password": list(exc.messages)}) from exc
+        return attrs
+
     def create(self, validated_data):
         password = validated_data.pop("password")
-
-        user = User(
-            email=validated_data["email"],
-            first_name=validated_data["first_name"],
-            last_name=validated_data["last_name"],
-            company=validated_data.get("company", ""),
-            job_title=validated_data.get("job_title", ""),
-            phone_number=validated_data.get("phone_number", ""),
+        return User.objects.create_user(
+            password=password,
             status="PENDING",
             is_active=False,
+            **validated_data,
         )
-        user.set_password(password)
-        user.save()
-        return user
 
 
 # -----------------------------
