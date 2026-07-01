@@ -21,6 +21,7 @@ from funds.services.deal_service import DealService
 from funds.services.investor_service import InvestorService
 from funds.services.risk_assessment_service import RiskAssessmentService
 from funds.services.report_service import ReportService
+from compliance.services.gating_service import can_commit_capital, can_transfer_interest
 from funds.utils import calculators
 from funds.utils.liquidityUtils import calculateLiquidityIndex
 from users.services.permission_service import PermissionService
@@ -96,6 +97,8 @@ class InvestorActionListView(APIView):
                     ip_address=request.META.get("REMOTE_ADDR")
                 )
                 return Response(InvestorActionSerializer(action).data, status=status.HTTP_201_CREATED)
+            except PermissionError as e:
+                return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
             except ValueError as e:
                 return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -126,6 +129,8 @@ class InvestorActionDetailView(APIView):
                     ip_address=request.META.get("REMOTE_ADDR")
                 )
                 return Response(InvestorActionSerializer(action).data)
+            except PermissionError as e:
+                return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
             except ValueError as e:
                 return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -1133,10 +1138,13 @@ class DistributionAllocateView(APIView):
              return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
         
         from funds.services.distribution_service import DistributionService
-        actions = DistributionService.distribute_to_investors(
-            actor=request.user,
-            distribution=distribution
-        )
+        try:
+            actions = DistributionService.distribute_to_investors(
+                actor=request.user,
+                distribution=distribution
+            )
+        except PermissionError as e:
+            return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
         return Response({
             "message": f"Successfully allocated to {len(actions)} investors.",
             "investor_count": len(actions)
@@ -1420,6 +1428,22 @@ class InvestorRequestListView(APIView):
     def post(self, request):
         serializer = InvestorRequestSerializer(data=request.data)
         if serializer.is_valid():
+            request_type = serializer.validated_data["type"]
+            if request_type == "INVESTMENT":
+                decision = can_commit_capital(request.user)
+                if not decision.allowed:
+                    return Response(
+                        {"error": f"Compliance gate denied investor request: {decision.reason_code}"},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+            elif request_type == "LIQUIDATION":
+                decision = can_transfer_interest(request.user)
+                if not decision.allowed:
+                    return Response(
+                        {"error": f"Compliance gate denied investor request: {decision.reason_code}"},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+
             serializer.save(user=request.user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

@@ -1,4 +1,5 @@
 from django.db import transaction
+from compliance.services.gating_service import can_commit_capital, can_receive_distribution
 from funds.models import Distribution, FundLog, InvestorAction
 from users.services.audit_service import AuditService
 from funds.selectors import investor_selectors, fund_selectors
@@ -57,6 +58,15 @@ class DistributionService:
                 action_type = "EXIT_PAYOUT" if treatment == "CASH" else "EXIT_REINVESTMENT"
             else:
                 action_type = "DIVIDEND_PAYOUT" if treatment == "CASH" else "DIVIDEND_REINVESTMENT"
+
+            if action_type in ["DIVIDEND_PAYOUT", "EXIT_PAYOUT"]:
+                decision = can_receive_distribution(investor)
+            else:
+                decision = can_commit_capital(investor)
+            if not decision.allowed:
+                raise PermissionError(
+                    f"Compliance gate denied distribution allocation for {investor.email}: {decision.reason_code}"
+                )
             
             units_to_add = Decimal('0.0000')
             

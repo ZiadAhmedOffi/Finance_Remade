@@ -2,6 +2,8 @@ from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
+from compliance.models import ComplianceState
+from compliance.services.profile_service import ComplianceProfileService
 from funds.models import Fund, InvestorAction, CurrentInvestorStats, Distribution, ModelInput
 from users.models import User, Role, UserRoleAssignment
 from decimal import Decimal
@@ -9,6 +11,15 @@ from datetime import date
 import json
 
 class TestDividends(TestCase):
+    def _approve_investor(self, user):
+        profile = ComplianceProfileService.ensure_individual_profile_for_user(user, create_case=True)
+        profile.current_state = ComplianceState.APPROVED
+        profile.operability_blocked = False
+        profile.save(update_fields=["current_state", "operability_blocked", "updated_at"])
+        case = profile.cases.order_by("-opened_at").first()
+        case.state = ComplianceState.APPROVED
+        case.save(update_fields=["state"])
+
     def setUp(self):
         self.superuser = User.objects.create_superuser(email="admin@example.com", password="password")
         self.superuser.is_active = True
@@ -29,6 +40,7 @@ class TestDividends(TestCase):
             u.is_active = True
             u.save()
             UserRoleAssignment.objects.create(user=u, role=self.investor_role, fund=self.fund)
+            self._approve_investor(u)
             
             # Primary Investment
             InvestorAction.objects.create(

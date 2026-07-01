@@ -1,4 +1,5 @@
 from django.db import transaction
+from compliance.services.gating_service import can_commit_capital, can_transfer_interest
 from ..models import RealEstateInvestorAction, RealEstatePortfolio, RealEstateInvestorStats
 from ..selectors.portfolio_selectors import PortfolioSelectors
 from ..selectors.investor_selectors import RealEstateInvestorSelector
@@ -11,6 +12,21 @@ class RealEstateInvestorService:
     """
 
     @staticmethod
+    def _ensure_action_allowed(action_type, investor, buyer=None):
+        if action_type in ["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT"]:
+            decision = can_commit_capital(investor)
+            if not decision.allowed:
+                raise PermissionError(f"Compliance gate denied real estate investor action: {decision.reason_code}")
+        elif action_type == "SECONDARY_EXIT":
+            seller_decision = can_transfer_interest(investor)
+            if not seller_decision.allowed:
+                raise PermissionError(f"Compliance gate denied real estate transfer action: {seller_decision.reason_code}")
+            if buyer is not None:
+                buyer_decision = can_commit_capital(buyer)
+                if not buyer_decision.allowed:
+                    raise PermissionError(f"Compliance gate denied real estate buyer action: {buyer_decision.reason_code}")
+
+    @staticmethod
     @transaction.atomic
     def create_investor_action(actor, data):
         portfolio = data["portfolio"]
@@ -18,6 +34,9 @@ class RealEstateInvestorService:
         year = int(data["year"])
         amount = Decimal(str(data.get("amount", 0.0) or 0.0))
         investor = data["investor"]
+        buyer = data.get("investor_sold_to")
+
+        RealEstateInvestorService._ensure_action_allowed(action_type, investor, buyer=buyer)
 
         if action_type == "PRIMARY_INVESTMENT":
             # Use price per unit from the end of the previous year
@@ -84,6 +103,11 @@ class RealEstateInvestorService:
     @staticmethod
     @transaction.atomic
     def update_investor_action(action, data):
+        target_investor = data.get("investor", action.investor)
+        target_buyer = data.get("investor_sold_to", action.investor_sold_to)
+        target_type = data.get("type", action.type)
+        RealEstateInvestorService._ensure_action_allowed(target_type, target_investor, buyer=target_buyer)
+
         for attr, value in data.items():
             setattr(action, attr, value)
         action.save()

@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     'users',
     'funds',
     'real_estate',
+    'compliance',
 ]
 
 REST_FRAMEWORK = {
@@ -89,6 +90,9 @@ SIMPLE_JWT = {
 }
 
 DPOP_PROOF_MAX_AGE_SECONDS = int(os.getenv("DPOP_PROOF_MAX_AGE_SECONDS", "300"))
+COMPLIANCE_JOB_MODE = os.getenv("COMPLIANCE_JOB_MODE", "INLINE")
+COMPLIANCE_PRIMARY_VENDOR = os.getenv("COMPLIANCE_PRIMARY_VENDOR", "PRIMARY")
+COMPLIANCE_PRIMARY_VENDOR_WEBHOOK_SECRET = os.getenv("COMPLIANCE_PRIMARY_VENDOR_WEBHOOK_SECRET", "")
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',

@@ -18,6 +18,8 @@ import NotFound from "./pages/NotFound";
 import ErrorPage from "./pages/ErrorPage";
 import PublicReportPage from "./pages/PublicReportPage";
 import RealEstatePublicReportPage from "./pages/RealEstatePublicReportPage";
+import CompliancePortal from "./pages/CompliancePortal";
+import ComplianceAdmin from "./pages/ComplianceAdmin";
 
 /**
  * Main App component. Handles routing and global user activity tracking
@@ -155,10 +157,12 @@ function App() {
       <Route element={<PrivateRoute />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/compliance" element={<CompliancePortal />} />
         
         {/* Admin routes protected by AdminRoute */}
         <Route element={<AdminRoute />}>
           <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/compliance" element={<ComplianceAdmin />} />
         </Route>
 
         <Route path="/investor-dashboard" element={<InvestorDashboard />} />

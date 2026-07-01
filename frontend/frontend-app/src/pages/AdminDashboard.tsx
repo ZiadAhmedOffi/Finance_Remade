@@ -402,6 +402,7 @@ const AdminDashboard: React.FC = () => {
         <div className="header-top">
           <h1>Admin Dashboard</h1>
           <div className="header-actions">
+            <button className="btn btn-primary" onClick={() => navigate("/admin/compliance")}>Compliance Console</button>
             <button className="btn btn-primary" onClick={() => navigate("/dashboard")}>Back to My Dashboard</button>
             <button className="btn btn-logout" onClick={handleLogout}>Exit</button>
           </div>

@@ -101,6 +101,7 @@ const Dashboard: React.FC = () => {
         <div className="header-brand">Investment Intelligence Tool</div>
         <div className="header-nav">
           <Link to="/profile" className="nav-link">My Profile</Link>
+          <Link to="/compliance" className="nav-link">Compliance</Link>
           {isInvestor && <Link to="/investor-dashboard" className="nav-link">Investor Dashboard</Link>}
           {isAdmin && <Link to="/admin" className="nav-link">Admin Console</Link>}
           <button className="btn-logout" onClick={handleLogout}>Logout</button>

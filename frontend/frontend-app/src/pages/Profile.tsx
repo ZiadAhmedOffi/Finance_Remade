@@ -79,6 +79,9 @@ const Profile: React.FC = () => {
           <button className="back-btn" onClick={() => navigate("/dashboard")}>
             &larr; Back to Dashboard
           </button>
+          <button className="back-btn" onClick={() => navigate("/compliance")}>
+            Compliance Portal
+          </button>
         </div>
         <div className="nav-brand">Investment Intelligence Tool</div>
         <div className="nav-right">

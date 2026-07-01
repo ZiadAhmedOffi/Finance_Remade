@@ -1,6 +1,7 @@
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
+from compliance.services.profile_service import ComplianceProfileService
 from users.models import User, Role, UserRoleAssignment, AuditLog
 
 
@@ -79,12 +80,14 @@ class ApplyAccessSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         password = validated_data.pop("password")
-        return User.objects.create_user(
+        user = User.objects.create_user(
             password=password,
             status="PENDING",
             is_active=False,
             **validated_data,
         )
+        ComplianceProfileService.ensure_individual_profile_for_user(user, create_case=True)
+        return user
 
 
 # -----------------------------

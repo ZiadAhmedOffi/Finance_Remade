@@ -720,6 +720,8 @@ class RealEstatePortfolioViewSet(viewsets.ModelViewSet):
                         data={**serializer.validated_data, "portfolio": portfolio}
                     )
                     return Response(RealEstateInvestorActionSerializer(action_obj).data, status=status.HTTP_201_CREATED)
+                except PermissionError as e:
+                    return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
                 except ValueError as e:
                     return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

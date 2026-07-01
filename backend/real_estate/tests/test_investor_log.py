@@ -3,6 +3,8 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
+from compliance.models import ComplianceState
+from compliance.services.profile_service import ComplianceProfileService
 from ..models import RealEstatePortfolio, RealEstateAssumptions, Property, RealEstateInvestorAction, RealEstateInvestorStats
 from users.models import Role, UserRoleAssignment
 from decimal import Decimal
@@ -11,6 +13,15 @@ import datetime
 User = get_user_model()
 
 class InvestorLogAPITests(TestCase):
+    def _approve_investor(self, user):
+        profile = ComplianceProfileService.ensure_individual_profile_for_user(user, create_case=True)
+        profile.current_state = ComplianceState.APPROVED
+        profile.operability_blocked = False
+        profile.save(update_fields=["current_state", "operability_blocked", "updated_at"])
+        case = profile.cases.order_by("-opened_at").first()
+        case.state = ComplianceState.APPROVED
+        case.save(update_fields=["state"])
+
     def test_investor_log_with_usufruct(self):
         """Verify that usufruct properties don't crash the investor log due to null purchase_price."""
         from ..models import UsufructDetails
@@ -76,6 +87,8 @@ class InvestorLogAPITests(TestCase):
         )
         
         UserRoleAssignment.objects.create(user=self.investor_user, role=self.investor_role, real_estate_portfolio=self.portfolio)
+        self._approve_investor(self.investor_user)
+        self._approve_investor(self.admin_user)
 
     def test_primary_investment_units_and_stats(self):
         self.client.force_authenticate(user=self.admin_user)

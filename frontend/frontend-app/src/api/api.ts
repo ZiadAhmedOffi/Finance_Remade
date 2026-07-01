@@ -269,4 +269,33 @@ export const realEstateApi = {
   getPublicReport: (slug: string) => publicApi.get(`/real-estate/reports/public/${slug}/`),
 };
 
+export const complianceApi = {
+  getMyProfile: () => api.get("/compliance/me/"),
+  getMyCases: () => api.get("/compliance/my-cases/"),
+  getMyCaseDetail: (caseId: string) => api.get(`/compliance/cases/${caseId}/`),
+  submitMyCase: (caseId: string) => api.post(`/compliance/cases/${caseId}/submit/`),
+  getMyCaseEvidence: (caseId: string) => api.get(`/compliance/cases/${caseId}/evidence/`),
+  addMyCaseEvidence: (caseId: string, data: any) => api.post(`/compliance/cases/${caseId}/evidence/`, data),
+
+  createEntityProfile: (data: any) => api.post("/compliance/entities/", data),
+  addEntityRelationship: (profileId: string, data: any) => api.post(`/compliance/entities/${profileId}/relationships/`, data),
+
+  getAdminProfiles: (params?: Record<string, any>) => api.get("/compliance/admin/profiles/", { params }),
+  getAdminCases: (params?: Record<string, any>) => api.get("/compliance/admin/cases/", { params }),
+  getAdminCaseDetail: (caseId: string) => api.get(`/compliance/admin/cases/${caseId}/`),
+  assignAdminCaseTask: (caseId: string, data: any) => api.post(`/compliance/admin/cases/${caseId}/assign-task/`, data),
+  requestAdminCaseInformation: (caseId: string, data: any) => api.post(`/compliance/admin/cases/${caseId}/request-information/`, data),
+  approveAdminCase: (caseId: string, data: any) => api.post(`/compliance/admin/cases/${caseId}/approve/`, data),
+  rejectAdminCase: (caseId: string, data: any) => api.post(`/compliance/admin/cases/${caseId}/reject/`, data),
+  restrictAdminCase: (caseId: string, data: any) => api.post(`/compliance/admin/cases/${caseId}/restrict/`, data),
+  submitAdminCaseToVendor: (caseId: string) => api.post(`/compliance/admin/cases/${caseId}/submit-to-vendor/`),
+  getAdminCaseEvidence: (caseId: string) => api.get(`/compliance/admin/cases/${caseId}/evidence/`),
+  addAdminCaseEvidence: (caseId: string, data: any) => api.post(`/compliance/admin/cases/${caseId}/evidence/`, data),
+  addAdminCaseRiskAssessment: (caseId: string, data: any) => api.post(`/compliance/admin/cases/${caseId}/risk-assessments/`, data),
+  getAdminReviewTasks: (params?: Record<string, any>) => api.get("/compliance/admin/review-tasks/", { params }),
+  syncAdminVendorCase: (vendorCaseId: string, data: any) => api.post(`/compliance/admin/vendor-cases/${vendorCaseId}/sync/`, data),
+  liftRestriction: (restrictionId: string, data: any) => api.post(`/compliance/admin/restrictions/${restrictionId}/lift/`, data),
+  rescreenProfile: (profileId: string, data: any) => api.post(`/compliance/admin/profiles/${profileId}/rescreen/`, data),
+};
+
 export { api, publicApi };

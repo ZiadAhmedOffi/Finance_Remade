@@ -1,4 +1,10 @@
 from django.db import transaction
+from datetime import date
+from compliance.services.gating_service import (
+    can_commit_capital,
+    can_receive_distribution,
+    can_transfer_interest,
+)
 from funds.models import InvestorAction, Fund, CurrentInvestorStats, FundLog
 from funds.selectors import fund_selectors
 from funds.interfaces.user_interface import UserInterface
@@ -9,6 +15,26 @@ class InvestorService:
     def __init__(self, user_interface: UserInterface):
         self.user_interface = user_interface
 
+    def _ensure_action_allowed(self, action_type, investor, buyer=None):
+        if action_type in ["PRIMARY_INVESTMENT", "SECONDARY_INVESTMENT", "DIVIDEND_REINVESTMENT", "EXIT_REINVESTMENT"]:
+            decision = can_commit_capital(investor)
+            if not decision.allowed:
+                raise PermissionError(f"Compliance gate denied investor action: {decision.reason_code}")
+
+        elif action_type in ["DIVIDEND_PAYOUT", "EXIT_PAYOUT"]:
+            decision = can_receive_distribution(investor)
+            if not decision.allowed:
+                raise PermissionError(f"Compliance gate denied investor action: {decision.reason_code}")
+
+        elif action_type == "SECONDARY_EXIT":
+            seller_decision = can_transfer_interest(investor)
+            if not seller_decision.allowed:
+                raise PermissionError(f"Compliance gate denied transfer action: {seller_decision.reason_code}")
+            if buyer is not None:
+                buyer_decision = can_commit_capital(buyer)
+                if not buyer_decision.allowed:
+                    raise PermissionError(f"Compliance gate denied buyer action: {buyer_decision.reason_code}")
+
     @transaction.atomic
     def create_investor_action(self, actor, validated_data, ip_address):
         fund = validated_data["fund"]
@@ -16,6 +42,9 @@ class InvestorService:
         year = validated_data["year"]
         amount = float(validated_data.get("amount", 0.0) or 0.0)
         investor = validated_data["investor"]
+        buyer = validated_data.get("investor_sold_to")
+
+        self._ensure_action_allowed(action_type, investor, buyer=buyer)
 
         if action_type == "PRIMARY_INVESTMENT":
             is_first = not InvestorAction.objects.filter(fund=fund, type="PRIMARY_INVESTMENT").exists()
@@ -95,6 +124,11 @@ class InvestorService:
         action = investor_selectors.get_investor_action_by_id(action_id)
         if not action:
             raise ValueError("Investor action not found")
+
+        target_investor = data.get("investor", action.investor)
+        target_buyer = data.get("investor_sold_to", action.investor_sold_to)
+        target_type = data.get("type", action.type)
+        self._ensure_action_allowed(target_type, target_investor, buyer=target_buyer)
         
         # NOTE: Updating an action might require complex unit recalculations if type/amount/units changed.
         # For now, following the simple update in views.py

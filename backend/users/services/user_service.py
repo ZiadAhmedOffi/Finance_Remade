@@ -1,5 +1,7 @@
 from django.db import transaction
 from django.contrib.auth.password_validation import validate_password
+from compliance.services.profile_service import ComplianceProfileService
+from compliance.services.gating_service import can_assign_investor_role
 from users.models import User, Role, UserRoleAssignment
 from users.services.audit_service import AuditService
 from users.services.permission_service import PermissionService
@@ -125,6 +127,13 @@ class UserService:
         if role.name == "PORTFOLIO_MANAGER" and not portfolio_id:
             raise ValueError("PORTFOLIO_MANAGER role requires a portfolio.")
 
+        compliance_decision = None
+        provisional_only = False
+        if role.name == "INVESTOR":
+            ComplianceProfileService.ensure_individual_profile_for_user(target_user, create_case=True)
+            compliance_decision = can_assign_investor_role(target_user)
+            provisional_only = not compliance_decision.allowed
+
         assignment, created = UserRoleAssignment.objects.get_or_create(
             user=target_user,
             role=role,
@@ -136,7 +145,7 @@ class UserService:
         if not created:
             return assignment, False
 
-        if not target_user.is_active or target_user.status != "ACTIVE":
+        if not provisional_only and (not target_user.is_active or target_user.status != "ACTIVE"):
             target_user.is_active = True
             target_user.status = "ACTIVE"
             target_user.save(update_fields=["is_active", "status"])
@@ -150,7 +159,12 @@ class UserService:
                 actor=actor,
                 target_fund=fund,
                 action=action_map.get(role.name, "ROLE_ASSIGNED"),
-                metadata={"user_email": target_user.email, "role": role.name}
+                metadata={
+                    "user_email": target_user.email,
+                    "role": role.name,
+                    "provisional_only": provisional_only,
+                    "compliance_reason": compliance_decision.reason_code if compliance_decision else None,
+                }
             )
 
         AuditService.log(
@@ -160,6 +174,8 @@ class UserService:
             fund=fund,
             metadata={
                 "role": role.name,
+                "provisional_only": provisional_only,
+                "compliance_reason": compliance_decision.reason_code if compliance_decision else None,
                 "portfolio_id": str(portfolio.id) if portfolio else None,
                 "portfolio_name": portfolio.name if portfolio else None
             },
